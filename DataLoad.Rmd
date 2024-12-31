@@ -1,0 +1,171 @@
+---
+title: "Data load"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+bibliography: Cost2Care.bib
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+library(tidyverse)
+library(lubridate)
+library(tibble)
+
+library(randomForest)
+library(ranger)
+library(rsample)
+library(rpart)
+library(tidymodels)
+library(ggplot2)
+library(dendextend)
+library(ggdendro)
+library(plotROC)
+library(knitr)
+#library(kable)
+library(kableExtra)
+library(vip)
+library(gridGraphics)
+library(forcats)
+
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
+                      warning = NA, message = NA,
+                      fig.pos = 'H',
+                      cache.extra = knitr::rand_seed)
+
+N = 16
+
+options(Ncpus = N)
+options(ranger.num.threads = N)
+
+set.seed(979)
+rm(N)
+```
+
+
+# Load main data file
+
+```{r Load main data file, results = 'hide'}
+DATA <- read.csv("data/H240272_2022.csv")
+
+DATA <- DATA %>%
+    mutate(Date_of_admission = paste0('01',mon_adm)) %>%
+    mutate(Date_of_admission = dmy(Date_of_admission))
+
+#str(DATA, list.len = 200)
+# some relevant figures
+PEOPLE <- nrow(DATA)
+HOSPITALS <- length(unique(DATA$hosp_anon))
+#some relevant CODES
+
+```
+
+
+There are a total of `r PEOPLE` admissions in these records, from `r HOSPITALS` different hospitals.
+```{r Tidy1}
+rm(PEOPLE, HOSPITALS)
+```
+Although some of the admissions were a very long time before discharge, most occurred during late 2021 and  2022, as Figure 1 shows.
+
+```{r Admission dates by time, fig.cap= 'Admission dates by month and year for discharges included in the analysis.', fig.dpi=600, fig.height=4, fig.width=6}
+Admissions <- DATA %>%
+    group_by(Date_of_admission) %>%
+    summarise(N = n())
+
+ggplot(data=Admissions,
+       aes(x=Date_of_admission, y= N)) +
+           geom_point(colour = 'red',
+                      size = 3) +
+    scale_x_date(date_breaks = '6 months',
+                 date_labels = '%b_%y') +
+           labs( title = 'Admissions per month in data set',
+                 subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
+                 x = 'Date of admission',
+                 y = 'Count') +
+    theme_minimal(base_size = 12)
+       
+rm(Admissions)
+```
+
+Lengths of stay varied greatly also, as Figure 2 shows. Model of hospital was one important source of variation, but between hospitals there is also evidence of considerable variation. In part, this is to be expected, given the differing roles of Model 4, Model 3, and Model 2 hospitals.
+
+```{r Length of stay by hospital and hospital type, fig.cap= 'Admission dates by month and year for discharges included in the analysis.', fig.dpi=1200, fig.height=5, fig.width=7}
+
+Data <- DATA %>%
+    # Now we reorder the group
+    mutate(MODELX = as_factor(model)) %>%
+    mutate(MODEL = fct_relevel(
+        MODELX,
+        c("Model 4", "Model 3", "Model 2", "Specialist", "Maternity" ),
+        after = Inf)) %>%
+    select (-MODELX) %>%
+    # now we identify the group
+    mutate(ModelCode = case_match(model,
+        'Model 4' ~ '4',
+        'Model 3' ~ '3',
+        'Model 2' ~ '2',
+        'Specialist' ~ 'S',
+        'Maternity' ~ 'M'
+    ))
+
+#Make short per hospital codes
+CODES <- Data %>%
+    select(ModelCode, hosp_anon) %>%
+    group_by(ModelCode) %>% 
+    arrange(ModelCode, hosp_anon) %>%
+    distinct() %>%
+    mutate(HospNo = row_number()) %>%
+    mutate(HospCode = paste0(ModelCode, '.', HospNo)) %>%
+    mutate(HospCode = fct_inorder(HospCode))
+
+# Merge the short codes back into the main dataset
+
+Data <- Data %>%
+    left_join(CODES, by = join_by(hosp_anon, ModelCode))
+
+
+ggplot(data=Data,
+       aes(x=HospCode, y = Rawlos, colour = MODEL)) +
+           geom_boxplot(outliers = FALSE, varwidth = TRUE) +
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+    facet_wrap(~MODEL, scales = 'free') +
+           labs( title = 'Length of stay in days by hospital model and site\n (outliers excluded)',
+                 subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
+                 x = 'Hospital code',
+                 y = 'Count') +
+    theme_minimal(base_size = 12)
+
+rm(CODES)
+```
+
+A table showing the median, and a range of quantiles for the length of stay is also helpful. This is presented in the same order as the items in Figure 2.
+
+```{r LOS Table}
+# Might make this into a  table at some point
+LOS <- Data %>%
+    group_by(MODEL, HospCode) %>%
+    summarise(Mean = round(mean(Rawlos, na.rm = TRUE),2),
+              Median = median(Rawlos, na.rm = TRUE),
+              Q00 = min(Rawlos, na.rm = TRUE),
+              Q10 = quantile(Rawlos, probs = 0.1),
+              Q25 = quantile(Rawlos, probs = 0.25),
+              Q50 = quantile(Rawlos, probs = 0.5),
+              Q75 = quantile(Rawlos, probs = 0.75),
+              Q90 = quantile(Rawlos, probs = 0.90)) %>%
+    ungroup() %>%
+    select(-MODEL)
+
+kbl(LOS,  booktabs = TRUE, longtable = TRUE,
+    caption = "Length of Stay by Hospital Type and Site.")
+
+rm(LOS)
+```
+
+Again there is substantial variation between and within hospital types.
