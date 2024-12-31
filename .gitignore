@@ -40,6 +40,6 @@ rsconnect/
 Cost2Care.Rproj
 *.html
 *.pdf
-Rplot.png
-data
-Images
+DataLoad_files/
+data/
+Images/
