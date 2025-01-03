@@ -17,6 +17,7 @@ rm(list=ls())
 library(tidyverse)
 library(lubridate)
 library(tibble)
+library(comorbidity)
 
 library(randomForest)
 library(ranger)
@@ -53,25 +54,29 @@ rm(N)
 # Load main data file
 
 ```{r Load main data file, results = 'hide'}
-DATA <- read.csv("data/H240272_2022.csv")
+DATA <- as_tibble(read.csv("data/H240272_2022.csv"))
 
 DATA <- DATA %>%
-    mutate(Date_of_admission = paste0('01',mon_adm)) %>%
-    mutate(Date_of_admission = dmy(Date_of_admission))
+  mutate(rowid_to_column(., var = "ID")) %>% # Numeric ID
+  mutate(ID = paste0("ID.",ID, sep = '')) %>% # Character ID
+  select(ID, hosp_anon:proc_desc20) %>% # Reorder variables ID first
+  mutate(Date_of_admission = paste0('01',mon_adm)) %>% # Process dates in MY format correctly, set day to 1st of each month
+  mutate(Date_of_admission = dmy(Date_of_admission))
 
 #str(DATA, list.len = 200)
 # some relevant figures
-PEOPLE <- nrow(DATA)
-HOSPITALS <- length(unique(DATA$hosp_anon))
-#some relevant CODES
+  PEOPLE <- nrow(DATA)
+  HOSPITALS <- length(unique(DATA$hosp_anon))
 
 ```
 
 
 There are a total of `r PEOPLE` admissions in these records, from `r HOSPITALS` different hospitals.
+
 ```{r Tidy1}
 rm(PEOPLE, HOSPITALS)
 ```
+
 Although some of the admissions were a very long time before discharge, most occurred during late 2021 and  2022, as Figure 1 shows.
 
 ```{r Admission dates by time, fig.cap= 'Admission dates by month and year for discharges included in the analysis.', fig.dpi=600, fig.height=4, fig.width=6}
@@ -93,6 +98,8 @@ ggplot(data=Admissions,
        
 rm(Admissions)
 ```
+
+## Length of stay
 
 Lengths of stay varied greatly also, as Figure 2 shows. Model of hospital was one important source of variation, but between hospitals there is also evidence of considerable variation. In part, this is to be expected, given the differing roles of Model 4, Model 3, and Model 2 hospitals.
 
@@ -140,6 +147,8 @@ ggplot(data=Data,
                  subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
                  x = 'Hospital code',
                  y = 'Count') +
+  guides(colour = guide_legend("Hospital\nModel"),
+         fill = guide_legend("Hospital\nModel")) +
     theme_minimal(base_size = 12)
 
 rm(CODES)
@@ -168,4 +177,48 @@ kbl(LOS,  booktabs = TRUE, longtable = TRUE,
 rm(LOS)
 ```
 
-Again there is substantial variation between and within hospital types.
+Again there is substantial variation between and within hospital types. The very limited range of Charlson scores encountered, is contrasted with the much wider range of the Elixhauser scores.
+
+# Comorbidity scores
+
+It can be useful to develop comorbidity scores, and the most popular of these are the Elixhauser and Charlson scores. These are calculated using the comorbidity package of Gasparini (2018), in turn based on Quan H et al. Coding algorithms for defining comorbidities in ICD-9-CM and ICD-10 administrative data. Medical Care 2005; 43(11):1130-1139. DOI: 10.1097/01.mlr.0000182534.19832.83 and van Walraven C, Austin PC, Jennings A, Quan H and Forster AJ. A modification of the Elixhauser comorbidity measures into a point system for hospital death using administrative data. Medical Care 2009; 47(6):626-633. DOI: 10.1097/MLR.0b013e31819432e5
+
+```{r Scoring}
+#Data %>% unite("ICD_combined", dx01:dx30, sep=', ', na.rm=TRUE)
+Data <- Data %>%
+  unite("ICD_combined", dx01:dx30, sep=' ',
+        remove = FALSE, na.rm=TRUE)
+charlson <- comorbidity(x = Data, id = "ID", code = "ICD_combined", map = "charlson_icd10_am", assign0 = FALSE)
+    charlson <- charlson %>% 
+      mutate(score = score(charlson, weights='quan', assign0 = TRUE))
+        names(charlson)[-1] <- paste0(names(charlson)[-1], '.Ch', sep='')
+
+elixhauser <- comorbidity(x = Data, id = "ID", code = "ICD_combined", map = "elixhauser_icd10_quan", assign0 = FALSE)
+    elixhauser <- elixhauser %>% 
+      mutate(score = score(elixhauser, weights='swiss', assign0 = TRUE))
+        names(elixhauser)[-1] <- paste0(names(elixhauser)[-1], '.El', sep='')
+        
+    
+Data <- Data %>%
+  left_join(charlson, by = join_by(ID), suffix = c("", ".ch")) %>%
+  left_join(elixhauser, by = join_by(ID),suffix = c("", ".el"))
+
+rm(charlson, elixhauser)
+```
+
+Figure 3 shows the joint and separate distributions of these scores amongst the discharges.
+
+```{r Plot of E & C scores, fig.cap= 'Plot of Elixhauser and Charlson weighted scores for the discharges included in the analysis.', fig.dpi=1200, fig.height=5, fig.width=7}
+ggplot(data=Data,
+       aes(x = score.Ch, y = score.El,
+           fill = ModelCode, colour = ModelCode)) +
+  geom_tile() +
+  facet_wrap(~ModelCode) +
+           labs( title = 'Plot of Elixhauser and Charlson weighted scores',
+                 subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
+                 x = 'Charlson Score',
+                 y = 'Elixhauser Score') +
+  guides(colour = guide_legend("Hospital\nModel"),
+         fill = guide_legend("Hospital\nModel")) +
+    theme_minimal(base_size = 12)
+```
