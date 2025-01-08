@@ -8,7 +8,8 @@ output:
   html_document: default
 editor_options:
   chunk_output_type: console
-bibliography: Cost2Care.bib
+bibliography: references.bib
+csl: vancouver.csl
 ---
 
 ```{r setup, include=FALSE}
@@ -18,6 +19,8 @@ library(tidyverse)
 library(lubridate)
 library(tibble)
 library(comorbidity)
+library(tidymodels)
+
 
 library(randomForest)
 library(ranger)
@@ -35,6 +38,7 @@ library(vip)
 library(gridGraphics)
 library(forcats)
 
+tidymodels_prefer(quiet = TRUE)
 
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
                       warning = NA, message = NA,
@@ -53,6 +57,10 @@ rm(N)
 
 # Load main data file
 
+First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 for training [@ashley_etal15].
+
+and [@aalbers_christophers14] njmnm
+
 ```{r Load main data file, results = 'hide'}
 DATA <- as_tibble(read.csv("data/H240272_2022.csv"))
 
@@ -62,6 +70,18 @@ DATA <- DATA %>%
   select(ID, hosp_anon:proc_desc20) %>% # Reorder variables ID first
   mutate(Date_of_admission = paste0('01',mon_adm)) %>% # Process dates in MY format correctly, set day to 1st of each month
   mutate(Date_of_admission = dmy(Date_of_admission))
+
+
+#Then we split
+DATA_split <- initial_split(DATA, prop = 4/5, strata = hosp_anon)
+
+# Add a training variable to Attrition
+
+DATA <- DATA %>%
+  mutate(Training = FALSE)
+
+# Add a variable to indicate training set or test set.
+ DATA$Training[DATA_split$in_id] <- TRUE
 
 #str(DATA, list.len = 200)
 # some relevant figures
@@ -222,3 +242,10 @@ ggplot(data=Data,
          fill = guide_legend("Hospital\nModel")) +
     theme_minimal(base_size = 12)
 ```
+
+# Impact of scores
+
+
+# Bibliography
+
+
