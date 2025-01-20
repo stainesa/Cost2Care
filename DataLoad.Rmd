@@ -20,23 +20,7 @@ library(lubridate)
 library(tibble)
 library(comorbidity)
 library(tidymodels)
-
-
-library(randomForest)
-library(ranger)
-library(rsample)
-library(rpart)
-library(tidymodels)
-library(ggplot2)
-library(dendextend)
-library(ggdendro)
-library(plotROC)
-library(knitr)
-#library(kable)
-library(kableExtra)
-library(vip)
-library(gridGraphics)
-library(forcats)
+library(lme4)
 
 tidymodels_prefer(quiet = TRUE)
 
@@ -54,42 +38,37 @@ set.seed(979)
 rm(N)
 ```
 
-
 # Load main data file
 
-First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 for training [@ashley_etal15].
-
-and [@aalbers_christophers14] njmnm
+First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 for training.
 
 ```{r Load main data file, results = 'hide'}
-DATA <- as_tibble(read.csv("data/H240272_2022.csv"))
+Cost2Care <- as_tibble(read.csv("data/H240272_2022.csv"))
 
-DATA <- DATA %>%
+Cost2Care <- Cost2Care %>%
   mutate(rowid_to_column(., var = "ID")) %>% # Numeric ID
   mutate(ID = paste0("ID.",ID, sep = '')) %>% # Character ID
   select(ID, hosp_anon:proc_desc20) %>% # Reorder variables ID first
   mutate(Date_of_admission = paste0('01',mon_adm)) %>% # Process dates in MY format correctly, set day to 1st of each month
   mutate(Date_of_admission = dmy(Date_of_admission))
-
-
+ 
 #Then we split
-DATA_split <- initial_split(DATA, prop = 4/5, strata = hosp_anon)
+Cost2Care_split <- initial_split(Cost2Care, prop = 4/5, strata = hosp_anon)
 
 # Add a training variable to Attrition
 
-DATA <- DATA %>%
+Cost2Care <- Cost2Care %>%
   mutate(Training = FALSE)
 
 # Add a variable to indicate training set or test set.
- DATA$Training[DATA_split$in_id] <- TRUE
+ Cost2Care$Training[Cost2Care_split$in_id] <- TRUE
 
 #str(DATA, list.len = 200)
 # some relevant figures
-  PEOPLE <- nrow(DATA)
-  HOSPITALS <- length(unique(DATA$hosp_anon))
+  PEOPLE <- nrow(Cost2Care)
+  HOSPITALS <- length(unique(Cost2Care$hosp_anon))
 
 ```
-
 
 There are a total of `r PEOPLE` admissions in these records, from `r HOSPITALS` different hospitals.
 
@@ -97,10 +76,47 @@ There are a total of `r PEOPLE` admissions in these records, from `r HOSPITALS` 
 rm(PEOPLE, HOSPITALS)
 ```
 
+The next step is to create a number of additional variables required for analysis and data display. These mostly consist of a re-ordering of the 'model' variable, which indicates the type of hospital (Model 4, Model 3 Model 2, Specialist, or Maternity) and the creation of hospital ID's which number the hospitals within these groups.
+
+```{r add variables here}
+Cost2Care <- Cost2Care %>%
+    # Now we reorder the group
+    mutate(MODELX = as_factor(model)) %>%
+    mutate(modelF = fct_relevel(
+        MODELX,
+        c("Model 4", "Model 3", "Model 2", "Specialist", "Maternity" ),
+        after = Inf)) %>%
+    select (-MODELX) %>%
+    # now we identify the group
+    mutate(ModelCode = case_match(model,
+        'Model 4' ~ '4',
+        'Model 3' ~ '3',
+        'Model 2' ~ '2',
+        'Specialist' ~ 'S',
+        'Maternity' ~ 'M'
+    ))
+
+#Make short per hospital codes
+CODES <- Cost2Care %>%
+    select(ModelCode, hosp_anon) %>%
+    group_by(ModelCode) %>% 
+    arrange(ModelCode, hosp_anon) %>%
+    distinct() %>%
+    mutate(HospNo = row_number()) %>%
+    mutate(HospCode = paste0(ModelCode, '.', HospNo)) %>%
+    mutate(HospCode = fct_inorder(HospCode))
+
+# Merge the short codes back into the main dataset
+
+Cost2Care <- Cost2Care %>%
+    left_join(CODES, by = join_by(hosp_anon, ModelCode))
+
+rm(CODES)
+```
 Although some of the admissions were a very long time before discharge, most occurred during late 2021 and  2022, as Figure 1 shows.
 
 ```{r Admission dates by time, fig.cap= 'Admission dates by month and year for discharges included in the analysis.', fig.dpi=600, fig.height=4, fig.width=6}
-Admissions <- DATA %>%
+Admissions <- Cost2Care %>%
     group_by(Date_of_admission) %>%
     summarise(N = n())
 
@@ -125,44 +141,12 @@ Lengths of stay varied greatly also, as Figure 2 shows. Model of hospital was on
 
 ```{r Length of stay by hospital and hospital type, fig.cap= 'Admission dates by month and year for discharges included in the analysis.', fig.dpi=1200, fig.height=5, fig.width=7}
 
-Data <- DATA %>%
-    # Now we reorder the group
-    mutate(MODELX = as_factor(model)) %>%
-    mutate(MODEL = fct_relevel(
-        MODELX,
-        c("Model 4", "Model 3", "Model 2", "Specialist", "Maternity" ),
-        after = Inf)) %>%
-    select (-MODELX) %>%
-    # now we identify the group
-    mutate(ModelCode = case_match(model,
-        'Model 4' ~ '4',
-        'Model 3' ~ '3',
-        'Model 2' ~ '2',
-        'Specialist' ~ 'S',
-        'Maternity' ~ 'M'
-    ))
 
-#Make short per hospital codes
-CODES <- Data %>%
-    select(ModelCode, hosp_anon) %>%
-    group_by(ModelCode) %>% 
-    arrange(ModelCode, hosp_anon) %>%
-    distinct() %>%
-    mutate(HospNo = row_number()) %>%
-    mutate(HospCode = paste0(ModelCode, '.', HospNo)) %>%
-    mutate(HospCode = fct_inorder(HospCode))
-
-# Merge the short codes back into the main dataset
-
-Data <- Data %>%
-    left_join(CODES, by = join_by(hosp_anon, ModelCode))
-
-
-ggplot(data=Data,
-       aes(x=HospCode, y = Rawlos, colour = MODEL)) +
+ggplot(data=Cost2Care,
+       aes(x=HospCode, y = Rawlos, colour = modelF)) +
            geom_boxplot(outliers = FALSE, varwidth = TRUE) +
   scale_x_discrete(guide = guide_axis(angle = 90)) +
-    facet_wrap(~MODEL, scales = 'free') +
+    facet_wrap(~modelF, scales = 'free') +
            labs( title = 'Length of stay in days by hospital model and site\n (outliers excluded)',
                  subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
                  x = 'Hospital code',
@@ -171,15 +155,14 @@ ggplot(data=Data,
          fill = guide_legend("Hospital\nModel")) +
     theme_minimal(base_size = 12)
 
-rm(CODES)
 ```
 
 A table showing the median, and a range of quantiles for the length of stay is also helpful. This is presented in the same order as the items in Figure 2.
 
 ```{r LOS Table}
-# Might make this into a  table at some point
-LOS <- Data %>%
-    group_by(MODEL, HospCode) %>%
+
+LOS <- Cost2Care %>%
+    group_by(modelF, HospCode) %>%
     summarise(Mean = round(mean(Rawlos, na.rm = TRUE),2),
               Median = median(Rawlos, na.rm = TRUE),
               Q00 = min(Rawlos, na.rm = TRUE),
@@ -188,8 +171,7 @@ LOS <- Data %>%
               Q50 = quantile(Rawlos, probs = 0.5),
               Q75 = quantile(Rawlos, probs = 0.75),
               Q90 = quantile(Rawlos, probs = 0.90)) %>%
-    ungroup() %>%
-    select(-MODEL)
+    ungroup()
 
 kbl(LOS,  booktabs = TRUE, longtable = TRUE,
     caption = "Length of Stay by Hospital Type and Site.")
@@ -197,11 +179,24 @@ kbl(LOS,  booktabs = TRUE, longtable = TRUE,
 rm(LOS)
 ```
 
-Again there is substantial variation between and within hospital types. The very limited range of Charlson scores encountered, is contrasted with the much wider range of the Elixhauser scores.
+Again there is substantial variation between and within hospital types.
 
+Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects).
+
+```{r Regression}
+
+Model1 <- lmer(data=Cost2Care,
+             Rawlos ~ modelF + age + sex +
+               (1 + HospCode | mdc))
+
+Model1
+insight::model_info(Model1)
+
+sjPlot::tab_model(Model1)
+```
 # Comorbidity scores
 
-It can be useful to develop comorbidity scores, and the most popular of these are the Elixhauser and Charlson scores. These are calculated using the comorbidity package of Gasparini (2018), in turn based on Quan H et al. Coding algorithms for defining comorbidities in ICD-9-CM and ICD-10 administrative data. Medical Care 2005; 43(11):1130-1139. DOI: 10.1097/01.mlr.0000182534.19832.83 and van Walraven C, Austin PC, Jennings A, Quan H and Forster AJ. A modification of the Elixhauser comorbidity measures into a point system for hospital death using administrative data. Medical Care 2009; 47(6):626-633. DOI: 10.1097/MLR.0b013e31819432e5
+It can be useful to consider comorbidity scores, and two of the most popular of these are the Elixhauser  and Charlson  scores. These are calculated using in this work using the comorbidity package , in turn based on.
 
 ```{r Scoring}
 #Data %>% unite("ICD_combined", dx01:dx30, sep=', ', na.rm=TRUE)
@@ -226,7 +221,7 @@ Data <- Data %>%
 rm(charlson, elixhauser)
 ```
 
-Figure 3 shows the joint and separate distributions of these scores amongst the discharges.
+Figure 3 shows the joint and separate distributions of these scores amongst the discharges.  The very limited range of Charlson scores encountered, is contrasted with the much wider range of the Elixhauser scores.
 
 ```{r Plot of E & C scores, fig.cap= 'Plot of Elixhauser and Charlson weighted scores for the discharges included in the analysis.', fig.dpi=1200, fig.height=5, fig.width=7}
 ggplot(data=Data,
