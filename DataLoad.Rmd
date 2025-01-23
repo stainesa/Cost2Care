@@ -3,7 +3,11 @@ title: "Data load"
 author: "Anthony Staines"
 date: "`r Sys.Date()`"
 output:
-  pdf_document: default
+  pdf_document: 
+    toc: true
+    fig_caption: true
+    number_sections: true
+    latex_engine: xelatex
   word_document: default
   html_document: default
 editor_options:
@@ -21,6 +25,18 @@ library(tibble)
 library(comorbidity)
 library(tidymodels)
 library(lme4)
+#library(lmerTest)
+library(knitr)
+library(kableExtra)
+
+library(sjPlot)
+library(sjtable2df)
+library(broom)
+library(broom.mixed)
+
+library(pixiedust)
+library(stargazer)
+
 
 tidymodels_prefer(quiet = TRUE)
 
@@ -44,16 +60,39 @@ First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 f
 
 ```{r Load main data file, results = 'hide'}
 Cost2Care <- as_tibble(read.csv("data/H240272_2022.csv"))
-
+  names(Cost2Care)
+    names(Cost2Care) <- str_to_lower(names(Cost2Care)) # All lower case
+    names(Cost2Care) <- str_replace_all(names(Cost2Care), "_", ".") # no _, use . instead
+    names(Cost2Care) <- str_replace(names(Cost2Care), "(\\d*$)", ".\\1") # A dot place before any digits at the end, otherwise at the end
+    names(Cost2Care) <- str_replace(names(Cost2Care), "(\\.$)", "") # Remove unwanted dots at the end, those not followed by digits.
+  names(Cost2Care)
+  
 Cost2Care <- Cost2Care %>%
   mutate(rowid_to_column(., var = "ID")) %>% # Numeric ID
-  mutate(ID = paste0("ID.",ID, sep = '')) %>% # Character ID
-  select(ID, hosp_anon:proc_desc20) %>% # Reorder variables ID first
-  mutate(Date_of_admission = paste0('01',mon_adm)) %>% # Process dates in MY format correctly, set day to 1st of each month
-  mutate(Date_of_admission = dmy(Date_of_admission))
- 
+  mutate(ID = paste0("ID.",ID, sep = '')) # Character ID
+```
+
+
+```{R time related variables}
+
+Cost2Care <- Cost2Care %>%
+  mutate(DateOfAdmission = paste0('15',mon.adm)) %>% # Process dates in MY format correctly, set day to 15th of each month
+  mutate(DateOfAdmission = dmy(DateOfAdmission)) %>%
+  mutate(DateOfDischarge = (DateOfAdmission + rawlos)) %>% # Crude estimate of date of discharge, but all we want is winter/not_winter
+  mutate(MonthOfAdmission = month(DateOfAdmission, label=TRUE)) %>%
+  mutate(MonthOfDischarge = month(DateOfDischarge, label=TRUE)) %>%
+  mutate(SeasonOfAdmission =
+           case_match(MonthOfAdmission,
+                      c("Nov","Dec","Jan", "Feb") ~ "Winter",
+c("Mar","Apr","May","Jun","Jul","Aug","Sep","Oct") ~ "Other"
+                                    ))
+#table(Cost2Care$MonthOfDischarge, Cost2Care$SeasonOfDischarge)
+```
+
+
+```{r Training split}
 #Then we split
-Cost2Care_split <- initial_split(Cost2Care, prop = 4/5, strata = hosp_anon)
+Cost2Care_split <- initial_split(Cost2Care, prop = 4/5, strata = hosp.anon)
 
 # Add a training variable to Attrition
 
@@ -66,7 +105,7 @@ Cost2Care <- Cost2Care %>%
 #str(DATA, list.len = 200)
 # some relevant figures
   PEOPLE <- nrow(Cost2Care)
-  HOSPITALS <- length(unique(Cost2Care$hosp_anon))
+  HOSPITALS <- length(unique(Cost2Care$hosp.anon))
 
 ```
 
@@ -79,10 +118,11 @@ rm(PEOPLE, HOSPITALS)
 The next step is to create a number of additional variables required for analysis and data display. These mostly consist of a re-ordering of the 'model' variable, which indicates the type of hospital (Model 4, Model 3 Model 2, Specialist, or Maternity) and the creation of hospital ID's which number the hospitals within these groups.
 
 ```{r add variables here}
+# Add Hospital Model codes
 Cost2Care <- Cost2Care %>%
     # Now we reorder the group
     mutate(MODELX = as_factor(model)) %>%
-    mutate(modelF = fct_relevel(
+    mutate(ModelF = fct_relevel(
         MODELX,
         c("Model 4", "Model 3", "Model 2", "Specialist", "Maternity" ),
         after = Inf)) %>%
@@ -98,9 +138,9 @@ Cost2Care <- Cost2Care %>%
 
 #Make short per hospital codes
 CODES <- Cost2Care %>%
-    select(ModelCode, hosp_anon) %>%
+    select(ModelCode, hosp.anon) %>%
     group_by(ModelCode) %>% 
-    arrange(ModelCode, hosp_anon) %>%
+    arrange(ModelCode, hosp.anon) %>%
     distinct() %>%
     mutate(HospNo = row_number()) %>%
     mutate(HospCode = paste0(ModelCode, '.', HospNo)) %>%
@@ -109,19 +149,30 @@ CODES <- Cost2Care %>%
 # Merge the short codes back into the main dataset
 
 Cost2Care <- Cost2Care %>%
-    left_join(CODES, by = join_by(hosp_anon, ModelCode))
+    left_join(CODES, by = join_by(hosp.anon, ModelCode))
 
 rm(CODES)
+
+# Sensibly code Source, Destination and Season
+Cost2Care <- Cost2Care %>%
+  mutate(Source = fct_lump_min(as_factor(source), min  = 1000)) %>%
+  mutate(Source = fct_recode(Source,
+                             "Home" = "1",
+                             "Care" = "2",
+                             "Transfer" = "3"))
+
+#table(Cost2Care$source, Cost2Care$Source)
 ```
+
 Although some of the admissions were a very long time before discharge, most occurred during late 2021 and  2022, as Figure 1 shows.
 
 ```{r Admission dates by time, fig.cap= 'Admission dates by month and year for discharges included in the analysis.', fig.dpi=600, fig.height=4, fig.width=6}
 Admissions <- Cost2Care %>%
-    group_by(Date_of_admission) %>%
+    group_by(DateOfAdmission) %>%
     summarise(N = n())
 
 ggplot(data=Admissions,
-       aes(x=Date_of_admission, y= N)) +
+       aes(x=DateOfAdmission, y= N)) +
            geom_point(colour = 'red',
                       size = 3) +
     scale_x_date(date_breaks = '6 months',
@@ -135,7 +186,60 @@ ggplot(data=Admissions,
 rm(Admissions)
 ```
 
-## Length of stay
+# Comorbidity scores
+
+It can be useful to consider comorbidity scores, and two of the most popular of these are the Elixhauser  and Charlson  scores. These are calculated using in this work using the comorbidity package , in turn based on.
+
+```{r Scoring}
+Cost2Care <- Cost2Care %>%
+  unite("ICD_combined", dx.01:dx.30, sep=' ',
+        remove = FALSE, na.rm=TRUE)
+
+charlson <- comorbidity(x = Cost2Care, id = "ID", code = "ICD_combined", map = "charlson_icd10_am", assign0 = FALSE)
+    charlson <- charlson %>% 
+      mutate(score = score(charlson, weights='quan', assign0 = TRUE))
+        names(charlson)[-1] <- paste0(str_to_title(names(charlson)[-1]),
+                                      'Ch', sep='')
+
+elixhauser <- comorbidity(x = Cost2Care, id = "ID", code = "ICD_combined", map = "elixhauser_icd10_quan", assign0 = FALSE)
+    elixhauser <- elixhauser %>% 
+      mutate(score = score(elixhauser, weights='swiss', assign0 = TRUE))
+        names(elixhauser)[-1] <- paste0(str_to_title(names(elixhauser)[-1]),
+                                        'El', sep='')
+        
+    
+Cost2Care <- Cost2Care %>%
+  left_join(charlson, by = join_by(ID), suffix = c("", ".ch")) %>%
+  left_join(elixhauser, by = join_by(ID),suffix = c("", ".el"))
+
+Cost2Care <- Cost2Care %>%
+  select(ID, ModelF, ModelCode, HospCode,
+         DateOfAdmission, MonthOfAdmission, SeasonOfAdmission,
+         DateOfDischarge, MonthOfDischarge,
+         ScoreEl, ScoreCh,
+         hosp.anon:DepreEl ) # Reorder variables
+
+rm(charlson, elixhauser)
+```
+
+Figure 3 shows the joint and separate distributions of these scores amongst the discharges.  The very limited range of Charlson scores encountered, is contrasted with the much wider range of the Elixhauser scores.
+
+```{r Plot of E & C scores, fig.cap= 'Plot of Elixhauser and Charlson weighted scores for the discharges included in the analysis.', fig.dpi=1200, fig.height=5, fig.width=7}
+ggplot(data=Cost2Care,
+       aes(x = ScoreCh, y = ScoreEl,
+           fill = ModelCode, colour = ModelCode)) +
+  geom_tile() +
+  facet_wrap(~ModelCode) +
+           labs( title = 'Plot of Elixhauser and Charlson weighted scores',
+                 subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
+                 x = 'Charlson Score',
+                 y = 'Elixhauser Score') +
+  guides(colour = guide_legend("Hospital\nModel"),
+         fill = guide_legend("Hospital\nModel")) +
+    theme_minimal(base_size = 12)
+```
+
+# Length of stay
 
 Lengths of stay varied greatly also, as Figure 2 shows. Model of hospital was one important source of variation, but between hospitals there is also evidence of considerable variation. In part, this is to be expected, given the differing roles of Model 4, Model 3, and Model 2 hospitals.
 
@@ -143,10 +247,10 @@ Lengths of stay varied greatly also, as Figure 2 shows. Model of hospital was on
 
 
 ggplot(data=Cost2Care,
-       aes(x=HospCode, y = Rawlos, colour = modelF)) +
+       aes(x=HospCode, y = rawlos, colour = ModelF)) +
            geom_boxplot(outliers = FALSE, varwidth = TRUE) +
   scale_x_discrete(guide = guide_axis(angle = 90)) +
-    facet_wrap(~modelF, scales = 'free') +
+    facet_wrap(~ModelF, scales = 'free') +
            labs( title = 'Length of stay in days by hospital model and site\n (outliers excluded)',
                  subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
                  x = 'Hospital code',
@@ -162,15 +266,13 @@ A table showing the median, and a range of quantiles for the length of stay is a
 ```{r LOS Table}
 
 LOS <- Cost2Care %>%
-    group_by(modelF, HospCode) %>%
-    summarise(Mean = round(mean(Rawlos, na.rm = TRUE),2),
-              Median = median(Rawlos, na.rm = TRUE),
-              Q00 = min(Rawlos, na.rm = TRUE),
-              Q10 = quantile(Rawlos, probs = 0.1),
-              Q25 = quantile(Rawlos, probs = 0.25),
-              Q50 = quantile(Rawlos, probs = 0.5),
-              Q75 = quantile(Rawlos, probs = 0.75),
-              Q90 = quantile(Rawlos, probs = 0.90)) %>%
+    group_by(ModelF, HospCode) %>%
+    summarise(Mean   = round(mean(rawlos, na.rm = TRUE),2),
+              Q10    = quantile(rawlos, probs = 0.1),
+              Q25    = quantile(rawlos, probs = 0.25),
+              Median = quantile(rawlos, probs = 0.5),
+              Q75    = quantile(rawlos, probs = 0.75),
+              Q90    = quantile(rawlos, probs = 0.90)) %>%
     ungroup()
 
 kbl(LOS,  booktabs = TRUE, longtable = TRUE,
@@ -183,60 +285,110 @@ Again there is substantial variation between and within hospital types.
 
 Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects).
 
+Our first set of models looks only at age and sex as predictors of length of stay.
+
 ```{r Regression}
+#Random intercept models
+Model0 <- lm(data=Cost2Care,
+             rawlos ~ age + sex)
 
 Model1 <- lmer(data=Cost2Care,
-             Rawlos ~ modelF + age + sex +
-               (1 + HospCode | mdc))
+             rawlos ~ age + sex +
+               (1 | ModelF))
 
-Model1
-insight::model_info(Model1)
+Model2 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex +
+               (1 | HospCode))
 
-sjPlot::tab_model(Model1)
-```
-# Comorbidity scores
+Model3 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex +
+               (1 | HospCode) + (1| ModelF))
 
-It can be useful to consider comorbidity scores, and two of the most popular of these are the Elixhauser  and Charlson  scores. These are calculated using in this work using the comorbidity package , in turn based on.
+Model4 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode))
 
-```{r Scoring}
-#Data %>% unite("ICD_combined", dx01:dx30, sep=', ', na.rm=TRUE)
-Data <- Data %>%
-  unite("ICD_combined", dx01:dx30, sep=' ',
-        remove = FALSE, na.rm=TRUE)
-charlson <- comorbidity(x = Data, id = "ID", code = "ICD_combined", map = "charlson_icd10_am", assign0 = FALSE)
-    charlson <- charlson %>% 
-      mutate(score = score(charlson, weights='quan', assign0 = TRUE))
-        names(charlson)[-1] <- paste0(names(charlson)[-1], '.Ch', sep='')
 
-elixhauser <- comorbidity(x = Data, id = "ID", code = "ICD_combined", map = "elixhauser_icd10_quan", assign0 = FALSE)
-    elixhauser <- elixhauser %>% 
-      mutate(score = score(elixhauser, weights='swiss', assign0 = TRUE))
-        names(elixhauser)[-1] <- paste0(names(elixhauser)[-1], '.El', sep='')
-        
-    
-Data <- Data %>%
-  left_join(charlson, by = join_by(ID), suffix = c("", ".ch")) %>%
-  left_join(elixhauser, by = join_by(ID),suffix = c("", ".el"))
-
-rm(charlson, elixhauser)
+tab_model(Model4, Model3, Model2, Model1, Model0, show.p = FALSE)
 ```
 
-Figure 3 shows the joint and separate distributions of these scores amongst the discharges.  The very limited range of Charlson scores encountered, is contrasted with the much wider range of the Elixhauser scores.
+Looking at these results, age and sex have, as expected, significant impacts on length of stay. Hospital model, and, within the five hospital models, individual hospitals, all impact on length of stay.
 
-```{r Plot of E & C scores, fig.cap= 'Plot of Elixhauser and Charlson weighted scores for the discharges included in the analysis.', fig.dpi=1200, fig.height=5, fig.width=7}
-ggplot(data=Data,
-       aes(x = score.Ch, y = score.El,
-           fill = ModelCode, colour = ModelCode)) +
-  geom_tile() +
-  facet_wrap(~ModelCode) +
-           labs( title = 'Plot of Elixhauser and Charlson weighted scores',
-                 subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
-                 x = 'Charlson Score',
-                 y = 'Elixhauser Score') +
-  guides(colour = guide_legend("Hospital\nModel"),
-         fill = guide_legend("Hospital\nModel")) +
-    theme_minimal(base_size = 12)
+Taking this as our baseline model, the next step is to fit a range of additional variables, and see how these affect the model. Given the number of observations, these need to be considered carefully.
+
+```{r Model 5 RE for DRG}
+
+Model5 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 + sex | drgv.8))
+
+Model6 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex +
+                (1 | HospCode) +
+                (1 | drgv.8))
+
+tab_model(Model4,Model5, Model6)
+
 ```
+
+The DRG code, as one might expect, has a huge impact on the length of stay. Much of the variability associated with hospital type is subsumed into the variability from the DRGs.
+
+
+```{r}
+
+Model6 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex + ScoreEl +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model6,Model5)
+
+Model7 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex + ScoreCh +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model7,Model6, Model5)
+
+Model8 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex + ScoreEl + ScoreCh +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model8,Model7, Model6)
+
+```
+
+Either the Elixhauser of the Charlson score is a significant predictor of length of stay, but adding both is superfluous, so we choose to use only the Elixhauser score.
+
+
+```{r}
+Model9 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex + ScoreEl + Source +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model9,Model6)
+
+```
+
+The source of admission is also important. Most are admitted from home, but those admitted from long-term care facilities have shorter lengths of stay, and those transferred from other hospitals have longer lengths of stay.
+
+
+```{r}
+Model10 <- lmer(data=Cost2Care,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model10,Model9)
+
+```
+
+Fitting the Season of Discharge (Winter or Other) makes a modest contribution to the length of stay, but it has been identified in other work, so it will be retained.
 
 # Impact of scores
 
