@@ -16,6 +16,10 @@ bibliography: references.bib
 csl: vancouver.csl
 ---
 
+# Aims
+This file loads the main HIPE data, and establishes a base model for length of stay.
+
+
 ```{r setup, include=FALSE}
 rm(list=ls())
 
@@ -54,7 +58,7 @@ set.seed(979)
 rm(N)
 ```
 
-# Load main data file
+# Load main HIPE data file
 
 First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 for training.
 
