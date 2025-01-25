@@ -17,8 +17,8 @@ csl: vancouver.csl
 ---
 
 # Aims
-This file loads both the main HIPE data, and the HIPE data for the study hospital, a Model 4 hospital, and establishes a base model for length of stay.
 
+This file loads both the main HIPE data, and the HIPE data for the study hospital, a Model 4 hospital, and establishes a base model for length of stay.
 
 ```{r setup, include=FALSE}
 rm(list=ls())
@@ -240,7 +240,7 @@ HIPE <- HIPE_PROCESS(HIPE)
 HIPE.Site <- HIPE_PROCESS(HIPE.Site)
 ```
 
-```{r}
+```{r Calculate some useful numbers}
 #str(DATA, list.len = 200)
 # some relevant figures
   PEOPLE <- nrow(HIPE)
@@ -251,7 +251,7 @@ HIPE.Site <- HIPE_PROCESS(HIPE.Site)
 
 There are a total of `r PEOPLE` admissions in these records, from `r HOSPITALS` different hospitals. Of these `r STUDY` from one Model 4 hospital took part in the chart review study.
 
-```{r Tidy1}
+```{r Delete the numbers}
 rm(PEOPLE, HOSPITALS, STUDY)
 ```
 
@@ -362,6 +362,7 @@ Dead <- HIPE %>%
 
 kbl(Dead,  booktabs = TRUE, longtable = FALSE,
     caption = "Discharged alive or dead.")
+
 rm(Dead)
 ```
 
@@ -389,6 +390,7 @@ ggplot(data=Dead,
   guides(colour = "none", fill = "none", size = "none") +
     theme_minimal(base_size = 12)
 
+rm(Dead)
 ```
 
 It is important to emphasise that these crude death rates cannot be used to measure hospital outcomes, and still less to engage in the dubious activity of preparing league tables. Having said that, the results are not very surprising, and reflect the different roles and patient populations of the hospitals involved.
@@ -448,7 +450,6 @@ tab_model(Model4,Model5, Model6)
 
 The DRG code, as one might expect, has a huge impact on the length of stay. Much of the variability associated with hospital type is subsumed into the variability from the DRGs.
 
-
 ```{r Model 6 to 8 test out scores}
 
 Model6 <- lmer(data=HIPE,
@@ -476,7 +477,6 @@ tab_model(Model8,Model7, Model6)
 
 Either the Elixhauser of the Charlson score is a significant predictor of length of stay, but adding both is superfluous, so we choose to use only the Elixhauser score.
 
-
 ```{r Elixhauser score only}
 Model9 <- lmer(data=HIPE,
              rawlos ~ age + sex + ScoreEl + Source +
@@ -501,7 +501,7 @@ tab_model(Model10,Model9)
 
 Fitting the Season of Discharge (Winter or Other) makes a modest contribution to the length of stay, but it has been identified in other work, so it will be retained.
 
-## Linear and non-linear mdoels
+## Linear and non-linear models
 
 These are linear models, with (in principle) unconstrained outputs. This is not quite true, as for example, negative lengths of stay do not occur, there is along positive tail, and this data set is limited to those with a length of stay of at least three days. However, for our purposes, exploratory modelling these seem at least useful.
 
@@ -523,7 +523,7 @@ tab_model(LogModel1)
 
 While the numerical values are wildly different, and they are odds ratios, the confidence intervals of the parameters, and the size of the random effects remain convincing, suggesting that a similar model will explain deaths quite well too.
 
-# Impact of scores
+# Interpretation
 
 None of this is surprising. Age, gender, and diagnosis (here represented as DRG), are obvious predictors of good and bad outcomes. The hospitals have very different roles, and very different catchment areas, all of which are expected to be relevant to outcomes.
 
@@ -535,6 +535,7 @@ saveRDS(HIPE.Site, file = "data/Hipe.Site.rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 ```
+
 # Bibliography
 
 
