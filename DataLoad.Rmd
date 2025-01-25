@@ -449,7 +449,7 @@ tab_model(Model4,Model5, Model6)
 The DRG code, as one might expect, has a huge impact on the length of stay. Much of the variability associated with hospital type is subsumed into the variability from the DRGs.
 
 
-```{r}
+```{r Model 6 to 8 test out scores}
 
 Model6 <- lmer(data=HIPE,
              rawlos ~ age + sex + ScoreEl +
@@ -477,7 +477,7 @@ tab_model(Model8,Model7, Model6)
 Either the Elixhauser of the Charlson score is a significant predictor of length of stay, but adding both is superfluous, so we choose to use only the Elixhauser score.
 
 
-```{r}
+```{r Elixhauser score only}
 Model9 <- lmer(data=HIPE,
              rawlos ~ age + sex + ScoreEl + Source +
                (1 | ModelF) +
@@ -489,7 +489,7 @@ tab_model(Model9,Model6)
 
 The source of admission is also important. Most are admitted from home, but those admitted from long-term care facilities have shorter lengths of stay, and those transferred from other hospitals have longer lengths of stay.
 
-```{r}
+```{r Add season of admission}
 Model10 <- lmer(data=HIPE,
              rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission +
                (1 | ModelF) +
@@ -500,7 +500,6 @@ tab_model(Model10,Model9)
 ```
 
 Fitting the Season of Discharge (Winter or Other) makes a modest contribution to the length of stay, but it has been identified in other work, so it will be retained.
-
 
 ## Linear and non-linear mdoels
 
@@ -528,6 +527,14 @@ While the numerical values are wildly different, and they are odds ratios, the c
 
 None of this is surprising. Age, gender, and diagnosis (here represented as DRG), are obvious predictors of good and bad outcomes. The hospitals have very different roles, and very different catchment areas, all of which are expected to be relevant to outcomes.
 
+```{r Save the files}
+saveRDS(HIPE, file = "data/Hipe.rds",
+        ascii = FALSE, version = NULL,
+        compress = TRUE, refhook = NULL)
+saveRDS(HIPE.Site, file = "data/Hipe.Site.rds",
+        ascii = FALSE, version = NULL,
+        compress = TRUE, refhook = NULL)
+```
 # Bibliography
 
 
