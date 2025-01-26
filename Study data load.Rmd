@@ -1,0 +1,108 @@
+---
+title: "Study data load"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: 
+    toc: true
+    fig_caption: true
+    number_sections: true
+    latex_engine: xelatex
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+bibliography: references.bib
+csl: vancouver.csl
+---
+
+# Summary
+
+This file loads both the study data, and the HIPE data for the study hospital, a Model 4 hospital, and merges these.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+library(tidyverse)
+library(lubridate)
+library(tibble)
+library(readxl)
+
+library(comorbidity)
+library(tidymodels)
+library(lme4)
+#library(lmerTest)
+library(knitr)
+library(kableExtra)
+
+library(sjPlot)
+library(sjtable2df)
+library(broom)
+library(broom.mixed)
+
+library(pixiedust)
+library(stargazer)
+
+
+tidymodels_prefer(quiet = TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
+                      warning = NA, message = NA,
+                      fig.pos = 'H',
+                      cache.extra = knitr::rand_seed)
+
+N = 16
+
+options(Ncpus = N)
+options(dplyr.summarise.inform = FALSE, # shut up summarise
+        ranger.num.threads = N) # Prepare for rf models
+
+set.seed(979)
+rm(N)
+```
+
+
+# Load the study data file
+
+First we load the study data.
+
+
+```{r Load main data file, results = 'hide'}
+###################################################
+#List the sheets
+#
+excel_sheets('data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx')
+
+###################################################
+#Download the first sheet
+#
+Cost2Care <- 
+  read_excel('data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+             sheet = "Chart review data ", # Note the space at the end!
+             range="A2:FV1002") # Omit 1st blank row, and calculated row totals etc. at the end
+
+###################################################
+# Fix up the names into something useful
+# 
+NAMES <-   read_excel('data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+             sheet = "NAMES") 
+  names(Cost2Care) <- NAMES$Chart_review_data_revised
+
+###################################################
+# Remove the blank columns
+# 
+Cost2Care <- Cost2Care %>%
+      select(-c(152,153,158,169,170))
+
+###################################################
+# Read in the HIPE data for the study hospital
+# 
+HIPE.Site <- readRDS(file = "data/Hipe.Site.rds", refhook = NULL)
+
+###################################################
+# Merge the files by StudyId - there are two StudyID's, 41 and 405 in the HIPE file, not in the Cost2Care file, so we do a join to include all of these
+#
+COMBINED <- full_join(Cost2Care %>% select(StudyID, encrypted_mrn), HIPE.Site %>% select(StudyID, ID), by = join_by(StudyID)) # check for missing study IDS, there are two, numbers 41 and 405 not in the Cost2Care file, but in the HIPE.Site file
+  
+Merged <- left_join(Cost2Care, HIPE.Site, by = join_by(StudyID)) 
+```
