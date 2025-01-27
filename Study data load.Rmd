@@ -26,6 +26,7 @@ rm(list=ls())
 library(tidyverse)
 library(lubridate)
 library(tibble)
+library(readxl)
 library(comorbidity)
 library(tidymodels)
 library(lme4)
@@ -62,4 +63,67 @@ rm(N)
 
 # Load the study data file
 
-First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 for training.
+```{r Load files}
+#####################################################
+# Check the sheet names (Note the extra ' ' in the "Chart review data ")
+# 
+excel_sheets('data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx')
+
+#####################################################
+# Load the study data
+# 
+Cost2Care <- read_excel(path='data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+                        sheet = 'Chart review data ',
+                        range = "A2:FV1002")
+
+#####################################################
+# Fix the names
+# 
+    NAMES <- read_excel(
+      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+      sheet = 'NAMES')
+          names(Cost2Care) <- NAMES$Chart_review_data_revised
+
+#####################################################
+# Remove 5 empty columns with missing names
+# 
+Cost2Care <- Cost2Care %>%
+  select(-c(which(is.na(names(Cost2Care)))))
+
+#####################################################
+# Load the corresponding HIPE data
+# 
+HIPE.Site <- readRDS('data/Hipe.Site.rds')
+
+#####################################################
+# Note there are 2 StudyIDs 41 and 405 which are 
+# not in the Cost2Care file, but are in the HIPE.Site file
+COMBINED <- full_join(
+  Cost2Care %>%
+    select(StudyID, encrypted_mrn),
+  HIPE.Site %>%
+    select(StudyID, ID),
+      by = join_by(StudyID)) # check for missing study IDS
+
+#####################################################
+# Join the main files
+# 
+Cost2Care <- Cost2Care %>%
+  full_join(Cost2Care,
+            HIPE.Site,
+            by = join_by(StudyID))
+
+rm(COMBINED, NAMES)
+```
+
+# Major outcomes
+
+The main outcomes available are 
+* the presence of a health care associated urinary tract infection (UTI - variable beginning with 'U.')
+* the presence of health care associated pneumonia (PN - variable beginning with 'P.')
+* the presence of a health care associated pressure ulcer (PU - variable beginning with 'PU.')
+* the presence of health care associated delirium infection (DL - variable beginning with 'DL')
+* Death recorded
+* Prolonged length of stay
+
+It is wholly possible to have several of these outcomes.
