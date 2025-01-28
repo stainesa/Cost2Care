@@ -78,6 +78,8 @@ Cost2Care <- read_excel(path='data/Clean Cost2Care Merged Chart Review and HIPE 
 
 #####################################################
 # Fix the names
+# PN - PNeumonia;       UTI - Urinary Tract Infection;
+# PU - Pressure Ulcer;  DL - DeLirium
 # 
     NAMES <- read_excel(
       'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
@@ -114,14 +116,38 @@ Cost2Care.HIPE <- full_join(
     by = join_by(StudyID))
 
 ##################################################
-# Duplicate names - fix in Cost2Care working spreadsheet sheet NAMES
+# Duplicate names - fixed in Cost2Care working spreadsheet sheet NAMES
 # 'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx'
 #
 NN <- names(Cost2Care.HIPE)
-NN[c(which(str_detect(NN, "\\.y|\\.x")))]
+NN[c(which(str_detect(NN, "\\.y|\\.x")))] # Should be PN.xray only
 #rm(COMBINED, NAMES)
 ```
 
+# Check dataset and check matching
+
+First, we produce two summaries of the dataset. Please review these, and be sure that they are correct.
+
+```{r Check data}
+skimr::skim(Cost2Care.HIPE)
+summarytools::dfSummary(Cost2Care.HIPE)
+```
+
+
+It is desirable to check the matching, and see if the other HIPE.Site variables have the same values as those in the Cost2Care file. All of these tables should be diagonal only, but they are not.
+
+```{r Check match tables}
+table(Cost2Care.HIPE$gender,
+      Cost2Care.HIPE$sex,
+      useNA = 'ifany')
+# Oops
+table(Cost2Care.HIPE$age_discharge,
+      Cost2Care.HIPE$age) # Mostly ok, but a few large discrepancies
+
+ggplot(data=Cost2Care.HIPE,
+       aes(x = age_discharge, y = age, colour=gender)) + geom_jitter() # A bit clearer
+
+```
 # Major outcomes
 
 The main outcomes available are 
