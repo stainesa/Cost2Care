@@ -108,12 +108,18 @@ COMBINED <- full_join(
 #####################################################
 # Join the main files
 # 
-Cost2Care <- Cost2Care %>%
-  full_join(Cost2Care,
-            HIPE.Site,
-            by = join_by(StudyID))
+Cost2Care.HIPE <- full_join(
+    Cost2Care,
+    HIPE.Site,
+    by = join_by(StudyID))
 
-rm(COMBINED, NAMES)
+##################################################
+# Duplicate names - fix in Cost2Care working spreadsheet sheet NAMES
+# 'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx'
+#
+NN <- names(Cost2Care.HIPE)
+NN[c(which(str_detect(NN, "\\.y|\\.x")))]
+#rm(COMBINED, NAMES)
 ```
 
 # Major outcomes
