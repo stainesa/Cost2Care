@@ -41,5 +41,9 @@ Cost2Care.Rproj
 *.html
 *.pdf
 DataLoad_files/
+Study-data-load_files/
 data/
 Images/
+*.docx
+*.html
+*.pdf
