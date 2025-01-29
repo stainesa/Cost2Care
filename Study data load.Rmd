@@ -155,14 +155,53 @@ print(ST, method = 'render')
 It is desirable to check the matching, and see if the other HIPE.Site variables have the same values as those in the Cost2Care file. All of these tables should be diagonal only, but they are not.
 
 ```{r Check match tables}
-ctable(sex <- as_factor(Cost2Care.HIPE$sex),
-+       Cost2Care.HIPE$gender)
+##################################################
+# Sex
+#
+ctable(sex <- as_factor(
+  Cost2Care.HIPE$sex),
+  Cost2Care.HIPE$gender)
 
-# Oops
-
+##################################################
+# Age
+#
 freq(Cost2Care.HIPE$age_discharge - Cost2Care.HIPE$age) # Mostly ok, i.e. 0, but a few large discrepancies
 
+##################################################
+# elective or emergency admission
+#
+ctable(Cost2Care.HIPE$elective_emergency,
+  Cost2Care.HIPE$elem)
 
+##################################################
+# icu
+#
+ctable(itulos <- as_factor(Cost2Care.HIPE$itulos),
+  Cost2Care.HIPE$icu)
+
+##################################################
+# PN
+#
+ctable(PN <- as_factor(Cost2Care.HIPE$PN),
+  pneumonia <- as_factor(Cost2Care.HIPE$pneumonia))
+
+##################################################
+# UTI
+#
+ctable(UTI <- as_factor(Cost2Care.HIPE$UTI),
+  uti <- as_factor(Cost2Care.HIPE$uti))
+
+##################################################
+# PU
+#
+ctable(PU <- as_factor(Cost2Care.HIPE$PU),
+  pressure.ulcer <- as_factor(Cost2Care.HIPE$pressure.ulcer))
+
+##################################################
+# DL
+#
+ctable(DL <- as_factor(Cost2Care.HIPE$DL),
+  delirium <- as_factor(Cost2Care.HIPE$delirium))
 
 ```
 
