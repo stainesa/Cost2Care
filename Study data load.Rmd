@@ -8,6 +8,9 @@ output:
     fig_caption: true
     number_sections: true
     latex_engine: xelatex
+    includes:
+      in_header: 
+      - !expr system.file("includes/fig-valign.tex", package = "summarytools")
   word_document: default
   html_document: default
 editor_options:
@@ -33,6 +36,7 @@ library(lme4)
 #library(lmerTest)
 library(knitr)
 library(kableExtra)
+library(summarytools)
 
 library(sjPlot)
 library(sjtable2df)
@@ -45,11 +49,10 @@ library(stargazer)
 
 tidymodels_prefer(quiet = TRUE)
 
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
-                      warning = NA, message = NA,
-                      fig.pos = 'H',
-                      cache.extra = knitr::rand_seed)
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fig.pos = 'H',
+      cache.extra = knitr::rand_seed)
 
+st_options(ctable.round.digits = 2)
 N = 16
 
 options(Ncpus = N)
@@ -60,8 +63,7 @@ set.seed(979)
 rm(N)
 ```
 
-
-# Load the study data file
+# Load the study and HIPE data files
 
 ```{r Load files}
 #####################################################
@@ -128,33 +130,55 @@ NN[c(which(str_detect(NN, "\\.y|\\.x")))] # Should be PN.xray only
 
 First, we produce two summaries of the dataset. Please review these, and be sure that they are correct.
 
-```{r Check data}
+## skimr
+
+```{r Check data skimr, results = 'asis'}
 skimr::skim(Cost2Care.HIPE)
-summarytools::dfSummary(Cost2Care.HIPE)
 ```
 
+## df Summary
+
+```{r Check data dfSummary, results = 'asis'}
+ST <- dfSummary(Cost2Care.HIPE,
+                plain.ascii = FALSE,
+                style='grid',
+                graph.magnif = 0.85,
+                varnumbers = FALSE,
+                valid.col = FALSE,
+                tmp.img.dir  = "/tmp")
+
+print(ST, method = 'render')
+```
+
+## Check matching
 
 It is desirable to check the matching, and see if the other HIPE.Site variables have the same values as those in the Cost2Care file. All of these tables should be diagonal only, but they are not.
 
 ```{r Check match tables}
-table(Cost2Care.HIPE$gender,
-      Cost2Care.HIPE$sex,
-      useNA = 'ifany')
-# Oops
-table(Cost2Care.HIPE$age_discharge,
-      Cost2Care.HIPE$age) # Mostly ok, but a few large discrepancies
+ctable(sex <- as_factor(Cost2Care.HIPE$sex),
++       Cost2Care.HIPE$gender)
 
+# Oops
+
+freq(Cost2Care.HIPE$age_discharge - Cost2Care.HIPE$age) # Mostly ok, i.e. 0, but a few large discrepancies
+
+
+
+```
+
+```{r Pictures}
 ggplot(data=Cost2Care.HIPE,
        aes(x = age_discharge, y = age, colour=gender)) + geom_jitter() # A bit clearer
 
 ```
+
 # Major outcomes
 
 The main outcomes available are 
-* the presence of a health care associated urinary tract infection (UTI - variable beginning with 'U.')
-* the presence of health care associated pneumonia (PN - variable beginning with 'P.')
+* the presence of a health care associated urinary tract infection (UTI - variable beginning with 'UTI.')
+* the presence of health care associated pneumonia (PN - variable beginning with 'PN.')
 * the presence of a health care associated pressure ulcer (PU - variable beginning with 'PU.')
-* the presence of health care associated delirium infection (DL - variable beginning with 'DL')
+* the presence of health care associated delirium infection (DL - variable beginning with 'DL.')
 * Death recorded
 * Prolonged length of stay
 
