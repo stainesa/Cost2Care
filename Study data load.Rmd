@@ -203,6 +203,49 @@ ctable(PU <- as_factor(Cost2Care.HIPE$PU),
 ctable(DL <- as_factor(Cost2Care.HIPE$DL),
   delirium <- as_factor(Cost2Care.HIPE$delirium))
 
+
+##################################################
+#
+#
+ctable(H.UTI_hadx <- as_factor(Cost2Care.HIPE$H.UTI_hadx),
+  uti.hadx <- as_factor(Cost2Care.HIPE$uti.hadx))
+
+##################################################
+# DL
+#
+ctable(H.DL_hadx <- as_factor(Cost2Care.HIPE$H.DL_hadx),
+  delirium.hadx <- as_factor(Cost2Care.HIPE$delirium.hadx))
+
+##################################################
+# PU
+#
+ctable(H.PU_hadx <- as_factor(Cost2Care.HIPE$H.PU_hadx),
+  pressure.ulcer.hadx <- as_factor(Cost2Care.HIPE$pressure.ulcer.hadx))
+
+##################################################
+# PN
+#
+ctable(H.PN_hadx <- as_factor(Cost2Care.HIPE$H.PN_hadx),
+  pneumonia.hadx <- as_factor(Cost2Care.HIPE$pneumonia.hadx))
+
+##################################################
+# any_2FM
+#
+#Check
+#names(Cost2Care.HIPE)[which(str_detect(names(Cost2Care.HIPE),"hadx"))]
+#
+ctable(H.any_F2M_hadx <- as_factor(Cost2Care.HIPE$H.any_F2M_hadx),
+  any.f2m.hadx <- as_factor(Cost2Care.HIPE$any.f2m.hadx))
+
+##################################################
+# any_2FM
+#
+#Check
+#names(Cost2Care.HIPE)[which(str_detect(names(Cost2Care.HIPE),"hadx"))]
+#
+ctable(H.any_F2M <- as_factor(Cost2Care.HIPE$H.any_F2M),
+  any.f2m <- as_factor(Cost2Care.HIPE$any.f2m))
+
 ```
 
 ```{r Pictures}
