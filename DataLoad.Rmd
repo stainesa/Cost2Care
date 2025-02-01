@@ -397,7 +397,7 @@ It is important to emphasise that these crude death rates cannot be used to meas
 
 # Preliminary modelling
 
-Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects).
+Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects). For this preliminary work, the national HIPE data set is used.
 
 Our first set of models looks only at age and sex as predictors of length of stay.
 
@@ -475,7 +475,7 @@ tab_model(Model8,Model7, Model6)
 
 ```
 
-Either the Elixhauser of the Charlson score is a significant predictor of length of stay, but adding both is superfluous, so we choose to use only the Elixhauser score.
+Either the Elixhauser score, or the Charlson score, is a significant predictor of length of stay, but adding both is superfluous, so we choose to use only the Elixhauser score, as it seems to be more closely linked to our outcome.
 
 ```{r Elixhauser score only}
 Model9 <- lmer(data=HIPE,
@@ -503,7 +503,7 @@ Fitting the Season of Discharge (Winter or Other) makes a modest contribution to
 
 ## Linear and non-linear models
 
-These are linear models, with (in principle) unconstrained outputs. This is not quite true, as for example, negative lengths of stay do not occur, there is along positive tail, and this data set is limited to those with a length of stay of at least three days. However, for our purposes, exploratory modelling these seem at least useful.
+These are linear models, with (in principle) unconstrained outputs. This is not quite true, as for example, negative lengths of stay do not occur, there is a long positive tail, and this data set is limited to those with a length of stay of at least three days. However, for our purposes, exploratory modelling these seem at least useful.
 
 To examine deaths, where the outcome variable is binary, Alive or Dead, at the time of discharge, requires non-linear models, and the usual choice is a logistic model.
 
