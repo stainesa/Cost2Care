@@ -397,7 +397,7 @@ It is important to emphasise that these crude death rates cannot be used to meas
 
 # Preliminary modelling
 
-Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects).
+Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects). For this preliminary work, the national HIPE data set is used.
 
 Our first set of models looks only at age and sex as predictors of length of stay.
 
@@ -475,7 +475,7 @@ tab_model(Model8,Model7, Model6)
 
 ```
 
-Either the Elixhauser of the Charlson score is a significant predictor of length of stay, but adding both is superfluous, so we choose to use only the Elixhauser score.
+Either the Elixhauser score, or the Charlson score, is a significant predictor of length of stay, but adding both is superfluous, so we choose to use only the Elixhauser score, as it seems to be more closely linked to our outcome.
 
 ```{r Elixhauser score only}
 Model9 <- lmer(data=HIPE,
