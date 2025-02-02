@@ -1,0 +1,182 @@
+---
+title: "Predictions"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: 
+    toc: true
+    fig_caption: true
+    number_sections: true
+    latex_engine: xelatex
+    includes:
+      in_header: 
+      - !expr system.file("includes/fig-valign.tex", package = "summarytools")
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+bibliography: references.bib
+csl: vancouver.csl
+---
+
+# Predictions
+
+Prepapres predictions for selected outcome variables for the study site file, using the study (chart review) outcomes, and the HIPE predictors.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+library(tidyverse)
+library(lubridate)
+library(tibble)
+library(readxl)
+library(comorbidity)
+library(tidymodels)
+library(lme4)
+#library(lmerTest)
+library(knitr)
+library(kableExtra)
+library(summarytools)
+
+library(ranger)
+library(mlr3verse)
+library(mlr3viz)
+
+library(sjPlot)
+library(sjtable2df)
+
+library(broom)
+library(broom.mixed)
+
+library(stargazer)
+
+tidymodels_prefer(quiet = TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fig.pos = 'H',
+      cache.extra = knitr::rand_seed)
+
+st_options(ctable.round.digits = 2)
+N = 16
+
+options(Ncpus = N)
+options(dplyr.summarise.inform = FALSE, # shut up summarise
+        ranger.num.threads = N) # Prepare for rf models
+
+set.seed(979)
+rm(N)
+```
+
+# Load the merged data file
+This is the chart review file merged with the HIPE file provided by HPO.
+
+```{r Load data file}
+
+#####################################################
+# Load the merged HIPE/Study data file
+# 
+C2C <- readRDS('data/Cost2Care.HIPE.rds')
+NAMES <- read_excel(
+      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+      sheet = 'NAMES')
+```
+
+# Outcomes
+
+## LOS
+
+```{r}
+ModelLOS <- lmer(data=C2C,
+             LOS ~ AgeC + as_factor(sex) + ScoreEl +
+                 Source + SeasonOfAdmission +
+                 (1|mdc))
+tab_model(ModelLOS)
+PRED <- predict(ModelLOS, newdata = C2C)
+
+C <- cbind(C2C, PRED)
+
+ggplot(data = C,
+       aes(x=LOS, y = PRED, colour=as_factor(sex))) +
+    geom_jitter() +
+    labs(
+        title="Comparison of model predictions to observed data for lenght of stay",
+        x = "Observed length of stay (days)",
+        y = "Predicted length of stay (days)"
+    ) +
+    guides(colour = guide_legend("Sex")) +
+    scale_x_log10() +
+    scale_y_log10()
+
+rm(C)
+```
+
+This is not a good predictor. The range is too small, and the pattern makes little sense.
+
+# RF models
+
+```{r}
+# simple ranger model
+# 
+# 
+
+C <- C2C %>%
+    filter(!is.na(LOS)) %>%
+#    filter(Training == TRUE) %>%
+    select(Training:DepreEl,) %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, rawlos, ICD_combined, age)
+                  ) %>%
+    select(!contains('desc'))
+
+RANGER1 <- ranger(
+    data = C,
+    formula = LosC ~.,
+    num.trees = 2000,
+    mtry = 30,
+    importance = "permutation",
+    case.weights = C$Training,
+    holdout = TRUE
+)
+
+RANGER1
+IMP <- importance(RANGER1)
+
+IMP_Names =  names(IMP)
+DF <- bind_cols(Names = IMP_Names, Importance = IMP) %>%
+    arrange(Importance) %>%
+    mutate(Names = fct_inorder(Names))
+
+ggplot(data  = DF %>% filter(Importance > 0), aes(x= Importance, y = Names)) + geom_col()
+
+
+############################################
+# Tune
+```
+
+```{r}
+
+tsk_C <- as_task_regr(C, target = "LosC", id = 'C')
+tsk_C
+autoplot(tsk_C)
+#autoplot(tsk_C, type= 'pairs')
+glimpse(as.data.table(tsk_C))
+
+lrn_R <- lrn('regr.ranger')
+lrn_R$train(tsk_C)
+lrn_R$model
+
+splits = partition(tsk_C)
+splits
+
+lrn_R$train(tsk_C, row_ids = splits$train)
+lrn_R$model
+
+prediction_train = lrn_R$predict(tsk_C, row_ids = splits$trains)
+prediction_test = lrn_R$predict(tsk_C, row_ids = splits$test)
+
+autoplot(prediction_train)
+autoplot(prediction_test)
+
+lrn_R$param_set
+lrn()
+```
