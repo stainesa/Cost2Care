@@ -21,7 +21,7 @@ csl: vancouver.csl
 
 # Predictions
 
-Prepapres predictions for selected outcome variables for the study site file, using the study (chart review) outcomes, and the HIPE predictors.
+Prepares predictions for selected outcome variables for the study site file, using the study (chart review) outcomes, and the HIPE predictors.
 
 ```{r setup, include=FALSE}
 rm(list=ls())
@@ -82,11 +82,11 @@ NAMES <- read_excel(
 
 # Outcomes
 
-## LOS
+## lmer based predictions of Length of Stay (centred and scaled)
 
 ```{r}
 ModelLOS <- lmer(data=C2C,
-             LOS ~ AgeC + as_factor(sex) + ScoreEl +
+             LosC ~ AgeC + as_factor(sex) + ScoreEl +
                  Source + SeasonOfAdmission +
                  (1|mdc))
 tab_model(ModelLOS)
@@ -95,16 +95,14 @@ PRED <- predict(ModelLOS, newdata = C2C)
 C <- cbind(C2C, PRED)
 
 ggplot(data = C,
-       aes(x=LOS, y = PRED, colour=as_factor(sex))) +
+       aes(x=LosC, y = PRED, colour=as_factor(sex))) +
     geom_jitter() +
     labs(
-        title="Comparison of model predictions to observed data for lenght of stay",
-        x = "Observed length of stay (days)",
-        y = "Predicted length of stay (days)"
+        title="Comparison of model predictions to observed data for length of stay",
+        x = "Observed scaled length of stay (SD units)",
+        y = "Predicted scaled length of stay (SD units)"
     ) +
-    guides(colour = guide_legend("Sex")) +
-    scale_x_log10() +
-    scale_y_log10()
+    guides(colour = guide_legend("Sex")) 
 
 rm(C)
 ```
@@ -117,7 +115,6 @@ This is not a good predictor. The range is too small, and the pattern makes litt
 # simple ranger model
 # 
 # 
-
 C <- C2C %>%
     filter(!is.na(LOS)) %>%
 #    filter(Training == TRUE) %>%
@@ -126,13 +123,21 @@ C <- C2C %>%
               MonthOfAdmission, MonthOfDischarge,
               mon.adm, rawlos, ICD_combined, age)
                   ) %>%
-    select(!contains('desc'))
+    select(!contains('desc'))  # Basically HIPE variables
 
+##########
+# Add a variable for the count of procedures
+#
+C <- C %>%
+  mutate(ProcCount =
+           purrr::pmap_dbl(C %>%
+                             select(proc.01:proc.20),
+                           ~sum(!is.na(c(...)))))
 RANGER1 <- ranger(
-    data = C,
+    data = C %>% select(-Training),
     formula = LosC ~.,
-    num.trees = 2000,
-    mtry = 30,
+    num.trees = 2500,
+    mtry = 7,
     importance = "permutation",
     case.weights = C$Training,
     holdout = TRUE
@@ -146,37 +151,116 @@ DF <- bind_cols(Names = IMP_Names, Importance = IMP) %>%
     arrange(Importance) %>%
     mutate(Names = fct_inorder(Names))
 
-ggplot(data  = DF %>% filter(Importance > 0), aes(x= Importance, y = Names)) + geom_col()
+ggplot(data  = DF %>% filter(Importance > 1.0),
+       aes(x= Importance, y = Names)) +
+  geom_col(colour='red') +
+  labs( title = "Variable importance",
+  subtitle = "Permutation importance, holdout") +
+  theme_minimal()
 
+# Might be worth looking at procedure count as an explanatory variable?
+# 
+RANGER1.train.predict <- predict(RANGER1, data = C %>% filter(Training))
+  summary(RANGER1.train.predict$predictions)
 
+RANGER1.test.predict <- predict(RANGER1, data = C %>% filter(!Training))
+  summary(RANGER1.test.predict$predictions)
+
+PRED.train <- bind_cols(LosC = C$LosC[C$Training], Prediction = RANGER1.train.predict$predictions, Train = TRUE)
+
+PRED.test <- bind_cols(LosC = C$LosC[!C$Training], Prediction = RANGER1.test.predict$predictions, Train = FALSE) 
+PRED <- bind_rows(PRED.test, PRED.train) %>%
+  mutate(sqdiff = (LosC - Prediction)^2)
+
+MSE_train <- PRED %>%
+  filter(Train) %>%
+  summarise(sum = sum(sqdiff), N = n()) %>%
+  mutate(MSE = sum/N)
+
+MSE_test <- PRED %>%
+  filter(!Train) %>%
+  summarise(sum = sum(sqdiff), N = n()) %>%
+  mutate(MSE = sum/N)
+
+ggplot(data=PRED,
+       aes(x= LosC, y = Prediction, colour=Train)) +
+  geom_point() +
+  geom_smooth() +
+  facet_wrap(~Train) +
+  theme_minimal()
 ############################################
 # Tune
 ```
 
-```{r}
+The ranger predictions are a good bit better than those from lmer, though still not great at high lengths of stay.
 
+```{r}
+#mlr3
+#
 tsk_C <- as_task_regr(C, target = "LosC", id = 'C')
 tsk_C
 autoplot(tsk_C)
-#autoplot(tsk_C, type= 'pairs')
-glimpse(as.data.table(tsk_C))
 
-lrn_R <- lrn('regr.ranger')
-lrn_R$train(tsk_C)
-lrn_R$model
+lrn_Filter = lrn("regr.ranger", seed = 42)
+lrn_Filter$param_set$values = list(importance = "permutation")
 
-splits = partition(tsk_C)
-splits
+flt_Imp = flt("importance", learner = lrn_Filter)
+flt_Imp$calculate(tsk_C)
+Importance_Filtered <- setDF(as.data.table(flt_Imp))
+autoplot(flt_Imp)
 
-lrn_R$train(tsk_C, row_ids = splits$train)
-lrn_R$model
+lrn_R = lrn('regr.ranger',
+            mtry = to_tune(5,25),
+            num.trees = to_tune(500,3000),
+            importance = "permutation"
+            )
 
-prediction_train = lrn_R$predict(tsk_C, row_ids = splits$trains)
-prediction_test = lrn_R$predict(tsk_C, row_ids = splits$test)
+split = partition(tsk_C)
 
-autoplot(prediction_train)
-autoplot(prediction_test)
+instance = ti(
+  task = tsk_C,
+  learner = lrn_R,
+  resampling = rsmp("holdout"),
+  measures = msr("regr.mse"),
+  terminator = trm("evals", n_evals=1000, k = 2),
+)
 
-lrn_R$param_set
-lrn()
+instance
+tuner <- tnr("mbo")
+#######################################
+# SLOW - about 3.5 hours
+#tuner$optimize(instance)
+
+instance$result$learner_param_vals
+
+ParameterSearchResults <- as.data.table(instance$archive)
+PSR <- ParameterSearchResults %>%
+  select(mtry, num,trees, regr.mse)
+ggplot(data = ParameterSearchResults, aes(x = mtry, y = regr.mse)) +
+  geom_jitter()
+ggplot(data = ParameterSearchResults, aes(x = num.trees, y = regr.mse)) +
+  geom_jitter()
+ggplot(data = ParameterSearchResults, aes(y = num.trees, x = mtry)) +
+  geom_jitter(aes(size = regr.mse, colour= regr.mse))
+autoplot(instance, type = "surface") + scale_color_brewer(palette = "Set1")
+
+instance$archive$benchmark_result
+#
+# Strongly suggests 7 or so for mtry, and over 2250 for num.trees
+# 
+lrn_R_mbo = lrn('regr.ranger',
+            mtry = 7,
+            num.trees = 2500,
+            importance = "permutation"
+            )
+
+lrn_R_mbo$train(tsk_C, split$train)
+prediction = lrn_R_mbo$predict(tsk_C, split$test)
+prediction$score(msrs(c("regr.mse", "regr.mae")))
+
+prediction$truth
+OUTCOME <- as_tibble(cbind(Truth = prediction$truth, Predicted = prediction$response))
+
+ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) + geom_point()
 ```
+
