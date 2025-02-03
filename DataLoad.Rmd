@@ -183,24 +183,40 @@ HIPE_FILE <- HIPE_FILE %>%
 # 
 HIPE_FILE <- HIPE_FILE %>%
   unite("ICD_combined", dx.01:dx.30, sep=' ',
-        remove = FALSE, na.rm=TRUE) # comorbidity expects a single variable containing all the ICD10 codes to be used as a a strong, hence ICD-combined - This is a *BAD* idea.
+        remove = FALSE, na.rm=TRUE) # comorbidity expects a single variable containing all the ICD10 codes to be used as a a string, hence ICD-combined - This is a *BAD* idea.
 
+#############################################
 # Charlson
 charlson <- comorbidity(x = HIPE_FILE, id = "ID", code = "ICD_combined", map = "charlson_icd10_am", assign0 = FALSE)
     charlson <- charlson %>% 
       mutate(score = score(charlson, weights='quan', assign0 = TRUE))
         names(charlson)[-1] <- paste0(str_to_title(names(charlson)[-1]),
                                       'Ch', sep='')
+
+#############################################
 # Elixhauser
 elixhauser <- comorbidity(x = HIPE_FILE, id = "ID", code = "ICD_combined", map = "elixhauser_icd10_quan", assign0 = FALSE)
     elixhauser <- elixhauser %>% 
       mutate(score = score(elixhauser, weights='swiss', assign0 = TRUE))
         names(elixhauser)[-1] <- paste0(str_to_title(names(elixhauser)[-1]),
                                         'El', sep='')
+
+#############################################
 # Put the scores back in the main file
 HIPE_FILE <- HIPE_FILE %>%
   left_join(charlson, by = join_by(ID), suffix = c("", ".ch")) %>%
   left_join(elixhauser, by = join_by(ID),suffix = c("", ".el"))
+
+#############################################
+# Ad a count of procedures, diagnoses and hadx scores
+# 
+HIPE_FILE <- HIPE_FILE %>%
+  mutate(ProcCount = purrr::pmap_dbl(HIPE_FILE %>% select(proc.01:proc.20),
+                           ~sum(!is.na(c(...))))) %>%
+  mutate(DxCount = purrr::pmap_dbl(HIPE_FILE %>% select(dx.01:dx.30),
+                           ~sum(!is.na(c(...))))) %>%
+  mutate(HadxCount = purrr::pmap_dbl(HIPE_FILE %>% select(hadx.01:hadx.20),
+                           ~sum(!is.na(c(...)))))
 
 #############################################
 # Centre and scale age, rawlos and other numeric variables
@@ -223,8 +239,8 @@ HIPE_FILE <- HIPE_FILE %>%
          AgeC, LosC,
          DateOfAdmission, MonthOfAdmission, SeasonOfAdmission,
          DateOfDischarge, MonthOfDischarge,
-         ScoreEl, ScoreCh, HospNo:Outcome,
-         hosp.anon:proc.desc.20, MiCh:DepreEl ) # Reorder variables
+         ScoreEl, ScoreCh, HospNo:Outcome, ProcCount:HadxCount,
+         hosp.anon:proc.desc.20) # Reorder variables
 
 #############################################
 # Finish, returning a single tibble
