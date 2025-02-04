@@ -42,6 +42,7 @@ library(ranger)
 library(mlr3verse)
 library(mlr3viz)
 library(data.table)
+library(future)
 
 library(sjPlot)
 library(sjtable2df)
@@ -59,8 +60,11 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fi
 st_options(ctable.round.digits = 2)
 # How many CPU's?
 N = 16
-  options(Ncpus = N)
-  options(mc.cores = N)
+  options(Ncpus = N - 1)
+  options(mc.cores = N - 1)
+  setDTthreads(threads = N - 1,
+               restore_after_fork = TRUE,
+               throttle = 1024)
 
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
@@ -95,9 +99,13 @@ HIPE <- readRDS('data/Hipe.rds')
 
 ```{r}
 ModelLOS <- lmer(data=C2C,
-             LosC ~ AgeC + as_factor(sex) + ScoreEl +
-                 Source + SeasonOfAdmission +
-                 (1|mdc))
+             LosC ~
+               AgeC + as_factor(sex) + ScoreEl +
+               Source + SeasonOfAdmission +
+               Outcome + ProcCount + itulos +
+               fullelig +
+               (1|mdc))
+
 tab_model(ModelLOS)
 PRED <- predict(ModelLOS, newdata = C2C)
 
@@ -106,6 +114,7 @@ C <- cbind(C2C, PRED)
 ggplot(data = C,
        aes(x=LosC, y = PRED, colour=as_factor(sex))) +
     geom_jitter() +
+  geom_smooth() +
     labs(
         title="Comparison of model predictions to observed data for length of stay",
         x = "Observed scaled length of stay (SD units)",
@@ -116,7 +125,7 @@ ggplot(data = C,
 rm(C)
 ```
 
-This is not a good predictor. The range is too small, and the pattern makes little sense.
+This is not such a bad predictor! Adding extra variables has improved the fit quite a lot.
 
 # RF models
 
@@ -142,7 +151,7 @@ RANGER1 <- ranger(
     data = C %>% select(-Training),
     formula = LosC ~.,
     num.trees = 2500,
-    mtry = 7,
+    mtry = 11,
     importance = "permutation",
     case.weights = C$Training,
     holdout = TRUE
@@ -213,10 +222,11 @@ ggplot(data=PRED,
 
 ```
 
-The ranger predictions are a good bit better than those from lmer, though still not great at high lengths of stay.
+The ranger predictions are quite good too, though still not great at high lengths of stay.
+
+# MLR3 for LosC - regression
 
 ```{r}
-#mlr3
 #
 tsk_C <- as_task_regr(C, target = "LosC", id = 'C')
   tsk_C
@@ -228,8 +238,9 @@ lrn_Filter = lrn("regr.ranger", seed = 42)
 flt_Imp = flt("importance", learner = lrn_Filter)
   flt_Imp$calculate(tsk_C)
 
-  Importance_Filtered <- setDF(as.data.table(flt_Imp))
-  autoplot(flt_Imp)
+  Importance_Filtered <-
+    setDF(as.data.table(flt_Imp))
+      autoplot(flt_Imp)
 
 lrn_R = lrn('regr.ranger',
             mtry = to_tune(5,25),
