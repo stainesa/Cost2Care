@@ -94,7 +94,6 @@ Cost2Care <- read_excel(path='data/Clean Cost2Care Merged Chart Review and HIPE 
 Cost2Care <- Cost2Care %>%
   select(-c(which(is.na(names(Cost2Care)))))
 
-
 #####################################################
 # Load the corresponding HIPE data
 # 
@@ -105,7 +104,7 @@ HIPE.Site <- readRDS('data/Hipe.Site.rds')
 # not in the Cost2Care file, but are in the HIPE.Site file
 COMBINED <- full_join(
   Cost2Care %>%
-    select(StudyID, Encrypted_mrn),
+    select(StudyID, encrypted_mrn),
   HIPE.Site %>%
     select(StudyID, ID),
       by = join_by(StudyID)) # check for missing study IDS
@@ -125,15 +124,6 @@ Cost2Care.HIPE <- full_join(
 NN <- names(Cost2Care.HIPE)
 NN[c(which(str_detect(NN, "\\.y|\\.x")))] # Should be PN.xray only
 #rm(COMBINED, NAMES)
-```
-
-There are two records in the HIPE file, with StudydIds 41 and 405, which are correctly omitted from the chart review. We remove these now.
-
-```{r remove surplus records 41 and 405}
-Cost2Care.HIPE <- Cost2Care.HIPE %>%
-  filter(StudyID != '41') %>%
-  filter(StudyID != '405')
-
 ```
 
 # Check dataset and check matching
@@ -160,6 +150,7 @@ ST <- dfSummary(Cost2Care.HIPE,
 print(ST, method = 'render')
 ```
 
+
 ## Check matching
 
 It is desirable to check the matching, and see if the other HIPE.Site variables have the same values as those in the Cost2Care file.
@@ -167,8 +158,10 @@ It is desirable to check the matching, and see if the other HIPE.Site variables 
 There are two groups for comparison. 
 
 ## HIPE
+
 In the first group the codes come from HIPE files, so the check is the correctness of the matching.
 
+### UTI_hadx
 
 ```{r Check match tables UTI hadx code}
 ##################################################
@@ -181,6 +174,8 @@ ctable(H.UTI_hadx <- as_factor(Cost2Care.HIPE$H.UTI_hadx),
 
 ```
 
+### DL_hadx
+
 ```{r Check match tables DL hadx code}
 ##################################################
 # DL
@@ -192,6 +187,8 @@ ctable(H.DL_hadx <- as_factor(Cost2Care.HIPE$H.DL_hadx),
 
 ```
 
+### PU_hadx
+
 ```{r Check match tables PU hadx code}
 ##################################################
 # PU
@@ -202,6 +199,8 @@ ctable(H.PU_hadx <- as_factor(Cost2Care.HIPE$H.PU_hadx),
   prop = "n")
 
 ```
+
+### PN_hadx
 
 ```{r Check match tables PN hadx code}
 ##################################################
@@ -234,6 +233,7 @@ ctable(H.any_F2M_hadx <- as_factor(Cost2Care.HIPE$H.any_F2M_hadx),
 
 In the second group, one code comes from the chart review, and the other from HIPE. This is the more substantively interesting
 
+### Sex
 
 ```{r Check match tables Sex}
 ##################################################
@@ -247,6 +247,8 @@ ctable(sex <- as_factor(
 
 ```
 
+### Age
+
 ```{r Check match tables Age}
 ##################################################
 # Age
@@ -254,6 +256,8 @@ ctable(sex <- as_factor(
 freq(Cost2Care.HIPE$Age_discharge - Cost2Care.HIPE$age) # Mostly ok, i.e. 0, but a few large discrepancies
 
 ```
+
+### Elective or emergency admission
 
 ```{r Check match tables Elective or emergency admission}
 ##################################################
@@ -266,6 +270,8 @@ ctable(Cost2Care.HIPE$Elective_emergency,
 
 ```
 
+### ITU use
+
 ```{r Check match tables ITU use}
 ##################################################
 # icu
@@ -276,6 +282,8 @@ ctable(itulos <- as_factor(Cost2Care.HIPE$itulos),
   prop = "n")
 
 ```
+
+###  PN
 
 ```{r Check match tables Pneumonia}
 ##################################################
@@ -288,6 +296,8 @@ ctable(PN <- as_factor(Cost2Care.HIPE$PN),
 
 ```
 
+### UTI
+
 ```{r Check match tables UTI}
 ##################################################
 # UTI
@@ -296,6 +306,8 @@ ctable(UTI <- as_factor(Cost2Care.HIPE$UTI),
   uti <- as_factor(Cost2Care.HIPE$uti))
 
 ```
+
+### PU
 
 ```{r Check match tables Pressure ulcer}
 ##################################################
@@ -306,6 +318,8 @@ ctable(PU <- as_factor(Cost2Care.HIPE$PU),
 
 ```
 
+### DL
+
 ```{r Check match tables Delirium}
 ##################################################
 # DL
@@ -314,6 +328,8 @@ ctable(DL <- as_factor(Cost2Care.HIPE$DL),
   delirium <- as_factor(Cost2Care.HIPE$delirium))
 
 ```
+
+### Any F2M
 
 ```{r Check match tables Any F2M}
 ##################################################
@@ -329,7 +345,7 @@ ctable(H.any_F2M <- as_factor(Cost2Care.HIPE$H.any_F2M),
 
 ```{r Pictures}
 ggplot(data=Cost2Care.HIPE,
-       aes(x = Age_discharge, y = age, colour=Gender)) + geom_jitter() # A bit clearer
+       aes(x = age_discharge, y = age, colour=gender)) + geom_jitter() # A bit clearer
 
 ```
 
@@ -345,11 +361,10 @@ The main outcomes available are
 
 It is wholly possible to have several of these outcomes.
 
+# Save file
 
-```{r Save the file}
-saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.HIPE.rds",
+```{r Save the files}
+saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.Hipe.rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
-
 ```
-
