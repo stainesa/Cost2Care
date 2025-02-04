@@ -64,7 +64,8 @@ rm(N)
 First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 for training.
 
 ```{r Load main data file, results = 'hide'}
-HIPE <- as_tibble(read.csv("data/H240272_2022.csv"))
+HIPE <- as_tibble(read.csv("data/H240272_2022.csv",
+        strip.white = TRUE, na.strings = c("", NA)))
 
 ###################################################
 #There is a StudyID variable at the start of the HIPE site file, so we add a blank StudyID to the start of this HIPE file
@@ -72,7 +73,8 @@ HIPE <- as_tibble(read.csv("data/H240272_2022.csv"))
 HIPE <- HIPE %>%
   mutate(StudyID = 0)
 
-HIPE.Site <- as_tibble(read.csv("data/H240272_2022_Site_Study_Subjects.csv"))
+HIPE.Site <- as_tibble(
+  read.csv("data/H240272_2022_Site_Study_Subjects.csv", strip.white = TRUE, na.strings = c("", NA)))
 ```
 
 ```{r Function <HIPE_PROCESS> to process both HIPE files}
@@ -100,14 +102,19 @@ HIPE_FILE <- HIPE_FILE %>%
   mutate(DateOfAdmission = paste0('15',mon.adm)) %>% # Process dates in MY format correctly, set day to 15th of each month
   mutate(DateOfAdmission = dmy(DateOfAdmission)) %>%
   mutate(DateOfDischarge = (DateOfAdmission + rawlos)) %>% # Crude estimate of date of discharge, but all we want is winter/not_winter
-  mutate(MonthOfAdmission = month(DateOfAdmission, label=TRUE)) %>%
-  mutate(MonthOfDischarge = month(DateOfDischarge, label=TRUE)) %>%
+  mutate(MonthOfAdmission = lubridate::month(DateOfAdmission, label=TRUE)) %>%
+  mutate(MonthOfDischarge = lubridate::month(DateOfDischarge, label=TRUE)) %>%
   mutate(SeasonOfAdmission =
            case_match(MonthOfAdmission,
                       c("Nov","Dec","Jan", "Feb") ~ "Winter",
 c("Mar","Apr","May","Jun","Jul","Aug","Sep","Oct") ~ "Other"
                                     ))
+#############################################
+# Prepare a SpecialtyGroup variable
+#
 
+    
+    
 #############################################
 # Then we split into training and test datasets
 # 
@@ -411,6 +418,10 @@ rm(Dead)
 
 It is important to emphasise that these crude death rates cannot be used to measure hospital outcomes, and still less to engage in the dubious activity of preparing league tables. Having said that, the results are not very surprising, and reflect the different roles and patient populations of the hospitals involved.
 
+## Hospital coding
+```{r}
+Coding_Summary <- HIPE %>% group_by(ModelCode,HospCode) %>% summarise(across(ProcCount:HadxCount, list(mean = mean, sd = sd)))
+```
 # Preliminary modelling
 
 Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects). For this preliminary work, the national HIPE data set is used.
