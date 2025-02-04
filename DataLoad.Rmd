@@ -419,6 +419,7 @@ rm(Dead)
 It is important to emphasise that these crude death rates cannot be used to measure hospital outcomes, and still less to engage in the dubious activity of preparing league tables. Having said that, the results are not very surprising, and reflect the different roles and patient populations of the hospitals involved.
 
 ## Hospital coding
+
 ```{r}
 Coding_Summary <- HIPE %>% group_by(ModelCode,HospCode) %>% summarise(across(ProcCount:HadxCount, list(mean = mean, sd = sd)))
 ```
@@ -534,7 +535,7 @@ These are linear models, with (in principle) unconstrained outputs. This is not 
 
 To examine deaths, where the outcome variable is binary, Alive or Dead, at the time of discharge, requires non-linear models, and the usual choice is a logistic model.
 
-```{r glm model}
+```{r glmm model, eval = FALSE}
 
 LogModel1 <- glmer(data=HIPE %>%
                      mutate(DiedL = Died == "Dead"),
