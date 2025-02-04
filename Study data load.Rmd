@@ -104,7 +104,7 @@ HIPE.Site <- readRDS('data/Hipe.Site.rds')
 # not in the Cost2Care file, but are in the HIPE.Site file
 COMBINED <- full_join(
   Cost2Care %>%
-    select(StudyID, encrypted_mrn),
+    select(StudyID, Encrypted_mrn),
   HIPE.Site %>%
     select(StudyID, ID),
       by = join_by(StudyID)) # check for missing study IDS
@@ -345,7 +345,7 @@ ctable(H.any_F2M <- as_factor(Cost2Care.HIPE$H.any_F2M),
 
 ```{r Pictures}
 ggplot(data=Cost2Care.HIPE,
-       aes(x = age_discharge, y = age, colour=gender)) + geom_jitter() # A bit clearer
+       aes(x = Age_discharge, y = age, colour=Gender)) + geom_jitter() # A bit clearer
 
 ```
 
