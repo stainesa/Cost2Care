@@ -255,7 +255,8 @@ instance = ti(
   learner = lrn_R,
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
-  terminator = trm("evals", n_evals=2000), # Reduce sharply for tuner "mbo"
+#  terminator = trm("evals", n_evals=2000), # Reduce sharply for tuner "mbo"
+  terminator = trm("evals", n_evals=750), # InreaseReduce sharply for tuner "random_search"
 )
 
 instance
@@ -266,8 +267,8 @@ tuner_random_search <- tnr("random_search")
 #######################################
 # SLOW - about 3.5 hours
 plan(multisession)
-  #tuner$optimize(instance)
-  tuner2$optimize(instance)
+  #tuner_mbo$optimize(instance)
+  tuner_random_search$optimize(instance)
 
 instance$result$learner_param_vals
 ```
