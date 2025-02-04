@@ -41,6 +41,7 @@ library(summarytools)
 library(ranger)
 library(mlr3verse)
 library(mlr3viz)
+library(data.table)
 
 library(sjPlot)
 library(sjtable2df)
@@ -56,9 +57,11 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fi
       cache.extra = knitr::rand_seed)
 
 st_options(ctable.round.digits = 2)
+# How many CPU's?
 N = 16
+  options(Ncpus = N)
+  options(mc.cores = N)
 
-options(Ncpus = N)
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
 
@@ -78,6 +81,12 @@ C2C <- readRDS('data/Cost2Care.HIPE.rds')
 NAMES <- read_excel(
       'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
       sheet = 'NAMES')
+
+#####################################################
+# Load the total HIPE data file
+# 
+HIPE <- readRDS('data/Hipe.rds')
+
 ```
 
 # Outcomes
@@ -118,21 +127,17 @@ This is not a good predictor. The range is too small, and the pattern makes litt
 C <- C2C %>%
     filter(!is.na(LOS)) %>%
 #    filter(Training == TRUE) %>%
-    select(Training:DepreEl,) %>%
+    select(Training:proc.desc.20,) %>%
     select(-c(DateOfAdmission, DateOfDischarge,
               MonthOfAdmission, MonthOfDischarge,
               mon.adm, rawlos, ICD_combined, age)
                   ) %>%
-    select(!contains('desc'))  # Basically HIPE variables
+    select(!contains('desc')) #%>% # Basically HIPE variables
+#    select(!starts_with('proc.')) %>%
+#    select(!starts_with('dx.')) %>%
+#    select(!starts_with('hadx.')) #%>%
+  
 
-##########
-# Add a variable for the count of procedures
-#
-C <- C %>%
-  mutate(ProcCount =
-           purrr::pmap_dbl(C %>%
-                             select(proc.01:proc.20),
-                           ~sum(!is.na(c(...)))))
 RANGER1 <- ranger(
     data = C %>% select(-Training),
     formula = LosC ~.,
@@ -144,34 +149,46 @@ RANGER1 <- ranger(
 )
 
 RANGER1
+
+############################################
+# Importance
+# 
 IMP <- importance(RANGER1)
-
-IMP_Names =  names(IMP)
-DF <- bind_cols(Names = IMP_Names, Importance = IMP) %>%
-    arrange(Importance) %>%
-    mutate(Names = fct_inorder(Names))
-
-ggplot(data  = DF %>% filter(Importance > 1.0),
+  IMP_Names =  names(IMP)
+  DF <- bind_cols(Names = IMP_Names, Importance = IMP) %>%
+      arrange(Importance) %>%
+      mutate(Names = fct_inorder(Names))
+############################################
+# Plot importance
+# 
+ggplot(data  = DF %>% filter(Importance > 0.0),
        aes(x= Importance, y = Names)) +
   geom_col(colour='red') +
   labs( title = "Variable importance",
   subtitle = "Permutation importance, holdout") +
   theme_minimal()
 
-# Might be worth looking at procedure count as an explanatory variable?
-# 
+############################################
+# Predictions on test and training data
+#  
 RANGER1.train.predict <- predict(RANGER1, data = C %>% filter(Training))
   summary(RANGER1.train.predict$predictions)
+    PRED.train <- bind_cols(LosC = C$LosC[C$Training],
+                            Prediction = RANGER1.train.predict$predictions,
+                            Train = TRUE)
 
 RANGER1.test.predict <- predict(RANGER1, data = C %>% filter(!Training))
   summary(RANGER1.test.predict$predictions)
+    PRED.test <- bind_cols(LosC = C$LosC[!C$Training],
+                           Prediction = RANGER1.test.predict$predictions,
+                           Train = FALSE)
 
-PRED.train <- bind_cols(LosC = C$LosC[C$Training], Prediction = RANGER1.train.predict$predictions, Train = TRUE)
-
-PRED.test <- bind_cols(LosC = C$LosC[!C$Training], Prediction = RANGER1.test.predict$predictions, Train = FALSE) 
 PRED <- bind_rows(PRED.test, PRED.train) %>%
   mutate(sqdiff = (LosC - Prediction)^2)
 
+############################################
+# MSE
+# 
 MSE_train <- PRED %>%
   filter(Train) %>%
   summarise(sum = sum(sqdiff), N = n()) %>%
@@ -182,14 +199,18 @@ MSE_test <- PRED %>%
   summarise(sum = sum(sqdiff), N = n()) %>%
   mutate(MSE = sum/N)
 
+cat("Training MSE", MSE_train$MSE, "Test MSE", MSE_test$MSE, "\n")
+
+############################################
+# Plot predictions
+# 
 ggplot(data=PRED,
        aes(x= LosC, y = Prediction, colour=Train)) +
   geom_point() +
   geom_smooth() +
   facet_wrap(~Train) +
   theme_minimal()
-############################################
-# Tune
+
 ```
 
 The ranger predictions are a good bit better than those from lmer, though still not great at high lengths of stay.
@@ -198,16 +219,17 @@ The ranger predictions are a good bit better than those from lmer, though still 
 #mlr3
 #
 tsk_C <- as_task_regr(C, target = "LosC", id = 'C')
-tsk_C
-autoplot(tsk_C)
+  tsk_C
+  autoplot(tsk_C)
 
 lrn_Filter = lrn("regr.ranger", seed = 42)
-lrn_Filter$param_set$values = list(importance = "permutation")
+  lrn_Filter$param_set$values = list(importance = "permutation")
 
 flt_Imp = flt("importance", learner = lrn_Filter)
-flt_Imp$calculate(tsk_C)
-Importance_Filtered <- setDF(as.data.table(flt_Imp))
-autoplot(flt_Imp)
+  flt_Imp$calculate(tsk_C)
+
+  Importance_Filtered <- setDF(as.data.table(flt_Imp))
+  autoplot(flt_Imp)
 
 lrn_R = lrn('regr.ranger',
             mtry = to_tune(5,25),
@@ -222,20 +244,27 @@ instance = ti(
   learner = lrn_R,
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
-  terminator = trm("evals", n_evals=1000, k = 2),
+  terminator = trm("evals", n_evals=2000), # Reduce sharply for tuner "mbo"
 )
 
 instance
-tuner <- tnr("mbo")
+
+tuner_mbo <- tnr("mbo")
+tuner_random_search <- tnr("random_search")
+
 #######################################
 # SLOW - about 3.5 hours
-#tuner$optimize(instance)
+plan(multisession)
+  #tuner$optimize(instance)
+  tuner2$optimize(instance)
 
 instance$result$learner_param_vals
+```
 
+```{r}
 ParameterSearchResults <- as.data.table(instance$archive)
 PSR <- ParameterSearchResults %>%
-  select(mtry, num,trees, regr.mse)
+  select(mtry, num.trees, regr.mse)
 ggplot(data = ParameterSearchResults, aes(x = mtry, y = regr.mse)) +
   geom_jitter()
 ggplot(data = ParameterSearchResults, aes(x = num.trees, y = regr.mse)) +
@@ -246,10 +275,10 @@ autoplot(instance, type = "surface") + scale_color_brewer(palette = "Set1")
 
 instance$archive$benchmark_result
 #
-# Strongly suggests 7 or so for mtry, and over 2250 for num.trees
+# Strongly suggests 11 or so for mtry, but that the number of tress matters much less
 # 
 lrn_R_mbo = lrn('regr.ranger',
-            mtry = 7,
+            mtry = 11,
             num.trees = 2500,
             importance = "permutation"
             )
@@ -261,6 +290,27 @@ prediction$score(msrs(c("regr.mse", "regr.mae")))
 prediction$truth
 OUTCOME <- as_tibble(cbind(Truth = prediction$truth, Predicted = prediction$response))
 
-ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) + geom_point()
+ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
+  geom_jitter() +
+  geom_smooth()
 ```
 
+
+# Predict LosC for national HIPE data
+
+```{r}
+HIPE.prediction <- lrn_R_mbo$predict_newdata(task = tsk_C, newdata = HIPE)
+autoplot(HIPE.prediction)
+HIPE.prediction$score(msrs(c("regr.mse", "regr.mae")))
+
+
+OUTCOME <- as_tibble(cbind(Truth = HIPE.prediction$truth,
+                           Predicted = HIPE.prediction$response))
+
+ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
+  geom_jitter() +
+  geom_smooth()
+```
+
+
+Long stay rates
