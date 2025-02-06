@@ -37,6 +37,7 @@ library(sjPlot)
 library(sjtable2df)
 library(broom)
 library(broom.mixed)
+library(summarytools)
 
 library(pixiedust)
 library(stargazer)
@@ -110,11 +111,59 @@ HIPE_FILE <- HIPE_FILE %>%
 c("Mar","Apr","May","Jun","Jul","Aug","Sep","Oct") ~ "Other"
                                     ))
 #############################################
-# Prepare a SpecialtyGroup variable
-#
-
-    
-    
+# Prepare a Medical/Surgical Group variable
+# REPLACE WHEN PROCEDURE CODES FOR ANAESTHETICS AVAILABLE!!
+HIPE_FILE <- HIPE_FILE %>%
+      mutate(MedSurg = 
+                case_match(specialty,
+"Accident & Emergency" ~ "Medical",
+"Cardiology" ~ "Medical",
+"Clinical (Medical) Genetics" ~ "Medical",
+"Dermatology" ~ "Medical",
+"Diabetes Mellitus" ~ "Medical",
+"Endocrinology" ~ "Medical",
+"Gastro-Enterology" ~ "Medical",
+"General Medicine" ~ "Medical",
+"Genito-Urinary Medicine" ~ "Medical",
+"Geriatric-Medicine" ~ "Medical",
+"Haematology" ~ "Medical",
+"Histopathology" ~ "Medical",
+"Infectious Diseases" ~ "Medical",
+"Intensive Care" ~ "Medical",
+"Microbiology" ~ "Medical",
+"Nephrology" ~ "Medical",
+"Neurology" ~ "Medical",
+"Neuroradiology" ~ "Medical",
+"Oncology" ~ "Medical",
+"Paediatric Oncology" ~ "Medical",
+"Paediatrics" ~ "Medical",
+"Pain Relief" ~ "Medical",
+"Palliative Medicine" ~ "Medical",
+"Psychiatry" ~ "Medical",
+"Radiology" ~ "Medical",
+"Radiotherapy" ~ "Medical",
+"Respiratory Medicine" ~ "Medical",
+"Rheumatology" ~ "Medical",
+"Anaesthetics" ~ "Surgical",
+"Breast Surgery" ~ "Surgical",
+"Cardio-Thoracic Surgery" ~ "Surgical",
+"Dental Surgery" ~ "Surgical",
+"Gastro-Intestinal Surgery" ~ "Surgical",
+"General Surgery" ~ "Surgical",
+"Gynaecology" ~ "Surgical",
+"Hepato-Biliary Surgery" ~ "Surgical",
+"Maxillo-Facial" ~ "Surgical",
+"Neurosurgery" ~ "Surgical",
+"Obstetrics" ~ "Surgical",
+"Obstetrics/Gynaecology" ~ "Surgical",
+"Ophthalmology" ~ "Surgical",
+"Orthopaedics" ~ "Surgical",
+"Otolaryngology (ENT)" ~ "Surgical",
+"Plastic Surgery" ~ "Surgical",
+"Renal Transplantation" ~ "Surgical",
+"Urology" ~ "Surgical",
+"Vascular Surgery" ~ "Surgical"))
+             
 #############################################
 # Then we split into training and test datasets
 # 
@@ -242,7 +291,7 @@ HIPE_FILE <- HIPE_FILE %>%
 # 
 HIPE_FILE <- HIPE_FILE %>%
   mutate(StudyID = studyid) %>% #Capitalise this again
-  select(StudyID, ID, Training, ModelF, ModelCode, HospCode,
+  select(StudyID, ID, Training, ModelF, ModelCode, HospCode, MedSurg,
          AgeC, LosC,
          DateOfAdmission, MonthOfAdmission, SeasonOfAdmission,
          DateOfDischarge, MonthOfDischarge,
@@ -420,9 +469,87 @@ It is important to emphasise that these crude death rates cannot be used to meas
 
 ## Hospital coding
 
-```{r}
-Coding_Summary <- HIPE %>% group_by(ModelCode,HospCode) %>% summarise(across(ProcCount:HadxCount, list(mean = mean, sd = sd)))
+Different hospitals will provide different bundles of care. This is partly captured in the Hospital model. They may also have different coding practices. The coders receive common training, but the materials form they which they code may be more variable. To begin to address this, we start by examining the number of codes used in each hospital.
+
+```{r Calculate code counts}
+Coding_Summary <- HIPE %>% group_by(ModelF,HospCode) %>% summarise(across(c(age, ProcCount:HadxCount, ScoreEl), list(median = median, mean = mean, sd = sd)))
 ```
+
+We show a series of hospital level variables.
+
+### Age
+
+Age at admission does not vary greatly between the main group of hospitals. These are an older group of patients, all aged 65 or over, and admitted for at least three days.
+
+```{r Draw age}
+ggplot(data = HIPE,
+       aes(x = HospCode, y = age, colour = ModelF)) +
+  geom_jitter(alpha = 0.05) +
+  geom_violin() +
+  facet_wrap(~ModelF, scales='free_x') +
+  labs (title='Age',
+        x = 'Hospital',
+        y = 'Age (years)')
+```
+
+### Elixhauser score
+
+All hospitals have a wide range of Elixhauser scores, but Model 4 hospitals have more of the highest scores than the others. The commonest score is zero. Neither of these is unexpected.
+
+```{r ScoreEl}
+ggplot(data = HIPE,
+       aes(x = HospCode, y = ScoreEl, colour = ModelF)) +
+  geom_jitter(alpha = 0.05) +
+  geom_violin() +
+  facet_wrap(~ModelF, scales='free_x') +
+  labs (title='Elixhauser score',
+        x = 'Hospital',
+        y = 'Elixhauser score')
+```
+
+### Counts of codes given
+
+Each discharge record has up to three sets of codes - a code for up to thirty diagnoses, a code for up to twenty procedures, and a code for up to thirty health care acquired diagnoses.
+
+For diagnoses, there is considerable variability in the number of codes given, which partly reflects case mix, and partly coding practices.
+
+```{r Diagnosis codes count}
+ggplot(data = HIPE,
+       aes(x = HospCode, y = DxCount, colour = ModelF)) +
+  geom_jitter(alpha = 0.05) +
+  geom_boxplot() +
+  facet_wrap(~ModelF, scales='free_x') +
+  labs (title='Number of diagnoses coded',
+        x = 'Hospital',
+        y = 'Number of Diagnoses coded')
+```
+
+A similar pattern can be seen for procedures, although there is some suggestions that practices in individual hospitals may be rather different.
+
+```{r Procedure codes count}
+ggplot(data = HIPE,
+       aes(x = HospCode, y = ProcCount, colour = ModelF)) +
+  geom_jitter(alpha = 0.05) +
+  geom_violin() +
+  facet_wrap(~ModelF, scales='free_x') +
+  labs (title='Number of procedures coded',
+        x = 'Hospital',
+        y = 'Number of Procedures coded')
+```
+
+For health care acquired diagnoses the median number of codes given is 0 in every hospital. The mean ranges from just over 0 to just over 2 depending on the hospitals, though there is substantial variability.
+
+```{r HADx codes count}
+ggplot(data = HIPE,
+       aes(x = HospCode, y = HadxCount, colour = ModelF)) +
+  geom_jitter(alpha = 0.05) +
+  geom_boxplot() +
+  facet_wrap(~ModelF, scales='free_x') +
+  labs (title='Number of health care acquired diagnoses coded',
+        x = 'Hospital',
+        y = 'Number of Health care Acquired Diagnoses coded')
+```
+
 # Preliminary modelling
 
 Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects). For this preliminary work, the national HIPE data set is used.
@@ -472,7 +599,7 @@ Model6 <- lmer(data=HIPE,
                 (1 | HospCode) +
                 (1 | drgv.8))
 
-tab_model(Model4,Model5, Model6)
+tab_model(Model4, Model5, Model6)
 
 ```
 
@@ -499,7 +626,7 @@ Model8 <- lmer(data=HIPE,
                (1 | ModelF) +
                 (1 | ModelF:HospCode) +
                 (1 | drgv.8))
-tab_model(Model8,Model7, Model6)
+tab_model(Model8, Model7, Model6)
 
 ```
 
@@ -511,7 +638,7 @@ Model9 <- lmer(data=HIPE,
                (1 | ModelF) +
                 (1 | ModelF:HospCode) +
                 (1 | drgv.8))
-tab_model(Model9,Model6)
+tab_model(Model9, Model6)
 
 ```
 
@@ -523,11 +650,60 @@ Model10 <- lmer(data=HIPE,
                (1 | ModelF) +
                 (1 | ModelF:HospCode) +
                 (1 | drgv.8))
-tab_model(Model10,Model9)
+tab_model(Model10, Model9)
 
 ```
 
 Fitting the Season of Discharge (Winter or Other) makes a modest contribution to the length of stay, but it has been identified in other work, so it will be retained.
+
+```{r Add crude medical surgical split}
+Model11 <- lmer(data=HIPE,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + MedSurg +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model11, Model10, Model9)
+
+```
+
+A rather crude split into medical and surgical cases shows much lower lengths of stay for surgical than medical cases, again as expected.
+
+```{r Add eligibility}
+Model12 <- lmer(data=HIPE,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + MedSurg + fullelig +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model12, Model11, Model10)
+
+```
+
+Full eligibility increases the length of stay.
+
+```{r Add elective/emergency admission}
+Model13 <- lmer(data=HIPE,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + MedSurg + fullelig + elem +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model13, Model12, Model11)
+
+```
+
+Emergency admissions stay longer.
+
+```{r table eligibility, elem and MedSurg}
+
+ctable(MedSurg <- as_factor(HIPE$MedSurg),
+  elem <- as_factor(HIPE$elem),
+  prop = "r")
+
+ctable(MedSurg <- as_factor(HIPE$MedSurg),
+  fullelig <- as_factor(HIPE$fullelig),
+  prop = "r")
+```
+
+There are big differences between medical and sugical cases in terms of eligibility and elective or emergency admissions.
 
 ## Linear and non-linear models
 
