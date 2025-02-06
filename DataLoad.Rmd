@@ -703,7 +703,7 @@ ctable(MedSurg <- as_factor(HIPE$MedSurg),
   prop = "r")
 ```
 
-There are big differences between medical and sugical cases in terms of eligibility and elective or emergency admissions.
+There are big differences between medical and surgical cases in terms of eligibility and elective or emergency admissions.
 
 ## Linear and non-linear models
 
