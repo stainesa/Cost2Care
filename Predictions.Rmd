@@ -81,7 +81,7 @@ This is the chart review file merged with the HIPE file provided by HPO.
 #####################################################
 # Load the merged HIPE/Study data file
 # 
-C2C <- readRDS('data/Cost2Care.HIPE.rds')
+Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.rds')
 NAMES <- read_excel(
       'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
       sheet = 'NAMES')
@@ -91,6 +91,25 @@ NAMES <- read_excel(
 # 
 HIPE <- readRDS('data/Hipe.rds')
 
+```
+
+## Make smaller analysis data file
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
+
+```{r simplify data}
+ 
+C2C.H <- Cost2Care.HIPE %>%
+    filter(!is.na(LOS)) %>%
+    select(Training:proc.desc.20,) %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, rawlos, ICD_combined, age)
+                  ) %>%
+    select(!contains('desc')) #%>% # Basically HIPE text variables
+#    select(!starts_with('proc.')) %>%
+#    select(!starts_with('dx.')) %>%
+#    select(!starts_with('hadx.')) #%>%
+ 
 ```
 
 # Intent
@@ -105,7 +124,7 @@ We actually model the scaled length of stay which has a mean of zero (but a  med
 ## lmer based predictions of Length of Stay (centred and scaled)
 
 ```{r}
-ModelLOS <- lmer(data=C2C,
+ModelLOS <- lmer(data=C2C.H,
              LosC ~
                AgeC + as_factor(sex) + ScoreEl +
                Source + SeasonOfAdmission +
@@ -114,9 +133,10 @@ ModelLOS <- lmer(data=C2C,
                (1|mdc))
 
 tab_model(ModelLOS)
-PRED <- predict(ModelLOS, newdata = C2C)
 
-C <- cbind(C2C, PRED)
+PRED <- predict(ModelLOS, newdata = C2C.H)
+
+C <- bind_cols(LosC = C2C.H$LosC, PRED = PRED, sex = C2C.H$sex)
 
 ggplot(data = C,
        aes(x=LosC, y = PRED, colour=as_factor(sex))) +
@@ -135,32 +155,17 @@ rm(C)
 This is not such a bad predictor! Adding extra variables has improved the fit quite a lot. There's probably a fair bit of overfitting, but we'll get back to that later.
 
 # RF models
-
-```{r}
+```{r simple ranger model}
 # simple ranger model
 # 
-# 
-C <- C2C %>%
-    filter(!is.na(LOS)) %>%
-#    filter(Training == TRUE) %>%
-    select(Training:proc.desc.20,) %>%
-    select(-c(DateOfAdmission, DateOfDischarge,
-              MonthOfAdmission, MonthOfDischarge,
-              mon.adm, rawlos, ICD_combined, age)
-                  ) %>%
-    select(!contains('desc')) #%>% # Basically HIPE text variables
-#    select(!starts_with('proc.')) %>%
-#    select(!starts_with('dx.')) %>%
-#    select(!starts_with('hadx.')) #%>%
-  
 
 RANGER1 <- ranger(
-    data = C %>% select(-Training),
+    data = C2C.H %>% select(-Training),
     formula = LosC ~.,
-    num.trees = 2500,
+        num.trees = 1000,
     mtry = 11,
     importance = "permutation",
-    case.weights = C$Training,
+    case.weights = C2C.H$Training,
     holdout = TRUE
 )
 
@@ -187,15 +192,15 @@ ggplot(data  = DF %>% filter(Importance > 0.0),
 ############################################
 # Predictions on test and training data
 #  
-RANGER1.train.predict <- predict(RANGER1, data = C %>% filter(Training))
+RANGER1.train.predict <- predict(RANGER1, data = C2C.H %>% filter(Training))
   summary(RANGER1.train.predict$predictions)
-    PRED.train <- bind_cols(LosC = C$LosC[C$Training],
+    PRED.train <- bind_cols(LosC = C2C.H$LosC[C2C.H$Training],
                             Prediction = RANGER1.train.predict$predictions,
                             Train = TRUE)
 
-RANGER1.test.predict <- predict(RANGER1, data = C %>% filter(!Training))
+RANGER1.test.predict <- predict(RANGER1, data = C2C.H %>% filter(!Training))
   summary(RANGER1.test.predict$predictions)
-    PRED.test <- bind_cols(LosC = C$LosC[!C$Training],
+    PRED.test <- bind_cols(LosC = C2C.H$LosC[!C2C.H$Training],
                            Prediction = RANGER1.test.predict$predictions,
                            Train = FALSE)
 
@@ -229,16 +234,32 @@ ggplot(data=PRED,
 
 ```
 
-The ranger predictions are quite good too, though still not great at high lengths of stay. There are a large number of important variables.
+The ranger predictions are quite good too, though still not great at high lengths of stay. There are a large number of more or less equally important variables. As expected, there is a huge difference between the MSE for the training data, a very respectable `r round(MSE_train$MSE,2)` and that for the test data, `r round(MSE_test$MSE,2)`.
 
-# MLR3 for LosC - regression
+# MLR3 for LosC 
 
-```{r}
+## Regression
+
+First we set up a regression task. A plot of this is a plot of the outcome variable, in this case centred and scaled length of stay. Note that this is very very skew, with a long tail of outliers, and a designed minimum of 3 days.
+
+```{r Define a regression task}
 #
-tsk_C <- as_task_regr(C, target = "LosC", id = 'C')
+# Define a regression task for LosC
+#
+tsk_C <- as_task_regr(C2C.H, target = "LosC", id = 'C')
   tsk_C
-  autoplot(tsk_C)
+  autoplot(tsk_C) + 
+    labs (title = 'Length of stay',
+          subtitle = 'Centred to zero and scaled to standard deviation units',
+          x = 'LosC',
+          y = 'Length of stay (SD units)')
+```
 
+## Importance
+
+Then we look briefly at the importance of the respective variables using a simple ranger model, with no tuning. We could use this to filter variables out. What we see is a block of variables with importance of zero, and another block with, more or less, similar importance of around 3.
+
+```{r Look at variable importance}
 lrn_Filter = lrn("regr.ranger", seed = 42)
   lrn_Filter$param_set$values = list(importance = "permutation")
 
@@ -246,9 +267,26 @@ flt_Imp = flt("importance", learner = lrn_Filter)
   flt_Imp$calculate(tsk_C)
 
   Importance_Filtered <-
-    setDF(as.data.table(flt_Imp))
-      autoplot(flt_Imp)
+    setDF(as.data.table(flt_Imp)) %>%
+    arrange(score, feature)
+  
+      autoplot(flt_Imp) +
+        labs( title  = 'Importance plot',
+              y = 'Permutation importance')
 
+     Importance_Filtered %>% filter(score > 3) %>% select (-score)
+     Importance_Filtered %>% filter(score <= 3 & score > 2) %>% select (-score)
+     Importance_Filtered %>% filter(score <= 2 & score > 1) %>% select (-score)
+     Importance_Filtered %>% filter(score <= 1 & score > 0) %>% select (-score)
+     Importance_Filtered %>% filter(score == 0) %>% select (-score)
+
+```
+
+Roughly, all the hadx scores are non-contributory. The main contributors are the proc scores.
+
+## Tuning
+
+```{r}
 # Regression RF model
 lrn_R = lrn('regr.ranger',
             mtry = to_tune(5,25),
@@ -258,18 +296,23 @@ lrn_R = lrn('regr.ranger',
 
 split = partition(tsk_C)
 
-instance = ti(
+instance_mbo = ti(
   task = tsk_C,
   learner = lrn_R,
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
-#  terminator = trm("evals", n_evals=2000), # Reduce sharply for tuner "mbo"
-  terminator = trm("evals", n_evals=750), # InreaseReduce sharply for tuner "random_search"
+  terminator = trm("evals", n_evals=750), # For tuner "mbo"
+#  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
+)
+instance_random_search = ti(
+  task = tsk_C,
+  learner = lrn_R,
+  resampling = rsmp("holdout"),
+  measures = msr("regr.mse"),
+#  terminator = trm("evals", n_evals=750), # For tuner "mbo"
+  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
 )
 
-# Copy instance to do two tunings
-instance_mbo <- instance
-instance_random_search <- instance
 
 tuner_mbo <- tnr("mbo")
 tuner_random_search <- tnr("random_search")
@@ -284,18 +327,20 @@ instance_mbo$result$learner_param_vals
 instance_random_search$result$learner_param_vals
 
 
-ParameterSearchResults_mbo <- as.data.table(instance_mbo$archive)  %>%
+ParameterSearchResults_mbo <-
+  as.data.table(instance_mbo$archive)  %>%
   select(mtry, num.trees, regr.mse)
+
 ParameterSearchResults_random_search <- as.data.table(instance_random_search$archive) %>%
   select(mtry, num.trees, regr.mse)
 
 ggplot(data = ParameterSearchResults_mbo, aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
-autoplot(instance_mbo, type = "surface") + scale_color_brewer(palette = "Set1")
+    autoplot(instance_mbo, type = "surface")
 
 ggplot(data = ParameterSearchResults_random_search, aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
-autoplot(instance_random_search, type = "surface") + scale_color_brewer(palette = "Set1")
+    autoplot(instance_random_search, type = "surface")
 
 instance_mbo$archive$benchmark_result
 instance_random_search$archive$benchmark_result
@@ -304,10 +349,11 @@ instance_random_search$archive$benchmark_result
 # 
 #
 ```
+
 ```{r}
 lrn_R_mbo = lrn('regr.ranger',
             mtry = 11,
-            num.trees = 2500,
+            num.trees = 1000,
             importance = "permutation"
             )
 
