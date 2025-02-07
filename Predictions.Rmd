@@ -37,6 +37,8 @@ library(lme4)
 library(knitr)
 library(kableExtra)
 library(summarytools)
+library(patchwork)
+
 
 library(ranger)
 library(mlr3verse)
@@ -286,7 +288,7 @@ Roughly, all the hadx scores are non-contributory. The main contributors are the
 
 ## Tuning
 
-```{r}
+```{r tuning}
 # Regression RF model
 lrn_R = lrn('regr.ranger',
             mtry = to_tune(5,25),
@@ -334,13 +336,16 @@ ParameterSearchResults_mbo <-
 ParameterSearchResults_random_search <- as.data.table(instance_random_search$archive) %>%
   select(mtry, num.trees, regr.mse)
 
-ggplot(data = ParameterSearchResults_mbo, aes(y = num.trees, x = mtry)) +
+ggplot(data = ParameterSearchResults_mbo,
+       aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
     autoplot(instance_mbo, type = "surface")
 
-ggplot(data = ParameterSearchResults_random_search, aes(y = num.trees, x = mtry)) +
+ggplot(data = ParameterSearchResults_random_search,
+       aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
     autoplot(instance_random_search, type = "surface")
+
 
 instance_mbo$archive$benchmark_result
 instance_random_search$archive$benchmark_result
@@ -350,6 +355,154 @@ instance_random_search$archive$benchmark_result
 #
 ```
 
+```{r tuning graph}
+
+g1 <- ggplot(data = ParameterSearchResults_mbo,
+       aes(x = num.trees, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  labs(title = "Model Based Optimisation") +
+  theme_minimal()
+
+g2 <- ggplot(data = ParameterSearchResults_mbo,
+       aes(x = mtry, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = num.trees)) +
+  labs(title = "Model Based Optimisation") +
+  theme_minimal()
+
+    
+g3 <- ggplot(data = ParameterSearchResults_random_search,
+       aes(x = num.trees, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  labs(title = "Random Search Optimisation") +
+  theme_minimal()
+
+g4 <- ggplot(data = ParameterSearchResults_random_search,
+       aes(x = mtry, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = num.trees)) +
+  labs(title = "Random Search Optimisation") +
+  theme_minimal()
+
+ g1 + g2 + g3 + g4 # patchwork
+```
+
+These results are odd. Both methods suggest a minimal number of parameters (5) for the lowest mse, but the actual mse is quite flat in the number of trees, and fairly flat in the number of variables included in each one (mtry).
+
+For this reason we repeat the exercise with a trimmed data set, excluding extreme outliers. The rational for this is that while these very long lengths of stay matter, they are probably driven by very specific individual factors, which will not be captured by any retrospective routine data system.
+
+
+```{r Define a regression task on trimmed LosC data}
+#
+# Define a regression task for LosC
+#
+tsk_C_trimmed <- as_task_regr(C2C.H %>% filter(LosC <= 2.5),
+                              target = "LosC", id = 'C_trimmed')
+  tsk_C_trimmed
+  autoplot(tsk_C_trimmed) + 
+    labs (title = 'Length of stay',
+          subtitle = 'Centred to zero and scaled to standard deviation units',
+          x = 'LosC',
+          y = 'Length of stay (SD units)')
+```
+
+
+```{r tuning 2}
+# Regression RF model
+lrn_R = lrn('regr.ranger',
+            mtry = to_tune(5,25),
+            num.trees = to_tune(500,3000),
+            importance = "permutation"
+            )
+
+split = partition(tsk_C_trimmed)
+
+instance_mbo = ti(
+  task = tsk_C_trimmed,
+  learner = lrn_R,
+  resampling = rsmp("holdout"),
+  measures = msr("regr.mse"),
+  terminator = trm("evals", n_evals=750), # For tuner "mbo"
+#  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
+)
+instance_random_search = ti(
+  task = tsk_C_trimmed,
+  learner = lrn_R,
+  resampling = rsmp("holdout"),
+  measures = msr("regr.mse"),
+#  terminator = trm("evals", n_evals=750), # For tuner "mbo"
+  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
+)
+
+
+tuner_mbo <- tnr("mbo")
+tuner_random_search <- tnr("random_search")
+
+#######################################
+# SLOW - about 3.5 hours
+plan(multisession)
+  tuner_mbo$optimize(instance_mbo)
+  tuner_random_search$optimize(instance_random_search)
+
+instance_mbo$result$learner_param_vals
+instance_random_search$result$learner_param_vals
+
+
+ParameterSearchResults_mbo <-
+  as.data.table(instance_mbo$archive)  %>%
+  select(mtry, num.trees, regr.mse)
+
+ParameterSearchResults_random_search <- as.data.table(instance_random_search$archive) %>%
+  select(mtry, num.trees, regr.mse)
+
+ggplot(data = ParameterSearchResults_mbo,
+       aes(y = num.trees, x = mtry)) +
+  geom_jitter(aes(size = regr.mse, colour= regr.mse))
+    autoplot(instance_mbo, type = "surface")
+
+ggplot(data = ParameterSearchResults_random_search,
+       aes(y = num.trees, x = mtry)) +
+  geom_jitter(aes(size = regr.mse, colour= regr.mse))
+    autoplot(instance_random_search, type = "surface")
+
+
+instance_mbo$archive$benchmark_result
+instance_random_search$archive$benchmark_result
+#
+# Strongly suggests 11 or so for mtry, but that the number of trees matters much less
+# 
+#
+```
+
+
+```{r tuning graph2}
+
+g1 <- ggplot(data = ParameterSearchResults_mbo,
+       aes(x = num.trees, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  labs(title = "Model Based Optimisation") +
+  theme_minimal()
+
+g2 <- ggplot(data = ParameterSearchResults_mbo,
+       aes(x = mtry, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = num.trees)) +
+  labs(title = "Model Based Optimisation") +
+  theme_minimal()
+
+    
+g3 <- ggplot(data = ParameterSearchResults_random_search,
+       aes(x = num.trees, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  labs(title = "Random Search Optimisation") +
+  theme_minimal()
+
+g4 <- ggplot(data = ParameterSearchResults_random_search,
+       aes(x = mtry, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = num.trees)) +
+  labs(title = "Random Search Optimisation") +
+  theme_minimal()
+
+ g1 + g2 + g3 + g4 # patchwork
+```
+
 ```{r}
 lrn_R_mbo = lrn('regr.ranger',
             mtry = 11,
@@ -357,8 +510,8 @@ lrn_R_mbo = lrn('regr.ranger',
             importance = "permutation"
             )
 
-lrn_R_mbo$train(tsk_C, split$train)
-prediction = lrn_R_mbo$predict(tsk_C, split$test)
+lrn_R_mbo$train(tsk_C_trimmed, split$train)
+prediction = lrn_R_mbo$predict(tsk_C_trimmed, split$test)
 prediction$score(msrs(c("regr.mse", "regr.mae")))
 
 prediction$truth
@@ -373,7 +526,8 @@ ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
 # Predict LosC for national HIPE data
 
 ```{r}
-HIPE.prediction <- lrn_R_mbo$predict_newdata(task = tsk_C, newdata = HIPE)
+HIPE.trimmed <- HIPE %>% filter(LosC <= 2.5)
+HIPE.prediction <- lrn_R_mbo$predict_newdata(task = tsk_C_trimmed, newdata = HIPE.trimmed)
 autoplot(HIPE.prediction)
 HIPE.prediction$score(msrs(c("regr.mse", "regr.mae")))
 
