@@ -291,13 +291,14 @@ ParameterSearchResults_random_search <- as.data.table(instance_random_search$arc
 
 ggplot(data = ParameterSearchResults_mbo, aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
-autoplot(instance_mbo, type = "urface") + scale_color_brewer(palette = "Set1")
+autoplot(instance_mbo, type = "surface") + scale_color_brewer(palette = "Set1")
 
 ggplot(data = ParameterSearchResults_random_search, aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
 autoplot(instance_random_search, type = "surface") + scale_color_brewer(palette = "Set1")
 
-instance$archive$benchmark_result
+instance_mbo$archive$benchmark_result
+instance_random_search$archive$benchmark_result
 #
 # Strongly suggests 11 or so for mtry, but that the number of trees matters much less
 # 
