@@ -1,0 +1,78 @@
+---
+title: "Classifications"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: 
+    toc: true
+    fig_caption: true
+    number_sections: true
+    latex_engine: xelatex
+    includes:
+      in_header: 
+      - !expr system.file("includes/fig-valign.tex", package = "summarytools")
+editor_options:
+  chunk_output_type: console
+bibliography: references.bib
+csl: vancouver.csl
+---
+
+# Predictions
+
+Prepares predictions for selected outcome variables for the study site file, using the study (chart review) outcomes, and the HIPE predictors.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+library(tidyverse)
+library(lubridate)
+library(tibble)
+library(readxl)
+library(comorbidity)
+library(tidymodels)
+library(lme4)
+#library(lmerTest)
+library(knitr)
+library(kableExtra)
+library(summarytools)
+library(patchwork)
+
+
+library(ranger)
+library(mlr3verse)
+library(mlr3viz)
+library(data.table)
+library(future)
+
+library(sjPlot)
+library(sjtable2df)
+
+library(broom)
+library(broom.mixed)
+
+library(stargazer)
+
+tidymodels_prefer(quiet = TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fig.pos = 'H',
+      cache.extra = knitr::rand_seed)
+
+st_options(ctable.round.digits = 2)
+# How many CPU's?
+N = 16
+  options(Ncpus = N - 1)
+  options(mc.cores = N - 1)
+  setDTthreads(threads = N - 1,
+               restore_after_fork = TRUE,
+               throttle = 1024)
+
+options(dplyr.summarise.inform = FALSE, # shut up summarise
+        ranger.num.threads = N) # Prepare for rf models
+lgr::get_logger("mlr3")$set_threshold("warn")
+
+
+set.seed(979)
+rm(N)
+```
