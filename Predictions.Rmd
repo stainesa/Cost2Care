@@ -70,8 +70,8 @@ N = 16
 
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
-lgr::get_logger("mlr3")$set_threshold("warn")
-lgr::get_logger("bbotk")$set_threshold("warn")
+lgr::get_logger("mlr3")$set_threshold("error")
+lgr::get_logger("bbotk")$set_threshold("error")
 
 
 set.seed(979)
