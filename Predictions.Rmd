@@ -21,7 +21,7 @@ csl: vancouver.csl
 
 # Predictions
 
-Prepares predictions for selected outcome variables for the study site file, using the study (chart review) outcomes, and the HIPE predictors.
+Prepares predictions for length of stay using a regression approach, for the study site file, using the study (chart review) outcomes, and the HIPE predictors. These are tgen applied to the national data t see how they perfrom.
 
 ```{r setup, include=FALSE}
 rm(list=ls())
@@ -71,6 +71,7 @@ N = 16
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
 lgr::get_logger("mlr3")$set_threshold("warn")
+lgr::get_logger("bbotk")$set_threshold("warn")
 
 
 set.seed(979)
@@ -244,19 +245,41 @@ The ranger predictions are quite good too, though still not great at high length
 
 ## Regression
 
-First we set up a regression task. A plot of this is a plot of the outcome variable, in this case centred and scaled length of stay. Note that this is very very skew, with a long tail of outliers, and a designed minimum of 3 days.
+First we set up a regression task. We split the data into a two-thirds training set, and a one third testing set. This is a simple random split. When we get the Medical/surgical stuff sorted, we can split within these strata, but as the strata are of roughly equal size, we ought to be fine, even now.
 
-```{r Define a regression task}
+A plot of this task is a plot of the outcome variable, in this case centred and scaled length of stay. Note that this is very very skew, with a long tail of outliers, and a designed minimum of 3 days.
+
+```{r Define and draw a regression task and a split}
 #
 # Define a regression task for LosC
 #
 tsk_C <- as_task_regr(C2C.H, target = "LosC", id = 'C')
   tsk_C
+  split_C = partition(tsk_C)
+  
   autoplot(tsk_C) + 
     labs (title = 'Length of stay',
           subtitle = 'Centred to zero and scaled to standard deviation units',
           x = 'LosC',
           y = 'Length of stay (SD units)')
+  
+TRAIN <- bind_cols(
+  SET = split_C$train,
+  Result = 'TRAIN',
+  LosC = C2C.H$LosC[split_C$train])
+TEST <- bind_cols(
+  SET = split_C$test,
+  Result = 'TEST',
+  LosC = C2C.H$LosC[split_C$test])
+SPLIT <- bind_rows(TRAIN,TEST)
+
+ggplot(data = SPLIT, aes(y = LosC, group = Result, x = Result)) + geom_boxplot(fill='darkgreen') +
+    labs (title = 'Length of stay for Training and Test units',
+          subtitle = 'Centred to zero and scaled to standard deviation units',
+          x = 'Test data or trainign data',
+          y = 'Length of stay (SD units)') +
+  theme_minimal()
+
 ```
 
 ## Importance
@@ -290,16 +313,20 @@ Roughly, all the hadx scores are non-contributory. The main contributors are the
 
 ## Tuning
 
-```{r tuning}
+First set up a basic model to tune, in this case a random forest regression.
+
+```{r tuning model}
 # Regression RF model
 lrn_R = lrn('regr.ranger',
             mtry = to_tune(5,25),
             num.trees = to_tune(500,3000),
             importance = "permutation"
             )
+```
 
-split = partition(tsk_C)
+We set up two instances, which are identical apart from the tuners used. One is 2,000 runs of a random search model, and one 750 runs of a model based optimisation model. They cover the parameter space in different ways. Both are very slow.
 
+```{r set up an instance for tuning}
 instance_mbo = ti(
   task = tsk_C,
   learner = lrn_R,
@@ -316,21 +343,52 @@ instance_random_search = ti(
 #  terminator = trm("evals", n_evals=750), # For tuner "mbo"
   terminator = trm("evals", n_evals=2000), # For tuner "random_search"
 )
+```
 
+We set up the actual tuners
+
+```{r Set up the tuners}
 
 tuner_mbo <- tnr("mbo")
 tuner_random_search <- tnr("random_search")
+```
 
+Then we run them
+
+```{r Run the tuners}
 #######################################
 # SLOW - about 3.5 hours
 plan(multisession)
   tuner_mbo$optimize(instance_mbo)
   tuner_random_search$optimize(instance_random_search)
 
+#SAVE them
+
+saveRDS(instance_mbo, file = 'data\instance_mbo')
+saveRDS(instance_random_search, file = 'data\instance_random_search')
+
+
+```
+
+Now we look at the results
+```{r Read the instance files back}
+#Read them back
+instance_mbo <- readRDS('data/instance_mbo')
+instance_random_search <- readRDS('data/instance_random_search')
+```
+
+Inspect the key results
+
+```{r}
+
 instance_mbo$result$learner_param_vals
 instance_random_search$result$learner_param_vals
 
+instance_mbo$archive$benchmark_result
+instance_random_search$archive$benchmark_result
+```
 
+```{r Draw the key results}
 ParameterSearchResults_mbo <-
   as.data.table(instance_mbo$archive)  %>%
   select(mtry, num.trees, regr.mse)
@@ -349,12 +407,6 @@ ggplot(data = ParameterSearchResults_random_search,
     autoplot(instance_random_search, type = "surface")
 
 
-instance_mbo$archive$benchmark_result
-instance_random_search$archive$benchmark_result
-#
-# Strongly suggests 11 or so for mtry, but that the number of trees matters much less
-# 
-#
 ```
 
 ```{r tuning graph}
@@ -387,17 +439,27 @@ g4 <- ggplot(data = ParameterSearchResults_random_search,
  g1 + g2 + g3 + g4 # patchwork
 ```
 
+## Comments on tuning results
+
 These results are odd. Both methods suggest a minimal number of parameters (5) for the lowest mse, but the actual mse is quite flat in the number of trees, and fairly flat in the number of variables included in each one (mtry).
 
-For this reason we repeat the exercise with a trimmed data set, excluding extreme outliers. The rational for this is that while these very long lengths of stay matter, they are probably driven by very specific individual factors, which will not be captured by any retrospective routine data system.
+
+# Trimmed tuning
+
+For this reason we repeat the exercise with a trimmed data set, excluding extreme outliers. The rationale for this is that while these very long lengths of stay matter a lot, from a service perspective, from a research perspective, they are probably driven by very specific individual factors, which will not be captured by any retrospective routine data system.
 
 
 ```{r Define a regression task on trimmed LosC data}
+
+
 #
 # Define a regression task for LosC
 #
-tsk_C_trimmed <- as_task_regr(C2C.H %>% filter(LosC <= 2.5),
-                              target = "LosC", id = 'C_trimmed')
+tsk_C_trimmed <- 
+  as_task_regr(
+    C2C.H_trimmed,
+    target = "LosC",
+    id = 'C_trimmed')
   tsk_C_trimmed
   autoplot(tsk_C_trimmed) + 
     labs (title = 'Length of stay',
@@ -406,72 +468,206 @@ tsk_C_trimmed <- as_task_regr(C2C.H %>% filter(LosC <= 2.5),
           y = 'Length of stay (SD units)')
 ```
 
+```{r Make the trimmed data LosC <= 5}
+TRIM_LosC = 5
 
-```{r tuning 2}
+C2C.H.trim <- C2C.H %>%
+  filter(LosC <= TRIM_LosC)
+
+```
+
+```{r Define and draw a regression task and a split}
+#
+# Define a regression task for LosC
+#
+tsk_C.trim <- as_task_regr(C2C.H.trim, target = "LosC", id = 'C.trim')
+  tsk_C.trim
+  split_C.trim = partition(tsk_C.trim)
+  
+  autoplot(tsk_C.trim) + 
+    labs (title = 'Length of stay trimmed',
+          subtitle = 'Centred to zero and scaled to standard deviation units',
+          x = paste0('LosC < ',TRIM_LosC),
+          y = 'Length of stay (SD units)')
+  
+TRAIN <- bind_cols(
+  SET = split_C.trim$train,
+  Result = 'TRAIN',
+  LosC = C2C.H.trim$LosC[split_C.trim$train])
+TEST <- bind_cols(
+  SET = split_C.trim$test,
+  Result = 'TEST',
+  LosC = C2C.H.trim$LosC[split_C.trim$test])
+SPLIT <- bind_rows(TRAIN,TEST)
+
+ggplot(data = SPLIT,
+       aes(y = LosC, group = Result, x = Result)) +
+  geom_boxplot(fill = 'darkgreen') +
+    labs(title = 'Length of stay for Training and Test units trimmed',
+          subtitle = 'Centred to zero and scaled to standard deviation units',
+          x = 'Test data or training data',
+          y = paste0('Length of stay (SD units) <= ',TRIM_LosC)) +
+  theme_minimal()
+
+```
+
+## Importance
+
+Then we look briefly at the importance of the respective variables using a simple ranger model, with no tuning. We could use this to filter variables out. What we see is a block of variables with importance of zero, and another block with, more or less, similar importance of around 3.
+
+```{r Look at variable importance}
+lrn_Filter = lrn("regr.ranger", seed = 42)
+  lrn_Filter$param_set$values = list(importance = "permutation")
+
+flt_Imp.trim = flt("importance", learner = lrn_Filter)
+  flt_Imp.trim$calculate(tsk_C.trim)
+
+  Importance_Filtered.trim <-
+    setDF(as.data.table(flt_Imp.trim)) %>%
+    arrange(score, feature)
+  
+      autoplot(flt_Imp.trim) +
+        labs( title  = 'Importance plot trimmed',
+              y = 'Permutation importance')
+
+     Importance_Filtered.trim %>% filter(score > 3) %>% select (-score)
+     Importance_Filtered.trim %>% filter(score <= 3 & score > 2) %>% select (-score)
+     Importance_Filtered.trim %>% filter(score <= 2 & score > 1) %>% select (-score)
+     Importance_Filtered.trim %>% filter(score <= 1 & score > 0) %>% select (-score)
+     Importance_Filtered.trim %>% filter(score == 0) %>% select (-score)
+
+```
+
+Roughly, all the hadx scores are non-contributory. The main contributors are the proc scores.
+
+## Tuning on trimmed data
+
+First set up a basic model to tune, in this case a random forest regression.
+
+```{r tuning model}
 # Regression RF model
 lrn_R = lrn('regr.ranger',
             mtry = to_tune(5,25),
-            num.trees = to_tune(500,3000),
+            num.trees = to_tune(1000,3000),
             importance = "permutation"
             )
+```
 
-split = partition(tsk_C_trimmed)
+We set up two instances, which are identical apart from the tuners used. One is 2,000 runs of a random search model, and one 750 runs of a model based optimisation model. They cover the parameter space in different ways. Both are very slow.
 
-instance_mbo = ti(
-  task = tsk_C_trimmed,
+```{r set up an instance for tuning}
+instance_mbo.trim = ti(
+  task = tsk_C.trim,
   learner = lrn_R,
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
-  terminator = trm("evals", n_evals=750), # For tuner "mbo"
+  terminator = trm("evals", n_evals=7), # For tuner "mbo"
 #  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
 )
-instance_random_search = ti(
-  task = tsk_C_trimmed,
+instance_random_search.trim = ti(
+  task = tsk_C.trim,
   learner = lrn_R,
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
 #  terminator = trm("evals", n_evals=750), # For tuner "mbo"
-  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
+  terminator = trm("evals", n_evals=20), # For tuner "random_search"
 )
+```
 
+We set up the actual tuners
+
+```{r Set up the tuners}
 
 tuner_mbo <- tnr("mbo")
 tuner_random_search <- tnr("random_search")
+```
 
+Then we run them
+
+```{r Run the tuners}
 #######################################
 # SLOW - about 3.5 hours
 plan(multisession)
-  tuner_mbo$optimize(instance_mbo)
-  tuner_random_search$optimize(instance_random_search)
+  tuner_mbo$optimize(instance_mbo.trim)
+  tuner_random_search$optimize(instance_random_search.trim)
 
-instance_mbo$result$learner_param_vals
-instance_random_search$result$learner_param_vals
+#SAVE them
+
+saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
+saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
 
 
-ParameterSearchResults_mbo <-
-  as.data.table(instance_mbo$archive)  %>%
+```
+
+Now we look at the results
+```{r Read the instance files back}
+#Read them back
+instance_mbo.trim <- readRDS('data/instance_mbo.trim')
+instance_random_search.trim <- readRDS('data/instance_random_search.trim')
+```
+
+Inspect the key results
+
+```{r}
+
+instance_mbo.trim$result$learner_param_vals
+instance_random_search.trim$result$learner_param_vals
+
+instance_mbo.trim$archive$benchmark_result
+instance_random_search.trim$archive$benchmark_result
+```
+
+```{r Draw the key results}
+ParameterSearchResults_mbo.trim <-
+  as.data.table(instance_mbo.trim$archive)  %>%
   select(mtry, num.trees, regr.mse)
 
-ParameterSearchResults_random_search <- as.data.table(instance_random_search$archive) %>%
+ParameterSearchResults_random_search.trim <- as.data.table(instance_random_search.trim$archive) %>%
   select(mtry, num.trees, regr.mse)
 
-ggplot(data = ParameterSearchResults_mbo,
+ggplot(data = ParameterSearchResults_mbo.trim,
        aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
-    autoplot(instance_mbo, type = "surface")
 
-ggplot(data = ParameterSearchResults_random_search,
+autoplot(instance_mbo.trim, type = "surface")
+
+ggplot(data = ParameterSearchResults_random_search.trim,
        aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
-    autoplot(instance_random_search, type = "surface")
 
 
-instance_mbo$archive$benchmark_result
-instance_random_search$archive$benchmark_result
-#
-# Strongly suggests 11 or so for mtry, but that the number of trees matters much less
-# 
-#
+autoplot(instance_random_search.trim, type = "surface")
+
+```
+
+```{r tuning graph}
+
+g1 <- ggplot(data = ParameterSearchResults_mbo.trim,
+       aes(x = num.trees, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  labs(title = "Model Based Optimisation") +
+  theme_minimal()
+
+g2 <- ggplot(data = ParameterSearchResults_mbo.trim,
+       aes(x = mtry, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = num.trees)) +
+  labs(title = "Model Based Optimisation") +
+  theme_minimal()
+
+    
+g3 <- ggplot(data = ParameterSearchResults_random_search.trim,
+       aes(x = num.trees, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  labs(title = "Random Search Optimisation") +
+  theme_minimal()
+
+g4 <- ggplot(data = ParameterSearchResults_random_search.trim,
+       aes(x = mtry, y = regr.mse)) +
+  geom_jitter(aes(size = regr.mse, colour = num.trees)) +
+  labs(title = "Random Search Optimisation") +
+  theme_minimal()
+
+ g1 + g2 + g3 + g4 # patchwork
 ```
 
 
