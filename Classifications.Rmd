@@ -29,20 +29,22 @@ rm(list=ls())
 library(tidyverse)
 library(lubridate)
 library(tibble)
-library(readxl)
-library(comorbidity)
 library(tidymodels)
+library(readxl)
+
 library(lme4)
-#library(lmerTest)
+
 library(knitr)
 library(kableExtra)
 library(summarytools)
-library(patchwork)
 
+
+library(patchwork)
 
 library(ranger)
 library(mlr3verse)
 library(mlr3viz)
+
 library(data.table)
 library(future)
 
@@ -53,6 +55,10 @@ library(broom)
 library(broom.mixed)
 
 library(stargazer)
+
+library(gt)
+library(gtsummary)
+
 
 tidymodels_prefer(quiet = TRUE)
 
@@ -76,3 +82,63 @@ lgr::get_logger("mlr3")$set_threshold("warn")
 set.seed(979)
 rm(N)
 ```
+
+# Load the merged data file
+This is the chart review file merged with the HIPE file provided by HPO.
+
+```{r Load data file}
+
+#####################################################
+# Load the merged HIPE/Study data file
+# 
+Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.rds')
+NAMES <- read_excel(
+      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+      sheet = 'NAMES')
+
+#####################################################
+# Load the total HIPE data file
+# 
+HIPE <- readRDS('data/Hipe.rds')
+
+```
+
+```{r Load data file}
+
+#####################################################
+# Load the merged HIPE/Study data file
+# 
+Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.rds')
+NAMES <- read_excel(
+      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+      sheet = 'NAMES')
+
+#####################################################
+# Load the total HIPE data file
+# 
+HIPE <- readRDS('data/Hipe.rds')
+
+```
+
+## Make smaller analysis data file
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
+
+```{r simplify data}
+ 
+C2C.H <- Cost2Care.HIPE %>%
+    filter(!is.na(LOS)) %>%
+    select(Training:proc.desc.20,) %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, rawlos, ICD_combined, age)
+                  ) %>%
+    select(!contains('desc')) #%>% # Basically HIPE text variables
+#    select(!starts_with('proc.')) %>%
+#    select(!starts_with('dx.')) %>%
+#    select(!starts_with('hadx.')) #%>%
+   
+HIPE %>% filter(LosC <= 5) %>% summarise( N = n())
+ggplot(data = HIPE %>% filter(LosC <= 5),
+       aes(x=LosC)) + geom_boxplot()
+```
+
