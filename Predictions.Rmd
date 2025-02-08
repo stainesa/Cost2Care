@@ -561,7 +561,7 @@ instance_mbo.trim = ti(
   learner = lrn_R,
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
-  terminator = trm("evals", n_evals=7), # For tuner "mbo"
+  terminator = trm("evals", n_evals=750), # For tuner "mbo"
 #  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
 )
 instance_random_search.trim = ti(
@@ -570,7 +570,7 @@ instance_random_search.trim = ti(
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
 #  terminator = trm("evals", n_evals=750), # For tuner "mbo"
-  terminator = trm("evals", n_evals=20), # For tuner "random_search"
+  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
 )
 ```
 
