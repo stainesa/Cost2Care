@@ -364,8 +364,8 @@ plan(multisession)
 
 #SAVE them
 
-saveRDS(instance_mbo, file = 'data\instance_mbo')
-saveRDS(instance_random_search, file = 'data\instance_random_search')
+saveRDS(instance_mbo, file = 'data/instance_mbo')
+saveRDS(instance_random_search, file = 'data/instance_random_search')
 
 
 ```
@@ -448,29 +448,14 @@ These results are odd. Both methods suggest a minimal number of parameters (5) f
 
 For this reason we repeat the exercise with a trimmed data set, excluding extreme outliers. The rationale for this is that while these very long lengths of stay matter a lot, from a service perspective, from a research perspective, they are probably driven by very specific individual factors, which will not be captured by any retrospective routine data system.
 
+After testing a number of values - 5, 3, and 2.5, we elect to trim off at a scaled length of stay of 3. This is 76 days, and at the 98th percentile of lengths of stay. This drops nine observations from the site dataset
 
-```{r Define a regression task on trimmed LosC data}
-
-
-#
-# Define a regression task for LosC
-#
-tsk_C_trimmed <- 
-  as_task_regr(
-    C2C.H_trimmed,
-    target = "LosC",
-    id = 'C_trimmed')
-  tsk_C_trimmed
-  autoplot(tsk_C_trimmed) + 
-    labs (title = 'Length of stay',
-          subtitle = 'Centred to zero and scaled to standard deviation units',
-          x = 'LosC',
-          y = 'Length of stay (SD units)')
+```{r Set the cutofff value at 3}
+TRIM_LosC = 3
 ```
 
-```{r Make the trimmed data LosC <= 5}
-TRIM_LosC = 5
 
+```{r Make the trimmed data LosC <= 5}
 C2C.H.trim <- C2C.H %>%
   filter(LosC <= TRIM_LosC)
 
@@ -480,9 +465,13 @@ C2C.H.trim <- C2C.H %>%
 #
 # Define a regression task for LosC
 #
-tsk_C.trim <- as_task_regr(C2C.H.trim, target = "LosC", id = 'C.trim')
+tsk_C.trim <- as_task_regr(
+  C2C.H.trim,
+  target = "LosC",
+  id = 'C.trim')
   tsk_C.trim
-  split_C.trim = partition(tsk_C.trim)
+  
+split_C.trim = partition(tsk_C.trim)
   
   autoplot(tsk_C.trim) + 
     labs (title = 'Length of stay trimmed',
@@ -708,8 +697,8 @@ lrn_R_mbo = lrn('regr.ranger',
             importance = "permutation"
             )
 
-lrn_R_mbo$train(tsk_C_trimmed, split$train)
-prediction = lrn_R_mbo$predict(tsk_C_trimmed, split$test)
+lrn_R_mbo$train(tsk_C.trim, split$train)
+prediction = lrn_R_mbo$predict(tsk_C.trim, split$test)
 prediction$score(msrs(c("regr.mse", "regr.mae")))
 
 prediction$truth
