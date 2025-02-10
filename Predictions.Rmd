@@ -576,14 +576,14 @@ Then we run them
 ```{r Run the tuners}
 #######################################
 # SLOW - about 3.5 hours
-plan(multisession)
-  tuner_mbo$optimize(instance_mbo.trim)
-  tuner_random_search$optimize(instance_random_search.trim)
+#plan(multisession)
+#  tuner_mbo$optimize(instance_mbo.trim)
+#  tuner_random_search$optimize(instance_random_search.trim)
 
 #SAVE them
 
-saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
-saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
+#saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
+#saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
 
 
 ```
