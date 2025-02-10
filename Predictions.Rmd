@@ -358,14 +358,14 @@ Then we run them
 ```{r Run the tuners}
 #######################################
 # SLOW - about 3.5 hours
-plan(multisession)
-  tuner_mbo$optimize(instance_mbo)
-  tuner_random_search$optimize(instance_random_search)
+#plan(multisession)
+#  tuner_mbo$optimize(instance_mbo)
+#  tuner_random_search$optimize(instance_random_search)
 
 #SAVE them
 
-saveRDS(instance_mbo, file = 'data/instance_mbo')
-saveRDS(instance_random_search, file = 'data/instance_random_search')
+#saveRDS(instance_mbo, file = 'data/instance_mbo')
+#saveRDS(instance_random_search, file = 'data/instance_random_search')
 
 
 ```
@@ -379,13 +379,13 @@ instance_random_search <- readRDS('data/instance_random_search')
 
 Inspect the key results
 
-```{r}
+```{r Optimum parameter estimates}
 
 instance_mbo$result$learner_param_vals
 instance_random_search$result$learner_param_vals
 
-instance_mbo$archive$benchmark_result
-instance_random_search$archive$benchmark_result
+#instance_mbo$archive$benchmark_result
+#instance_random_search$archive$benchmark_result
 ```
 
 ```{r Draw the key results}
@@ -446,14 +446,13 @@ These results are odd. Both methods suggest a minimal number of parameters (5) f
 
 # Trimmed tuning
 
-For this reason we repeat the exercise with a trimmed data set, excluding extreme outliers. The rationale for this is that while these very long lengths of stay matter a lot, from a service perspective, from a research perspective, they are probably driven by very specific individual factors, which will not be captured by any retrospective routine data system.
+For this reason we repeat the exercise with a trimmed data set, excluding extreme outliers. The rationale for this is that while these very long lengths of stay matter a lot from a service perspective, from a research perspective, they are probably driven by very specific individual factors, which will not be captured by any retrospective routine data system. Another way too look at this would be to think of the observed distribution as some kind of mixture model, but there is insufficient data to estimate or interpret the mixture.
 
-After testing a number of values - 5, 3, and 2.5, we elect to trim off at a scaled length of stay of 3. This is 76 days, and at the 98th percentile of lengths of stay. This drops nine observations from the site dataset
+After testing a number of values - 5, 3, and 2.5, we elect to trim off at a scaled length of stay of 3. This is 76 days, and at the 98th percentile of lengths of stay. This drops nine observations from the site dataset, and 2426 observations from the national HIPE dataset.
 
 ```{r Set the cutofff value at 3}
 TRIM_LosC = 3
 ```
-
 
 ```{r Make the trimmed data LosC <= 5}
 C2C.H.trim <- C2C.H %>%
@@ -589,6 +588,7 @@ Then we run them
 ```
 
 Now we look at the results
+
 ```{r Read the instance files back}
 #Read them back
 instance_mbo.trim <- readRDS('data/instance_mbo.trim')
@@ -597,16 +597,16 @@ instance_random_search.trim <- readRDS('data/instance_random_search.trim')
 
 Inspect the key results
 
-```{r}
+```{r Optimum parameter estimates trimmed}
 
 instance_mbo.trim$result$learner_param_vals
 instance_random_search.trim$result$learner_param_vals
 
-instance_mbo.trim$archive$benchmark_result
-instance_random_search.trim$archive$benchmark_result
+#instance_mbo.trim$archive$benchmark_result
+#instance_random_search.trim$archive$benchmark_result
 ```
 
-```{r Draw the key results}
+```{r Draw the key results trimmed}
 ParameterSearchResults_mbo.trim <-
   as.data.table(instance_mbo.trim$archive)  %>%
   select(mtry, num.trees, regr.mse)
@@ -629,7 +629,7 @@ autoplot(instance_random_search.trim, type = "surface")
 
 ```
 
-```{r tuning graph}
+```{r tuning graph trimmed}
 
 g1 <- ggplot(data = ParameterSearchResults_mbo.trim,
        aes(x = num.trees, y = regr.mse)) +
@@ -659,46 +659,21 @@ g4 <- ggplot(data = ParameterSearchResults_random_search.trim,
  g1 + g2 + g3 + g4 # patchwork
 ```
 
+Interpreting these, suggests that a little over 10, perhaps 11 or 12, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2000 seems reasonable.
 
-```{r tuning graph2}
-
-g1 <- ggplot(data = ParameterSearchResults_mbo,
-       aes(x = num.trees, y = regr.mse)) +
-  geom_jitter(aes(size = regr.mse, colour = mtry)) +
-  labs(title = "Model Based Optimisation") +
-  theme_minimal()
-
-g2 <- ggplot(data = ParameterSearchResults_mbo,
-       aes(x = mtry, y = regr.mse)) +
-  geom_jitter(aes(size = regr.mse, colour = num.trees)) +
-  labs(title = "Model Based Optimisation") +
-  theme_minimal()
-
-    
-g3 <- ggplot(data = ParameterSearchResults_random_search,
-       aes(x = num.trees, y = regr.mse)) +
-  geom_jitter(aes(size = regr.mse, colour = mtry)) +
-  labs(title = "Random Search Optimisation") +
-  theme_minimal()
-
-g4 <- ggplot(data = ParameterSearchResults_random_search,
-       aes(x = mtry, y = regr.mse)) +
-  geom_jitter(aes(size = regr.mse, colour = num.trees)) +
-  labs(title = "Random Search Optimisation") +
-  theme_minimal()
-
- g1 + g2 + g3 + g4 # patchwork
-```
-
-```{r}
+```{r Train the final model}
 lrn_R_mbo = lrn('regr.ranger',
             mtry = 11,
             num.trees = 1000,
             importance = "permutation"
             )
 
-lrn_R_mbo$train(tsk_C.trim, split$train)
-prediction = lrn_R_mbo$predict(tsk_C.trim, split$test)
+lrn_R_mbo$train(tsk_C.trim,
+                row_ids = split_C.trim$train)
+```
+
+```{r Predictions from the final model}
+prediction = lrn_R_mbo$predict(tsk_C.trim, split_C.trim$test)
 prediction$score(msrs(c("regr.mse", "regr.mae")))
 
 prediction$truth
@@ -709,12 +684,11 @@ ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
   geom_smooth()
 ```
 
-
 # Predict LosC for trimmed national HIPE data
 
 ```{r}
-HIPE.trimmed <- HIPE %>% filter(LosC <= 2.5)
-HIPE.prediction <- lrn_R_mbo$predict_newdata(task = tsk_C_trimmed, newdata = HIPE.trimmed)
+HIPE.trim <- HIPE %>% filter(LosC <= TRIM_LosC)
+HIPE.prediction <- lrn_R_mbo$predict_newdata(task = tsk_C.trim, newdata = HIPE.trim)
 autoplot(HIPE.prediction)
 HIPE.prediction$score(msrs(c("regr.mse", "regr.mae")))
 
@@ -727,5 +701,20 @@ ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
   geom_smooth()
 ```
 
+An important point is that these predictions omit, completely, the effect of hospital and hospital model, as these variables are constant in the site data on which the model was trained.
 
-Long stay rates
+This suggests a dual strategy - using the random forest models to identify variables, and guide modelling, and using lmer models to prepare final predictions.
+
+In this case, we proceed to prepare a lmer model for the national data, guided by the random forest model for the site data, but including the structural variables.
+
+```{r}
+ModelHIPE <- lmer(data=HIPE.trim,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + MedSurg + fullelig + elem +
+               (1 | ModelF) +
+                (1 | ModelF:HospCode) +
+                (1 | drgv.8))
+tab_model(Model13, Model12, Model11)
+
+
+```
+
