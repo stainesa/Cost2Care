@@ -21,7 +21,7 @@ csl: vancouver.csl
 
 # Predictions
 
-Prepares predictions for length of stay using a regression approach, for the study site file, using the study (chart review) outcomes, and the HIPE predictors. These are tgen applied to the national data t see how they perfrom.
+Prepares predictions for length of stay using a regression approach, for the study site file, using the study (chart review) outcomes, and the HIPE predictors. These are then applied to the national data to see how they perform.
 
 ```{r setup, include=FALSE}
 rm(list=ls())
@@ -78,8 +78,8 @@ set.seed(979)
 rm(N)
 ```
 
-# Load the merged data file
-This is the chart review file merged with the HIPE file provided by HPO.
+# Load the merged data file, and the national file
+These are the chart review file merged with the matched HIPE file provided by HPO, and the national HIPE file.
 
 ```{r Load data file}
 
@@ -120,15 +120,17 @@ C2C.H <- Cost2Care.HIPE %>%
 # Intent
 
 Our aim is to develop models for prediction of the various adverse outcomes, pneumonia, UTI, delirium and pressure ulcer. The gold standard for these is the chart review.
+
 These models can be sense checked by their ability to predict the length of stay, the destination on discharge, and specifically if this was different from the source of admission, and death in hospital.
+
 The most obvious limitation is that the chart review was done in one hospital, a model 4 centre.
 
 # Model Length of Stay
-We actually model the scaled length of stay which has a mean of zero (but a  median of -0.3), and a standard deviation of 1, while the actual length of stay has a mean of 15.5, (but a median of 9), and a standard deviation of 20. the earlier models used the actual length of stay.
+We actually model the scaled length of stay which has a mean of zero (but a  median of -0.3), and a standard deviation of 1, while the actual length of stay has a mean of 15.5, (but a median of 9), and a standard deviation of 20. The earlier models shown used the actual length of stay.
 
 ## lmer based predictions of Length of Stay (centred and scaled)
 
-```{r}
+```{r Sample lmer model}
 ModelLOS <- lmer(data=C2C.H,
              LosC ~
                AgeC + as_factor(sex) + ScoreEl +
@@ -309,7 +311,7 @@ flt_Imp = flt("importance", learner = lrn_Filter)
 
 ```
 
-Roughly, all the hadx scores are non-contributory. The main contributors are the proc scores.
+Roughly, all the hadx scores are non-contributory. The main contributors are the proc scores, which need to be recoded.
 
 ## Tuning
 
@@ -441,7 +443,7 @@ g4 <- ggplot(data = ParameterSearchResults_random_search,
 
 ## Comments on tuning results
 
-These results are odd. Both methods suggest a minimal number of parameters (5) for the lowest mse, but the actual mse is quite flat in the number of trees, and fairly flat in the number of variables included in each one (mtry).
+These results are odd. Both methods suggest a minimal number of mtry (5) for the lowest mse, but the actual mse is quite flat in the number of trees, and fairly flat in the number of variables included in each one (mtry).
 
 
 # Trimmed tuning
@@ -450,11 +452,11 @@ For this reason we repeat the exercise with a trimmed data set, excluding extrem
 
 After testing a number of values - 5, 3, and 2.5, we elect to trim off at a scaled length of stay of 3. This is 76 days, and at the 98th percentile of lengths of stay. This drops nine observations from the site dataset, and 2426 observations from the national HIPE dataset.
 
-```{r Set the cutofff value at 3}
+```{r Set the cutofff value at TRIMLosC is 3}
 TRIM_LosC = 3
-```
+``` 
 
-```{r Make the trimmed data LosC <= 5}
+```{r Make the trimmed data LosC <= TRIMLosC}
 C2C.H.trim <- C2C.H %>%
   filter(LosC <= TRIM_LosC)
 
@@ -659,12 +661,12 @@ g4 <- ggplot(data = ParameterSearchResults_random_search.trim,
  g1 + g2 + g3 + g4 # patchwork
 ```
 
-Interpreting these, suggests that a little over 10, perhaps 11 or 12, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2000 seems reasonable.
+Interpreting these, suggests that a little over 10, perhaps 11 or 12, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2500 seems reasonable.
 
 ```{r Train the final model}
 lrn_R_mbo = lrn('regr.ranger',
             mtry = 11,
-            num.trees = 1000,
+            num.trees = 2500,
             importance = "permutation"
             )
 
@@ -709,12 +711,10 @@ In this case, we proceed to prepare a lmer model for the national data, guided b
 
 ```{r}
 ModelHIPE <- lmer(data=HIPE.trim,
-             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + MedSurg + fullelig + elem +
+             LosC ~ age + sex + ScoreEl + Source + SeasonOfAdmission + fullelig + elem + mdc +  specialty + ProcCount +
                (1 | ModelF) +
                 (1 | ModelF:HospCode) +
                 (1 | drgv.8))
-tab_model(Model13, Model12, Model11)
-
-
+tab_model(ModelHIPE)
 ```
 
