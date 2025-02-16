@@ -324,6 +324,9 @@ HIPE_FILE <- HIPE_FILE %>%
 # the aim here is to generate a set of variable indicating for each person which group of codes they have
 #
 
+skimr::skim(ACHI)
+
+HIPE.Site.ACHI <- HIPE.Site <- pivot_longer(HIPE.Site)
 ```
 
 ```{r Process both files}
