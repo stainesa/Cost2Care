@@ -66,7 +66,7 @@ rm(N)
 
 First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 for training.
 
-```{r Load main data file, results = 'hide'}
+```{r Load main data files, results = 'hide'}
 HIPE <- as_tibble(read.csv("data/H240272_2022.csv",
         strip.white = TRUE, na.strings = c("", NA)))
 
@@ -76,8 +76,17 @@ HIPE <- as_tibble(read.csv("data/H240272_2022.csv",
 HIPE <- HIPE %>%
   mutate(StudyID = 0)
 
+###################################################
+# Hipe linked to chart review file
+# 
 HIPE.Site <- as_tibble(
   read.csv("data/H240272_2022_Site_Study_Subjects.csv", strip.white = TRUE, na.strings = c("", NA)))
+
+###################################################
+# ACHI file
+# 
+ACHI <- as_tibble(
+  read_excel('data/H240272_Proc_ACHI_MAP_10thEdn.xlsx', sheet = 'Proc_ACHI_MAP_10thEdn'))
 ```
 
 ```{r Function <HIPE_PROCESS> to process both HIPE files}
@@ -305,6 +314,15 @@ HIPE_FILE <- HIPE_FILE %>%
 #
     return(HIPE_FILE)
 }
+
+```
+
+```{r function <PROC_Process> to recode procedures}
+##################################
+# Each person can have up to 20 ACHI procedure codes
+# There is no particular rational to the ordering of the codes, and it is not meaningful
+# the aim here is to generate a set of variable indicating for each person which group of codes they have
+#
 
 ```
 
