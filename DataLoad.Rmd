@@ -42,19 +42,21 @@ library(summarytools)
 library(pixiedust)
 library(stargazer)
 
-
 tidymodels_prefer(quiet = TRUE)
 
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
                       warning = NA, message = NA,
                       fig.pos = 'H',
                       cache.extra = knitr::rand_seed)
-
 N = 16
 
 options(Ncpus = N)
+options(mc.cores = N)
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
+
+lgr::get_logger("mlr3")$set_threshold("error")
+lgr::get_logger("bbotk")$set_threshold("error")
 
 set.seed(979)
 rm(N)
