@@ -16,16 +16,17 @@ bibliography: references.bib
 csl: vancouver.csl
 ---
 
-# Aims
-
-This file loads both the main HIPE data, and the HIPE data for the study hospital, a Model 4 hospital, and establishes a base model for length of stay.
-
 ```{r setup, include=FALSE}
 rm(list=ls())
 
 library(tidyverse)
 library(lubridate)
 library(tibble)
+library(readxl)
+
+library(skimr)
+library(gt)
+
 library(comorbidity)
 library(tidymodels)
 library(lme4)
@@ -62,9 +63,13 @@ set.seed(979)
 rm(N)
 ```
 
-# Load main HIPE data files
+# Aims
 
-First we load the data, and then keep 1/5 of the rows for testing, leaving 4/5 for training.
+This file loads the main HIPE data, and the HIPE data for the study hospital, a Model 4 hospital, the chart review data for the study hospital, and a file of the ACHI procedure codes used nationally in that year. It processes these data, and prepares the analysis datasets.
+
+# Load main HIPE ACHI and Chart Review data files
+
+First we load the data.
 
 ```{r Load main data files, results = 'hide'}
 HIPE <- as_tibble(read.csv("data/H240272_2022.csv",
@@ -82,12 +87,61 @@ HIPE <- HIPE %>%
 HIPE.Site <- as_tibble(
   read.csv("data/H240272_2022_Site_Study_Subjects.csv", strip.white = TRUE, na.strings = c("", NA)))
 
+#####################################################
+# Check the sheet names (Note the extra ' ' in the "Chart review data ")
+# 
+excel_sheets('data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx')
+
+Cost2Care <- read_excel(path='data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+                        sheet = 'Chart review data ',
+                        range = "A2:FX1002")
+
+#####################################################
+# Fix the names
+# PN - PNeumonia;       UTI - Urinary Tract Infection;
+# PU - Pressure Ulcer;  DL - DeLirium
+# 
+    NAMES <- read_excel(
+      'data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx',
+      sheet = 'NAMES')
+          names(Cost2Care) <- NAMES$Chart_review_data_revised
+
+#####################################################
+# Remove 5 empty columns with missing names
+# 
+Cost2Care <- Cost2Care %>%
+  select(-c(which(is.na(names(Cost2Care)))))
+
 ###################################################
 # ACHI file
 # 
+excel_sheets('data/H240272_Proc_ACHI_MAP_10thEdn.xlsx')
+
 ACHI <- as_tibble(
-  read_excel('data/H240272_Proc_ACHI_MAP_10thEdn.xlsx', sheet = 'Proc_ACHI_MAP_10thEdn'))
+  read_excel('data/H240272_Proc_ACHI_MAP_10thEdn.xlsx',
+             sheet = 'Proc_ACHI_MAP_10thEdn'))
 ```
+
+## Process the HIPE data
+
+We now have the four original data files loaded, and minimally tidied.
+We now do a *lot* more preparation on the national and site HIPE data files.
+
+We write a function that
+* Names the variables consistently
+* Generates a number of new variables
+    + ID, a unique identifier variable
+    + DateOfAdmission, DateOfDischarge, MonthOfAdmission, MonthOfDischarge
+    + SeasonOfAdmission (Nov-Feb = Winter) (Mar-Oct = Other)
+    + MedSurg, based on recorded specialty on admission
+    + ModelF, a factor for Hospital Model
+    + HospNo and HospCode
+    + Source - four levels each, Home, Care, Transfer, Other
+    + Destination - four levels each, Home, Care, Transfer, Dead, Other
+    + Died - Dead or Alive
+    + Charlson and Elixhauser scores and components
+    + ProcCount, HadxCount, and DxCount - counts of non-missing codes
+    + AgeC and LosC - centred and scaled Age (age) and Length of stay (rawlos)
 
 ```{r Function <HIPE_PROCESS> to process both HIPE files}
 HIPE_PROCESS <- function (HIPE_FILE) {
@@ -238,7 +292,7 @@ HIPE_FILE <- HIPE_FILE %>%
                             c(0,1,2,3,4,5,
                               8,9,10,11,
                               12,13,14,15) ~ "Alive")) %>%
-    mutate(Outcome = case_match(discode,
+    mutate(Destination = case_match(discode,
                             1 ~ "Home",
                             c(2,11) ~ "Care", # includes hospice
                             c(3,4,5,8,9,10) ~ "Transfer",
@@ -282,7 +336,7 @@ HIPE_FILE <- HIPE_FILE %>%
                            ~sum(!is.na(c(...))))) %>%
   mutate(DxCount = purrr::pmap_dbl(HIPE_FILE %>% select(dx.01:dx.30),
                            ~sum(!is.na(c(...))))) %>%
-  mutate(HadxCount = purrr::pmap_dbl(HIPE_FILE %>% select(hadx.01:hadx.20),
+  mutate(HadxCount = purrr::pmap_dbl(HIPE_FILE %>% select(hadx.01:hadx.30),
                            ~sum(!is.na(c(...)))))
 
 #############################################
@@ -306,7 +360,7 @@ HIPE_FILE <- HIPE_FILE %>%
          AgeC, LosC,
          DateOfAdmission, MonthOfAdmission, SeasonOfAdmission,
          DateOfDischarge, MonthOfDischarge,
-         ScoreEl, ScoreCh, HospNo:Outcome, ProcCount:HadxCount,
+         ScoreEl, ScoreCh, HospNo:Destination, ProcCount:HadxCount,
          hosp.anon:proc.desc.20) # Reorder variables
 
 #############################################
@@ -317,26 +371,50 @@ HIPE_FILE <- HIPE_FILE %>%
 
 ```
 
-```{r function <PROC_Process> to recode procedures}
-##################################
-# Each person can have up to 20 ACHI procedure codes
-# There is no particular rational to the ordering of the codes, and it is not meaningful
-# the aim here is to generate a set of variable indicating for each person which group of codes they have
-#
-
-skimr::skim(ACHI)
-
-HIPE.Site.ACHI <- HIPE.Site <- pivot_longer(HIPE.Site)
-```
-
-```{r Process both files}
+```{r Process both files HIPE and HIPE.Site}
 
 HIPE <- HIPE_PROCESS(HIPE)
 HIPE.Site <- HIPE_PROCESS(HIPE.Site)
 ```
 
+Next we check and merge the Chart Review data, and the corresponding HIPE data for those cases.
+
+```{r Check and merge two sets of site data}
+
+#####################################################
+# Note there are 2 StudyIDs 41 and 405 which are 
+# not in the Cost2Care file, but are in the HIPE.Site file
+# This is correct.
+# 
+COMBINED <- full_join(
+  Cost2Care %>%
+    select(StudyID, Encrypted_mrn),
+  HIPE.Site %>%
+    select(StudyID, ID),
+      by = join_by(StudyID)) # check for missing study IDS
+
+#####################################################
+# Join the main files
+# Lose the two rows with no Encrypted_mrn - StudyID's 41 and 405
+# 
+Cost2Care.HIPE <- full_join(
+    Cost2Care,
+    HIPE.Site,
+    by = join_by(StudyID)) %>%
+  filter(!is.na(Encrypted_mrn))
+
+##################################################
+# Duplicate names - fixed in Cost2Care working spreadsheet sheet NAMES
+# 'data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx'
+# 
+NN <- names(Cost2Care.HIPE)
+NN[c(which(str_detect(NN, "\\.y|\\.x")))] # Should be PN.xray only
+rm(COMBINED, NAMES, NN)
+```
+
+## Summary report
+
 ```{r Calculate some useful numbers}
-#str(DATA, list.len = 200)
 # some relevant figures
   PEOPLE <- nrow(HIPE)
   HOSPITALS <- length(unique(HIPE$hosp.anon))
@@ -350,7 +428,108 @@ There are a total of `r PEOPLE` admissions in these records, from `r HOSPITALS` 
 rm(PEOPLE, HOSPITALS, STUDY)
 ```
 
+## Process the procedures data
+
+For the diagnoses, there are two sets of summary codes already provided. These are DRG codes and MDC codes, which provide, respectively, a longer and shorter summary of the diagnosis assigned. For procedures no simple classification is accessible. Each person has up to 30 codes, and the only guide is the the first procedure is that associated with the reason for admission. After that, many of the procedure codes are blank, as most people have less than 3 procedure codes.
+
+### Intent of processing procedure codes
+
+We have two goals - 
+
+* Identify people who had anaesthetics, often used as a proxy for surgical cases.
+* Reduce the number of procedure codes to a manageable number for further analysis.
+
+To do this we have access to the following for each of the procedures used in the data -
+* proc - One of 2,469 numeric procedure codes
+* proc_desc - A description of what each code covers
+* Block -  One of 942 numeric codes for an aggregate of related procedure codes
+* block_desc - A description of each block
+* Proc_Type - One of 81 general descriptions of the type of procedure
+* Anatomical_Site - One of 119 body sites where that procedure was done
+* Chapter_n - One of 19 codes for the ACHI chapter into which that procedure falls
+* Chapter - A description of each chapter
+
+```{r}
+skim(ACHI %>%
+       mutate( across( where(is.numeric) , as.character)))
+```
+
+### Task 1
+How to add ACHI codes to the main dataset.
+
+Simplify data to ID and proc codes
+
+```{r}
+PROC <- Cost2Care.HIPE |>
+  select(StudyID,proc.01:proc.20) |>
+  pivot_longer(cols=!StudyID,
+               names_to = 'Procedure',
+               values_to = 'ACHI_code')
+PROC <- PROC |>
+  full_join(ACHI, by = join_by(ACHI_code == proc))
+
+    PROC_unused <- PROC |> filter(is.na(StudyID)) |> select(ACHI_code) |>
+      group_by(ACHI_code) |> unique() |>
+      arrange(ACHI_code) # 1998 codes not used
+    PROC_used <- PROC |> filter(!is.na(StudyID)) |> select(ACHI_code) |>
+      group_by(ACHI_code) |> unique() |>
+      arrange(ACHI_code) # 472 codes used
+# Total codes is 2470 - the original 2469 and the missing code
+# Drop the 1998 unused codes from PROC for simplicity
+PROC <- PROC |> filter(!is.na(StudyID)) 
+
+
+# Doesn't work, 1 row per procedure observation, per person - total of 5393
+#PROC2 <- PROC |> pivot_wider(names_from = Procedure, values_from = ACHI_code)
+
+```
+
+```{r Anaesthetic code}
+
+```
+```{r function <PROC_Process> to recode procedures}
+##################################
+# Each person can have up to 20 ACHI procedure codes
+# There is no particular rationale to the ordering of the codes, and it is not meaningful
+# The aim here is to generate a set of variables indicating for each person which group of codes they have
+#
+
+
+HIPE.Site.ACHI <- HIPE.Site %>%
+  pivot_longer(cols = proc.01:proc.20,
+               names_to = 'Procedures',
+               values_to = 'Code'
+               ) %>%
+  left_join(ACHI,
+            by = join_by(Code == proc)
+            ) %>%
+  pivot_wider(id_cols = c(StudyID:ID,Block:Chapter),
+              id_expand = FALSE,
+              names_from = 'Procedures',
+              values_from = 'Code')
+
+HIPE.Site.ACHI %>%
+  group_by(Chapter) %>%
+  summarise(N = n()) %>%
+  arrange(desc(N))
+
+HIPE.Site.ACHI %>%
+  group_by(Proc_Type) %>%
+  summarise(N = n()) %>%
+  arrange(desc(N)) %>%
+  print(n = 50)
+
+HIPE.Site.ACHI %>%
+  group_by(Chapter,Proc_Type) %>%
+  summarise(N = n()) %>%
+  arrange(desc(N)) %>%
+  print(n = 90)
+
+```
+
 The next step is to create a number of additional variables required for analysis and data display. These mostly consist of a re-ordering of the 'model' variable, which indicates the type of hospital (Model 4, Model 3 Model 2, Specialist, or Maternity) and the creation of hospital ID's which number the hospitals within these groups.
+
+
 
 # Outcomes
 
@@ -378,7 +557,7 @@ ggplot(data=Admissions,
 rm(Admissions)
 ```
 
-# Comorbidity scores
+## Comorbidity scores
 
 It can be useful to consider comorbidity scores, and two of the most popular of these are the Elixhauser  and Charlson  scores. These are calculated using in this work using the comorbidity package , in turn based on.
 
@@ -502,7 +681,7 @@ We show a series of hospital level variables.
 
 ### Age
 
-Age at admission does not vary greatly between the main group of hospitals. These are an older group of patients, all aged 65 or over, and admitted for at least three days.
+Age at admission does not vary greatly between the main group of hospitals. This work is confined to an older group of patients, all aged 65 or over, and admitted for at least three days.
 
 ```{r Draw age}
 ggplot(data = HIPE,
@@ -547,7 +726,7 @@ ggplot(data = HIPE,
         y = 'Number of Diagnoses coded')
 ```
 
-A similar pattern can be seen for procedures, although there is some suggestions that practices in individual hospitals may be rather different.
+A similar pattern can be seen for procedures, although there is some suggestions that practices in individual hospitals may be rather more different.
 
 ```{r Procedure codes count}
 ggplot(data = HIPE,
@@ -573,196 +752,236 @@ ggplot(data = HIPE,
         y = 'Number of Health care Acquired Diagnoses coded')
 ```
 
-# Preliminary modelling
 
-Quantifying this variability we can use a random effects regression model. This allows the analysis of the effects of hospital type and other variables (fixed effects) and the variability between individual hospitals (random effects). For this preliminary work, the national HIPE data set is used.
-
-Our first set of models looks only at age and sex as predictors of length of stay.
-
-```{r Regression}
-#Random intercept models
-Model0 <- lm(data=HIPE,
-             rawlos ~ age + sex)
-
-Model1 <- lmer(data=HIPE,
-             rawlos ~ age + sex +
-               (1 | ModelF))
-
-Model2 <- lmer(data=HIPE,
-             rawlos ~ age + sex +
-               (1 | HospCode))
-
-Model3 <- lmer(data=HIPE,
-             rawlos ~ age + sex +
-               (1 | HospCode) + (1| ModelF))
-
-Model4 <- lmer(data=HIPE,
-             rawlos ~ age + sex +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode))
+# Checking of the Chart Review data and the HIPE site data
 
 
-tab_model(Model4, Model3, Model2, Model1, Model0, show.p = FALSE)
+## Check dataset and check matching
+
+First, we produce two summaries of the dataset. Please review these, and be sure that they are correct.
+
+## skimr
+
+```{r Check data skimr, results = 'asis'}
+skimr::skim(Cost2Care.HIPE)
 ```
 
-Looking at these results, age and sex have, as expected, significant impacts on length of stay. Hospital model, and, within the five hospital models, individual hospitals, all impact on length of stay.
 
-Taking this as our baseline model, the next step is to fit a range of additional variables, and see how these affect the model. Given the number of observations, these need to be considered carefully.
+## Check matching
 
-```{r Model 5 RE for DRG}
+It is desirable to check the matching, and see if the other HIPE.Site variables have the same values as those in the Cost2Care file.
 
-Model5 <- lmer(data=HIPE,
-             rawlos ~ age + sex +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 + sex | drgv.8))
+There are two groups for comparison. 
 
-Model6 <- lmer(data=HIPE,
-             rawlos ~ age + sex +
-                (1 | HospCode) +
-                (1 | drgv.8))
+## HIPE
 
-tab_model(Model4, Model5, Model6)
+In the first group the codes come from HIPE files, so the check is the correctness of the matching.
+
+### UTI_hadx
+
+```{r Check match tables UTI hadx code}
+##################################################
+# UTI
+#
+ctable(H.UTI_hadx <- as_factor(Cost2Care.HIPE$H.UTI_hadx),
+  uti.hadx <- as_factor(Cost2Care.HIPE$uti.hadx),
+  chisq = TRUE,
+  prop = "n")
 
 ```
 
-The DRG code, as one might expect, has a huge impact on the length of stay. Much of the variability associated with hospital type is subsumed into the variability from the DRGs.
+### DL_hadx
 
-```{r Model 6 to 8 test out scores}
-
-Model6 <- lmer(data=HIPE,
-             rawlos ~ age + sex + ScoreEl +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(Model6,Model5)
-
-Model7 <- lmer(data=HIPE,
-             rawlos ~ age + sex + ScoreCh +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(Model7,Model6, Model5)
-
-Model8 <- lmer(data=HIPE,
-             rawlos ~ age + sex + ScoreEl + ScoreCh +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(Model8, Model7, Model6)
+```{r Check match tables DL hadx code}
+##################################################
+# DL
+#
+ctable(H.DL_hadx <- as_factor(Cost2Care.HIPE$H.DL_hadx),
+  delirium.hadx <- as_factor(Cost2Care.HIPE$delirium.hadx),
+  chisq = TRUE,
+  prop = "n")
 
 ```
 
-Either the Elixhauser score, or the Charlson score, is a significant predictor of length of stay, but adding both is superfluous, so we choose to use only the Elixhauser score, as it seems to be more closely linked to our outcome.
+### PU_hadx
 
-```{r Elixhauser score only}
-Model9 <- lmer(data=HIPE,
-             rawlos ~ age + sex + ScoreEl + Source +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(Model9, Model6)
-
-```
-
-The source of admission is also important. Most are admitted from home, but those admitted from long-term care facilities have shorter lengths of stay, and those transferred from other hospitals have longer lengths of stay.
-
-```{r Add season of admission}
-Model10 <- lmer(data=HIPE,
-             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(Model10, Model9)
+```{r Check match tables PU hadx code}
+##################################################
+# PU
+#
+ctable(H.PU_hadx <- as_factor(Cost2Care.HIPE$H.PU_hadx),
+  pressure.ulcer.hadx <- as_factor(Cost2Care.HIPE$pressure.ulcer.hadx),
+  chisq = TRUE,
+  prop = "n")
 
 ```
 
-Fitting the Season of Discharge (Winter or Other) makes a modest contribution to the length of stay, but it has been identified in other work, so it will be retained.
+### PN_hadx
 
-```{r Add crude medical surgical split}
-Model11 <- lmer(data=HIPE,
-             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + MedSurg +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(Model11, Model10, Model9)
-
-```
-
-A rather crude split into medical and surgical cases shows much lower lengths of stay for surgical than medical cases, again as expected.
-
-```{r Add eligibility}
-Model12 <- lmer(data=HIPE,
-             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + MedSurg + fullelig +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(Model12, Model11, Model10)
+```{r Check match tables PN hadx code}
+##################################################
+# PN
+#
+ctable(H.PN_hadx <- as_factor(Cost2Care.HIPE$H.PN_hadx),
+  pneumonia.hadx <- as_factor(Cost2Care.HIPE$pneumonia.hadx),
+  chisq = TRUE,
+  prop = "n")
 
 ```
 
-Full eligibility increases the length of stay.
+## There are a couple of anyf2m variable floating about - can we check which is which? I think h.any_f2m comes from the chart review, and h.any_f2m.hadx comes from HIPE?
 
-```{r Add elective/emergency admission}
-Model13 <- lmer(data=HIPE,
-             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + MedSurg + fullelig + elem +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(Model13, Model12, Model11)
+```{r Check match tables any failure to Maintain (F2M)}
+##################################################
+# any_F2M
+#
+#Check
+#names(Cost2Care.HIPE)[which(str_detect(names(Cost2Care.HIPE),"hadx"))]
+#
+ctable(H.any_F2M_hadx <- as_factor(Cost2Care.HIPE$H.any_F2M_hadx),
+  any.f2m.hadx <- as_factor(Cost2Care.HIPE$any.f2m.hadx),
+  chisq = TRUE,
+  prop = "n")
 
 ```
 
-Emergency admissions stay longer.
+## Chart review vs. HIPE
 
-```{r table eligibility, elem and MedSurg}
+In the second group, one code comes from the chart review, and the other from HIPE. This is the more substantively interesting
 
-ctable(MedSurg <- as_factor(HIPE$MedSurg),
-  elem <- as_factor(HIPE$elem),
-  prop = "r")
+### Sex
 
-ctable(MedSurg <- as_factor(HIPE$MedSurg),
-  fullelig <- as_factor(HIPE$fullelig),
-  prop = "r")
+```{r Check match tables Sex}
+##################################################
+# Sex
+#
+ctable(sex <- as_factor(
+  Cost2Care.HIPE$sex),
+  Cost2Care.HIPE$Gender,
+  chisq = TRUE,
+  prop = "n")
+
 ```
 
-There are big differences between medical and surgical cases in terms of eligibility and elective or emergency admissions.
+### Age
 
-## Linear and non-linear models
+```{r Check match tables Age}
+##################################################
+# Age
+#
+freq(Cost2Care.HIPE$Age_discharge - Cost2Care.HIPE$age) # Mostly ok, i.e. 0, but a few large discrepancies
 
-These are linear models, with (in principle) unconstrained outputs. This is not quite true, as for example, negative lengths of stay do not occur, there is a long positive tail, and this data set is limited to those with a length of stay of at least three days. However, for our purposes, exploratory modelling these seem at least useful.
-
-To examine deaths, where the outcome variable is binary, Alive or Dead, at the time of discharge, requires non-linear models, and the usual choice is a logistic model.
-
-```{r glmm model, eval = FALSE}
-
-LogModel1 <- glmer(data=HIPE %>%
-                     mutate(DiedL = Died == "Dead"),
-             DiedL ~ age + sex + ScoreEl + Source + SeasonOfAdmission +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8),
-             family = binomial,
-             control = glmerControl(optimizer = "bobyqa"))
-
-tab_model(LogModel1)
 ```
 
-While the numerical values are wildly different, and they are odds ratios, the confidence intervals of the parameters, and the size of the random effects remain convincing, suggesting that a similar model will explain deaths quite well too.
+### Elective or emergency admission
 
-# Interpretation
+```{r Check match tables Elective or emergency admission}
+##################################################
+# elective or emergency admission
+#
+ctable(Cost2Care.HIPE$Elective_emergency,
+  Cost2Care.HIPE$elem,
+  chisq = TRUE,
+  prop = "n")
 
-None of this is surprising. Age, gender, and diagnosis (here represented as DRG), are obvious predictors of good and bad outcomes. The hospitals have very different roles, and very different catchment areas, all of which are expected to be relevant to outcomes.
+```
+
+### ITU use
+
+```{r Check match tables ITU use}
+##################################################
+# icu
+#
+ctable(itulos <- as_factor(Cost2Care.HIPE$itulos),
+  Cost2Care.HIPE$ICU,
+  chisq = TRUE,
+  prop = "n")
+
+```
+
+###  PN
+
+```{r Check match tables Pneumonia}
+##################################################
+# PN
+#
+ctable(PN <- as_factor(Cost2Care.HIPE$PN),
+  pneumonia <- as_factor(Cost2Care.HIPE$pneumonia),
+  chisq = TRUE,
+  prop = "n")
+
+```
+
+### UTI
+
+```{r Check match tables UTI}
+##################################################
+# UTI
+#
+ctable(UTI <- as_factor(Cost2Care.HIPE$UTI),
+  uti <- as_factor(Cost2Care.HIPE$uti))
+
+```
+
+### PU
+
+```{r Check match tables Pressure ulcer}
+##################################################
+# PU
+#
+ctable(PU <- as_factor(Cost2Care.HIPE$PU),
+  pressure.ulcer <- as_factor(Cost2Care.HIPE$pressure.ulcer))
+
+```
+
+### DL
+
+```{r Check match tables Delirium}
+##################################################
+# DL
+#
+ctable(DL <- as_factor(Cost2Care.HIPE$DL),
+  delirium <- as_factor(Cost2Care.HIPE$delirium))
+
+```
+
+### Any F2M
+
+```{r Check match tables Any F2M}
+##################################################
+# any_2FM
+#
+#Check
+#names(Cost2Care.HIPE)[which(str_detect(names(Cost2Care.HIPE),"hadx"))]
+#
+ctable(H.any_F2M <- as_factor(Cost2Care.HIPE$H.any_F2M),
+  any.f2m <- as_factor(Cost2Care.HIPE$any.f2m))
+
+```
+
+```{r Pictures}
+ggplot(data=Cost2Care.HIPE,
+       aes(x = Age_discharge, y = age, colour=Gender)) + geom_jitter() # A bit clearer
+
+```
+
+# Major outcomes
+
+The main outcomes available are 
+* the presence of a health care associated urinary tract infection (UTI - variable beginning with 'UTI.')
+* the presence of health care associated pneumonia (PN - variable beginning with 'PN.')
+* the presence of a health care associated pressure ulcer (PU - variable beginning with 'PU.')
+* the presence of health care associated delirium infection (DL - variable beginning with 'DL.')
+* Death recorded
+* Prolonged length of stay
+
+It is wholly possible to have several of these outcomes.
+
+
+# Save files
 
 ```{r Save the files}
-saveRDS(HIPE, file = "data/Hipe.rds",
-        ascii = FALSE, version = NULL,
-        compress = TRUE, refhook = NULL)
-saveRDS(HIPE.Site, file = "data/Hipe.Site.rds",
+saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.Hipe.rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 ```
-
-# Bibliography
-
-
