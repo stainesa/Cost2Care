@@ -484,8 +484,21 @@ PROC <- PROC |> filter(!is.na(StudyID))
 
 ```
 
-```{r Anaesthetic code}
+```{r Individual codes}
+PROC <- PROC |>
+  mutate(Anaesthetic = case_when(Block %in% c(1909,1910) ~ 1,
+                         Procedure == 1821609 ~ 1,
+                         Procedure %in% c(1821627:1821631)  ~ 1,
+                         Procedure == 3901302 ~ 1,
+                         Procedure == 9002200 ~ 1,
+                         Procedure %in% c(9250810:9251599)  ~ 1,
+                         Procedure %in% c(9251600:9251800)  ~ 1,
+                         Procedure %in% c(9251910:9251999)  ~ 1,
+                                .default = 0) ) |>
+  mutate(AHP = case_when(Block %in% c(1915,1916) ~ 1,
+                                .default = 0) )# |>
 
+  table(PROC$Anaesthetic,PROC$Proc_Type)
 ```
 ```{r function <PROC_Process> to recode procedures}
 ##################################
