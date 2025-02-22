@@ -10,9 +10,6 @@ output:
     fig_caption: true
     number_sections: true
     latex_engine: xelatex
-    includes:
-      in_header: 
-      - !expr system.file("includes/fig-valign.tex", package = "summarytools")
 editor_options:
   chunk_output_type: console
 bibliography: references.bib
@@ -66,7 +63,7 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fi
       cache.extra = knitr::rand_seed)
 
 st_options(ctable.round.digits = 2)
-# How many CPU's?
+#How many CPU's?
 N = 16
   options(Ncpus = N - 1)
   options(mc.cores = N - 1)
@@ -76,7 +73,8 @@ N = 16
 
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
-lgr::get_logger("mlr3")$set_threshold("warn")
+lgr::get_logger("mlr3")$set_threshold("error")
+lgr::get_logger("bbotk")$set_threshold("error")
 
 
 set.seed(979)
@@ -99,46 +97,115 @@ NAMES <- read_excel(
 #####################################################
 # Load the total HIPE data file
 # 
-HIPE <- readRDS('data/Hipe.rds')
+HIPE <- readRDS('data/HIPE.rds')
 
 ```
 
-```{r Load data file}
+## Make analysis data file
 
-#####################################################
-# Load the merged HIPE/Study data file
-# 
-Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.rds')
-NAMES <- read_excel(
-      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
-      sheet = 'NAMES')
-
-#####################################################
-# Load the total HIPE data file
-# 
-HIPE <- readRDS('data/Hipe.rds')
-
-```
-
-## Make smaller analysis data file
-We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
+We give it a shorter typable name 
 
 ```{r simplify data}
  
-C2C.H <- Cost2Care.HIPE %>%
-    filter(!is.na(LOS)) %>%
-    select(Training:proc.desc.20,) %>%
-    select(-c(DateOfAdmission, DateOfDischarge,
-              MonthOfAdmission, MonthOfDischarge,
-              mon.adm, rawlos, ICD_combined, age)
-                  ) %>%
-    select(!contains('desc')) #%>% # Basically HIPE text variables
-#    select(!starts_with('proc.')) %>%
-#    select(!starts_with('dx.')) %>%
-#    select(!starts_with('hadx.')) #%>%
+CtCH <- Cost2Care.HIPE
    
 HIPE %>% filter(LosC <= 5) %>% summarise( N = n())
 ggplot(data = HIPE %>% filter(LosC <= 5),
-       aes(x=LosC)) + geom_boxplot()
+       aes(x=rawlos)) + geom_boxplot()
 ```
 
+# Intent
+
+The aim here is to some quick and simple predictions, and summaries
+
+
+These models can be sense checked by their ability to predict the length of stay, the destination on discharge, and specifically if this was different from the source of admission, and death in hospital.
+
+The most obvious limitation is that the chart review was done in one hospital, a model 4 centre.
+
+A good deal of thought needs to be given to deciding what outcomes to look at - basically the outcome, or the outcome definitely associated with health care.
+
+There are still comments in the PN/PU/UTI/DL_Associated columns  these need to be removed!
+Which is the correct F2M variable?
+
+# Outcomes
+
+```{r}
+
+Outcomes <- CtCH |>
+  select(PN, PN_Associated, UTI, UTI_Associated, PU, PU_Associated, DL, DL_Associated, rawlos, LosC, Source, Died, Destination)
+
+skimr::skim(Outcomes)
+
+Outcome_recode <- function(DF, COND) {
+
+  ASSOC  <- paste0({{COND}},'_Associated')
+  ABBREV <- paste0({{COND}},'_A')
+
+  COND <- ensym(COND)
+  ASSOC <- ensym(ASSOC)
+  ABBREV <- ensym(ABBREV)
+
+  DF <- DF %>%
+  mutate(!!COND := ifelse(is.na(!!COND), 'No', !!COND )) %>% # Missing -> No
+  mutate(!!ASSOC := ifelse(is.na(!!ASSOC),'No', !!ASSOC)) %>%
+  mutate(!!ASSOC := ifelse(!!ASSOC == 'No' &
+                            !!COND == 'No',
+                        'Not Applicable',
+                        !!ASSOC)) %>%
+  mutate(!!ASSOC := case_match(!!ASSOC,
+                            'Not Applicable' ~ 'No Dx',
+                            'No' ~ 'Unlikely',
+                            'LIKELY associated' ~ 'Likely',
+                            'DEFINITELY associated.' ~ 'Definite')) %>%
+  mutate(!!ABBREV := case_match(!!ASSOC,
+                            'No Dx' ~ 'No',
+                            'Unlikely' ~ 'No',
+                            'Likely' ~ 'Yes',
+                            'Definite' ~ 'Yes'
+                            ))
+return(DF)
+}
+
+ DF <- Outcome_recode(Outcomes, 'DL')
+
+ Outcomes <- Outcomes %>%
+  Outcome_recode('PN') %>%
+  Outcome_recode('UTI') %>%
+  Outcome_recode('PU') %>%
+  Outcome_recode('DL')
+
+ skimr::skim(Outcomes)
+ 
+CtCH <- CtCH %>%
+  Outcome_recode('PN') %>%
+  Outcome_recode('UTI') %>%
+  Outcome_recode('PU') %>%
+  Outcome_recode('DL')
+ 
+```
+
+
+# Quick and dirty predictions
+
+```{r define tasks}
+#################################################
+# Trim CtCH, a lot
+CCH >- CtCH %>%
+  select(StudyID, PN, UTI, PU, UTI, Source, Died, Outcome, LosC,  # Outcomes
+         Training, # Derived random split variable
+         ModelF, AgeC, SeasonOfAdmission, ScoreEl, ScoreCh, # Variables derived from HIPE
+         ProcCount, DxCount, HadxCount, 
+         elem, fullelig, drgv.8, 
+         ) 
+#################################################
+# Define a classification task for PN
+#
+tsk_PN <- as_task_classif(C2C.H %>%
+                            select(-c(PN_Associated, PN_A, pneumonia, rawlos)),
+                          target = "PN",
+                          id = 'PN')
+  tsk_PN
+  split_PN = partition(tsk_PN)
+  
+```  
