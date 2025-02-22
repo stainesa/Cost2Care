@@ -60,7 +60,8 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fi
       cache.extra = knitr::rand_seed)
 
 st_options(ctable.round.digits = 2)
-# How many CPU's?
+
+#How many CPU's?
 N = 16
   options(Ncpus = N - 1)
   options(mc.cores = N - 1)
