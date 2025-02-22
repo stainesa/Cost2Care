@@ -712,7 +712,7 @@ PROC.Site <- PROC.Site %>%
 
 ############ Order columns ################################
 #
-# Order the columns in the two dataframes PROC and PROC_Site the same way
+# Order the columns in the two dataframes PROC and PROC.Site the same way
 #
 PROC <- PROC %>%
   select(order(colnames(PROC))) %>%
@@ -1252,7 +1252,16 @@ It is wholly possible to have several of these outcomes.
 # Save files
 
 ```{r Save the files}
-saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.Hipe.rds",
+saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.HIPE.rds",
+        ascii = FALSE, version = NULL,
+        compress = TRUE, refhook = NULL)
+
+saveRDS(HIPE, file = "data/HIPE.rds",
+        ascii = FALSE, version = NULL,
+        compress = TRUE, refhook = NULL)
+
+saveRDS(HIPE.Site, file = "data/HIPE.Site.rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 ```
+
