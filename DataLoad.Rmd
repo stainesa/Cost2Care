@@ -1032,6 +1032,7 @@ skimr::skim(Cost2Care.HIPE)
 ```
 
 Note that hadx.01 and hadx30 are both 100% missing. They are in the summary, but as logical variables.
+
 ## Check matching
 
 It is desirable to check the matching, and see if the other HIPE.Site variables have the same values as those in the Cost2Care file.
