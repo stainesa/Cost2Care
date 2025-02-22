@@ -67,28 +67,41 @@ rm(N)
 
 This file loads the main HIPE data, and the HIPE data for the study hospital, a Model 4 hospital, the chart review data for the study hospital, and a file of the ACHI procedure codes used nationally in that year. It processes these data, and prepares the analysis datasets.
 
-# Load main HIPE ACHI and Chart Review data files
+# Load and process the national HIPE, ACHI, site HIPE, and Chart Review data files
 
 First we load the data.
 
 ```{r Load main data files, results = 'hide'}
+########### Main HIPE file #####################
 HIPE <- as_tibble(read.csv("data/H240272_2022.csv",
         strip.white = TRUE, na.strings = c("", NA)))
 
-###################################################
+########### StudyID ##################################
 #There is a StudyID variable at the start of the HIPE site file, so we add a blank StudyID to the start of this HIPE file
 #
 HIPE <- HIPE %>%
-  mutate(StudyID = paste0('H.', row_number())) %>%
+  mutate(StudyID = paste0(row_number())) %>%
   relocate(StudyID)
 
-###################################################
-# Hipe linked to chart review file
+########### HIPE.Site #################################
+# HIPE linked to chart review file
 # 
 HIPE.Site <- as_tibble(
   read.csv("data/H240272_2022_Site_Study_Subjects.csv", strip.white = TRUE, na.strings = c("", NA)))
+# 
+# Lose two rows in HIPE.Site - StudyID's 41 and 405
+# These never had a chart review.
+# 
+HIPE.Site <- HIPE.Site %>%
+  filter(StudyID != 41 & StudyID != 405)
 
-#####################################################
+########## Make StudyID character ###################
+# Make StudyID a character variable
+# 
+HIPE.Site <- HIPE.Site %>%
+  mutate(StudyID = as.character(StudyID))
+
+########### Sheet names ################################
 # Check the sheet names (Note the extra ' ' in the "Chart review data ")
 # 
 excel_sheets('data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx')
@@ -97,7 +110,7 @@ Cost2Care <- read_excel(path='data/Final Cleaned Data Cost2Care Chart Review and
                         sheet = 'Chart review data ',
                         range = "A2:FX1002")
 
-#####################################################
+########### Fix the names ##########################
 # Fix the names
 # PN - PNeumonia;       UTI - Urinary Tract Infection;
 # PU - Pressure Ulcer;  DL - DeLirium
@@ -107,13 +120,19 @@ Cost2Care <- read_excel(path='data/Final Cleaned Data Cost2Care Chart Review and
       sheet = 'NAMES')
           names(Cost2Care) <- NAMES$Chart_review_data_revised
 
-#####################################################
+########### Remove unamed columns ###################
 # Remove 5 empty columns with missing names
 # 
 Cost2Care <- Cost2Care %>%
   select(-c(which(is.na(names(Cost2Care)))))
 
-###################################################
+########## Make StudyID character ###################
+# Make StudyID a character variable
+#
+Cost2Care <- Cost2Care %>%
+  mutate(StudyID = as.character(StudyID))
+          
+########### Read ACHI file #############################
 # ACHI file
 # 
 excel_sheets('data/H240272_Proc_ACHI_MAP_10thEdn.xlsx')
@@ -123,12 +142,15 @@ ACHI <- as_tibble(
              sheet = 'Proc_ACHI_MAP_10thEdn'))
 ```
 
-## Process the HIPE data
+## Process the HIPE and coding data
 
 We now have the four original data files loaded, and minimally tidied.
 We now do a *lot* more preparation on the national and site HIPE data files.
 
+### HIPE processing
+
 We write a function that
+
 * Names the variables consistently
 * Generates a number of new variables
     + ID, a unique identifier variable
@@ -146,7 +168,7 @@ We write a function that
 
 ```{r Function <HIPE_PROCESS> to process both HIPE files}
 HIPE_PROCESS <- function (HIPE_FILE) {
-#############################################
+############# Tidy names ####################
 # tidy up the names in the files provided
 # 
   names(HIPE_FILE)
@@ -155,14 +177,14 @@ HIPE_PROCESS <- function (HIPE_FILE) {
     names(HIPE_FILE) <- str_replace(names(HIPE_FILE), "(\\d*$)", ".\\1") # A dot place before any digits at the end, otherwise at the end
     names(HIPE_FILE) <- str_replace(names(HIPE_FILE), "(\\.$)", "") # Remove unwanted dots at the end, those not followed by digits.
 
-#############################################
+############# ID variable ###################
 # Set up an ID variable
 #   
 HIPE_FILE <- HIPE_FILE %>%
   mutate(rowid_to_column(., var = "ID")) %>% # Numeric ID
   mutate(ID = paste0("ID.",ID, sep = '')) # Character ID
 
-#############################################
+############# Time variables ################
 # Calculate some time related variables
 # 
 HIPE_FILE <- HIPE_FILE %>%
@@ -176,7 +198,7 @@ HIPE_FILE <- HIPE_FILE %>%
                       c("Nov","Dec","Jan", "Feb") ~ "Winter",
 c("Mar","Apr","May","Jun","Jul","Aug","Sep","Oct") ~ "Other"
                                     ))
-#############################################
+############# Med/Surg ######################
 # Prepare a Medical/Surgical Group variable
 # REPLACE WHEN PROCEDURE CODES FOR ANAESTHETICS AVAILABLE!!
 HIPE_FILE <- HIPE_FILE %>%
@@ -230,7 +252,7 @@ HIPE_FILE <- HIPE_FILE %>%
 "Urology" ~ "Surgical",
 "Vascular Surgery" ~ "Surgical"))
              
-#############################################
+############# Training split 1:4 ############
 # Then we split into training and test datasets
 # 
 HIPE_FILE_split <- initial_split(HIPE_FILE, prop = 4/5, strata = hosp.anon)
@@ -243,7 +265,7 @@ HIPE_FILE <- HIPE_FILE %>%
 # Add a variable to indicate training set or test set.
  HIPE_FILE$Training[HIPE_FILE_split$in_id] <- TRUE
 
-#############################################
+############# Hospital model codes ##########
 # Add Hospital Model codes
 HIPE_FILE <- HIPE_FILE %>%
     # Now we reorder the group
@@ -262,7 +284,7 @@ HIPE_FILE <- HIPE_FILE %>%
         'Maternity' ~ 'M'
     ))
 
-#############################################
+############# Hospital codes ################
 # Make short per hospital codes
 CODES <- HIPE_FILE %>%
     select(ModelCode, hosp.anon) %>%
@@ -278,7 +300,7 @@ CODES <- HIPE_FILE %>%
 HIPE_FILE <- HIPE_FILE %>%
     left_join(CODES, by = join_by(hosp.anon, ModelCode))
 
-#############################################
+############# Source and Destination ########
 # Sensibly code Source and Destination
 # 
 # 
@@ -300,14 +322,14 @@ HIPE_FILE <- HIPE_FILE %>%
                             c(6,7) ~ "Dead",
                             c(0,12,13,14,15) ~ "Other"))
 
-#############################################
+############# E & C Scores ##################
 # Scoring - Calculate Elixhauser and Charlson codes
 # 
 HIPE_FILE <- HIPE_FILE %>%
   unite("ICD_combined", dx.01:dx.30, sep=' ',
         remove = FALSE, na.rm=TRUE) # comorbidity expects a single variable containing all the ICD10 codes to be used as a a string, hence ICD-combined - This is a *BAD* idea.
 
-#############################################
+################# Charlson ##################
 # Charlson
 charlson <- comorbidity(x = HIPE_FILE, id = "ID", code = "ICD_combined", map = "charlson_icd10_am", assign0 = FALSE)
     charlson <- charlson %>% 
@@ -315,7 +337,7 @@ charlson <- comorbidity(x = HIPE_FILE, id = "ID", code = "ICD_combined", map = "
         names(charlson)[-1] <- paste0(str_to_title(names(charlson)[-1]),
                                       'Ch', sep='')
 
-#############################################
+################# Elixhauser ################
 # Elixhauser
 elixhauser <- comorbidity(x = HIPE_FILE, id = "ID", code = "ICD_combined", map = "elixhauser_icd10_quan", assign0 = FALSE)
     elixhauser <- elixhauser %>% 
@@ -323,13 +345,13 @@ elixhauser <- comorbidity(x = HIPE_FILE, id = "ID", code = "ICD_combined", map =
         names(elixhauser)[-1] <- paste0(str_to_title(names(elixhauser)[-1]),
                                         'El', sep='')
 
-#############################################
+############# Add scores back ###############
 # Put the scores back in the main file
 HIPE_FILE <- HIPE_FILE %>%
   left_join(charlson, by = join_by(ID), suffix = c("", ".ch")) %>%
   left_join(elixhauser, by = join_by(ID),suffix = c("", ".el"))
 
-#############################################
+############# Counts ########################
 # Ad a count of procedures, diagnoses and hadx scores
 # 
 HIPE_FILE <- HIPE_FILE %>%
@@ -340,7 +362,7 @@ HIPE_FILE <- HIPE_FILE %>%
   mutate(HadxCount = purrr::pmap_dbl(HIPE_FILE %>% select(hadx.01:hadx.30),
                            ~sum(!is.na(c(...)))))
 
-#############################################
+############# Centre and scale ##############
 # Centre and scale age, rawlos and other numeric variables
 # 
 HIPE_FILE <- HIPE_FILE %>%
@@ -351,20 +373,21 @@ HIPE_FILE <- HIPE_FILE %>%
 ## scale produces a matrix output
 #
 
-#############################################
+############# Select and order ##############
 # Select and order the desired variables
 # This will *change* if more calculated variables are added
-# 
+#
 HIPE_FILE <- HIPE_FILE %>%
   mutate(StudyID = studyid) %>% #Capitalise this again
   select(StudyID, ID, Training, ModelF, ModelCode, HospCode, MedSurg,
          AgeC, LosC,
          DateOfAdmission, MonthOfAdmission, SeasonOfAdmission,
          DateOfDischarge, MonthOfDischarge,
-         ScoreEl, ScoreCh, HospNo:Destination, ProcCount:HadxCount,
+         ScoreEl, ScoreCh, ends_with('El'), ends_with('Ch'),
+         HospNo:Destination, ProcCount:HadxCount,
          hosp.anon:proc.desc.20) # Reorder variables
 
-#############################################
+############# Return ##########################
 # Finish, returning a single tibble
 #
     return(HIPE_FILE)
@@ -372,22 +395,95 @@ HIPE_FILE <- HIPE_FILE %>%
 
 ```
 
-```{r code DRG's as complexity}
-# note that this runs before the names are tidied up, 
-# hence drgv8 and drg_desc, not drgv.8 and drg.desc 
+
+### Apply key funtion to HIPE data
+
+There are two HIPE data files.
+
+* HIPE.Site contains HIPE data matched to the specific records reviewed as part of the chart review.
+* HIPE contains the national HIPE data for the same population.
+
+Note that the HIPE file *includes* the whole HIPE.Site data, but they are not matched, nor linked by any common identifier.
+
+```{r Process both files HIPE and HIPE.Site}
+
+HIPE <- HIPE_PROCESS(HIPE)
+HIPE.Site <- HIPE_PROCESS(HIPE.Site)
+
+```
+
+
+## DRG
+
+DRG codes are alphanumeric codes, which have a description attached. most of these descriptions, include an indication of complexity, either Minor, Intermediate or Major.
+
+### DRG codes
+
+```{r DRG descriptions without Complexity clearly marked}
+DRG_used <- HIPE |>
+  select(drgv.8,drg.desc) |>
+  group_by(drgv.8, drg.desc) |>
+  summarise(N = n()) |>
+  arrange(desc(N))
+
+DRG_noComplexity <- DRG_used |>
+  filter(!grepl('omplexity',drg.desc)) |>
+  group_by(drgv.8, drg.desc) |>
+  summarise(N = n()) |>
+  arrange(desc(N))
+
+DRG_noComplexity_at_all <- DRG_used |>
+  filter(!grepl('omp',drg.desc)) |>
+  group_by(drgv.8, drg.desc) |>
+  summarise(N = n()) |>
+  arrange(desc(N))
+```
+
+In some `r length(DRG_noComplexity$N)` out of `r length(DRG_used$N)`, the complexity description is abbreviated to Comp, or to Inter comp, Min Comp, or it is missing altogether.
+
+```{r Cleanup Nocomplexity}
+rm(DRG_noComplexity_at_all, DRG_noComplexity, DRG_used)
+```
+
+Looking at the history of the DRG codes [1. Dimitropoulos V, Yeend T, Zhou Q, McAlister S, Navakatikyan M, Hoyle P, et al. A new clinical complexity model for the Australian Refined Diagnosis Related Groups. Health Policy. 2019 Nov 1;123(11):1049–52.], of those in this study, five clearly are (at least) intermediate complexity DRG's, requiring transfer within 5 days, which ought to be reflected in our analysis.
+
+Note that these are not given complexity codes in the DRG system, because the purpose of that system was to predict costs. It is also worth noting that patients who were rapidly transferred will mostly be in the study as transfers from another facility, and will have little opportunity to have our outcomes recorded in the originating hospital. These codes were -
+
+* Intermediate
+  + B70D (39) Stroke and Other Cerebrovascular Disorders, Transferred to Acute Facility <5 Days
+  + B78C (7) Intracranial Injuries, Transferred to Acute Facility <5 Days
+  + F60B (72) Circulatory Disorders, Admitted for Acute Myocardial Infarction without Invasive Cardiac Investigative Procedures, Transferred to Acute Facility <5 Days
+  + F62C (20) Heart Failure and Shock, Transferred to Acute Facility <5Days
+  + Y60Z (3) Burns, Transferred to Acute Facility <5 Days
+
+In addition, a number of codes represent significantly complex conditions, and, for our purposes, ought to be further coded for complexity. These include
+
+* Intermediate
+  + T40Z (9) Infectious and parasitic diseases with ventilator support
+* High
+  + A01Z (4) Liver transplant
+  + A03Z (4) Heart and/or lung transplant
+  + W03Z (2) Abdominal Procedures for Multiple Significant Trauma
+  + Y01Z (2) Vent >=96hrs or Trach for Burns or OR Procs for Severe Full Thickness Burns
+
+### DRG processing
+
+We prepare a coding file to put DRG's into levels of complexity, as discussed below.
+
+```{r code DRGs as complexity}
 #
 ## Generate a tibble with two columns - DRG code and complexity
 #
 DRG <- HIPE |>
-  select(drgv8, drg_desc) |>
-  group_by(drgv8, drg_desc) |>
+  select(drgv.8, drg.desc) |>
+  group_by(drgv.8, drg.desc) |>
   summarise(N = n()) |>
   arrange(desc(N))
 
 DRG <- DRG |>
   mutate(Complexity = ifelse(
-    str_detect(stringi::stri_extract_last_words(drg_desc), pattern = 'omp'),
-    word(drg_desc, -2),'NOCOMP')) %>%
+    str_detect(stringi::stri_extract_last_words(drg.desc), pattern = 'omp'),
+    word(drg.desc, -2),'NOCOMP')) %>%
   # Take the second last word in the description,
   # but only if the last word matches 'omp'. This is beacuse Complexity
   # ia abbreviated as Comp in these data
@@ -400,7 +496,7 @@ DRG <- DRG |>
   # Recode complexity to map the abbreviations Min, Maj and Interm to the
   # respective full values, and flag descriptions where
   # no specific complexity given as NOCOMP
-  mutate(CC = case_match(drgv8,
+  mutate(CC = case_match(drgv.8,
                         c('B70D','B78C','F60B','F62C','Y60Z') ~ 'Intermediate',
                         c('T40Z') ~ 'Intermediate',
                         c('A01Z','A03Z','W03Z','Y01Z') ~ 'Major',
@@ -417,42 +513,247 @@ DRG <- DRG |>
 
 DRG_coding <- DRG %>%
   # Lose the extra variables from DRG
-  select(drgv8, Complexity)
-
-  #str(DRG_coding$Complexity)
-  #table(DRG_coding$Complexity)
-
-  #table(DRG$Complexity, useNA = 'ifany')
-  #table(DRG$CC, useNA = 'ifany')
-  #table(DRG$Complexity, DRG$CC, useNA = 'ifany')
+  select(drgv.8, Complexity)
 
 DRG <- DRG |> group_by(Complexity) |> summarise(Count = sum(N))
 
 ```
 
-```{r Process both files HIPE and HIPE.Site}
+We use this file to add the DRG Complexity codes to the file
 
-HIPE <- HIPE_PROCESS(HIPE)
-HIPE.Site <- HIPE_PROCESS(HIPE.Site)
+```{r AddDRG complexity codes to the files}
 
 HIPE <- HIPE |>
-  left_join(DRG_coding, by = join_by(drgv.8 == drgv8)) |>
+  left_join(DRG_coding, by = join_by(drgv.8 == drgv.8)) |>
   select(StudyID:HadxCount, Complexity, hosp.anon:proc.desc.20)
 
 HIPE.Site <- HIPE.Site |>
-  left_join(DRG_coding, by = join_by(drgv.8 == drgv8)) |>
+  left_join(DRG_coding, by = join_by(drgv.8 == drgv.8)) |>
   select(StudyID:HadxCount, Complexity, hosp.anon:proc.desc.20)
 
 ```
 
-Next we check and merge the Chart Review data, and the corresponding HIPE data for those cases.
+### Level of complexity
+
+Most admissions nationally have higher complexity.
+
+```{r Table of complexity}
+
+kable(DRG)
+
+```
+
+## ACHI Procedures codes
+
+For the diagnoses, there are two sets of summary codes already provided. These are DRG codes and MDC codes, which provide, respectively, a longer and shorter summary of the diagnosis assigned. For procedures no simple classification is accessible. Each person has up to 30 codes, and the only guide is the the first procedure is that associated with the reason for admission. After that, many of the procedure codes are blank, as most people have less than 3 procedure codes.
+
+### Intent of processing procedure codes
+
+We have two goals - 
+
+* Identify people who had anaesthetics, often used as a proxy for surgical cases.
+* Reduce the number of procedure codes to a manageable number for further analysis.
+
+To do this we have access to the following for each of the procedures used in the data -
+
+* proc - One of 2,469 numeric procedure codes
+* proc_desc - A description of what each code covers
+* Block -  One of 942 numeric codes for an aggregate of related procedure codes
+* block_desc - A description of each block
+* Proc_Type - One of 81 general descriptions of the type of procedure
+* Anatomical_Site - One of 119 body sites where that procedure was done
+* Chapter_n - One of 19 codes for the ACHI chapter into which that procedure falls
+* Chapter - A description of each chapter
+
+```{r skim ACHI}
+skim(ACHI %>%
+       mutate( across( where(is.numeric) , as.character)))
+        # Make all variables characters temporarily
+```
+
+### Add ACHI codes to the main dataset.
+
+First, prepare files with one row per procedure per discharge (20 rows per discharge record).
+
+Then compare the list of ACHI codes provided to that in the full HIPE, and the chart review site HIPE data.
+
+All codes go from 0 - no procedure in that category, up to the total number of procedures received in that category
+
+There are 19 chapters, most of which make sense, but one, Chapter 19, 'Interventions Not Elsewhere Classified' needs to be divided further. In any event each chapter needs to become a variable. Chapter 19 can be divided sensibly further into the anatomical site recorded, as these are things like Diagnostic test, and Allied Health Professional.
+
+### ACHI processing
+
+We prepare a coding file to group ACHI procedures into meaningful group, mostly by ACHI chapter, for Intervention n.e.c. we use the Anatomical sites provided.
+
+```{r Prepare per procedure files PROC and PROC_SITE}
+# These have 20 rows per StudyId, one of each of the 20 procedure codes.
+
+PROC <- HIPE |>
+  select(StudyID,proc.01:proc.20) |>
+  pivot_longer(cols=!StudyID,
+               names_to = 'Procedure',
+               values_to = 'ACHI_code') |>
+  full_join(ACHI, by = join_by(ACHI_code == proc))
+
+
+PROC.Site <- HIPE.Site |>
+  select(StudyID, proc.01:proc.20) |>
+  pivot_longer(cols=!StudyID,
+               names_to = 'Procedure',
+               values_to = 'ACHI_code') |>
+  full_join(ACHI, by = join_by(ACHI_code == proc)) |>
+  filter(!is.na(StudyID)) # Remove unused codes
+
+```
+
+Check the codes used
+
+```{r compare list of ACHI codes provided to that in the full HIPE (not the chart review site HIPE.site) file}
+
+    PROC_unused <- PROC |> filter(is.na(StudyID)) |> select(ACHI_code) |>
+      group_by(ACHI_code) |> unique() |>
+      arrange(ACHI_code) # 0 codes not used
+
+    PROC_used <- PROC |> filter(!is.na(StudyID)) |> select(ACHI_code) |>
+      group_by(ACHI_code) |> unique() |>
+      arrange(ACHI_code) # 2470 codes used
+# Total codes is 2470 - the original 2469 and the missing code
+
+   PROC_unused.Site <- PROC.Site |> filter(is.na(StudyID)) |> select(ACHI_code) |>
+      group_by(ACHI_code) |> unique() |>
+      arrange(ACHI_code) # 1995 codes not used
+
+    PROC_used.Site <- PROC.Site |> filter(!is.na(StudyID)) |> select(ACHI_code) |>
+      group_by(ACHI_code) |> unique() |>
+      arrange(ACHI_code) # 475 codes used
+# Total codes is 2470 - the original 2469 and the missing code
+
+rm(PROC_unused, PROC_unused.Site, PROC_used, PROC_used.Site)
+```
+
+Create the coding variable
+
+```{r Add GROUP variable}
+# Each chapter is one group, except Chapter 19, 
+# which is divided by Anatomical site.
+#
+###########################################
+# Group procedures for HIPE file
+PROC <- PROC |>
+  mutate(GROUP = ifelse(Chapter_n == 19,
+                        Anatomical_Site,
+                        Chapter)) %>%
+  mutate(GROUP = ifelse(Anatomical_Site == 'Anaesthesia And Analgesia',
+                        Proc_Type, # 'Anaesthesia' or 'Analgesia'
+                        GROUP)) %>%
+  mutate(value = ifelse(is.na(GROUP),
+                        0, 1)) %>% # 1 means that Group was present.
+  mutate(GROUP = ifelse(is.na(GROUP),'blank', GROUP)) # Replace all missing values with blank, which allows us to remove these later
+
+###########################################
+# Now make each GROUP a separate variable
+# using summarise to get the count, and pivot_wider to get the desired form
+PROC <- PROC |>
+  group_by(StudyID, GROUP, value) |>
+  summarise(Count = sum(value)) |> # Add up the count of procedures
+  ungroup() |>
+  pivot_wider(id_cols=StudyID,
+              names_from = GROUP, values_from = Count,
+              values_fill = 0) |> #no missing values
+  select(-blank) |> # Remove columns of zeros
+  arrange(as.numeric(StudyID))
+
+#Tidy up the names
+#
+names(PROC) = str_squish(names(PROC)) # Remove spaces at beginning and end, and collpase others into one space
+names(PROC) = str_replace_all(names(PROC),' ','.') # Replace space with .
+names(PROC) = str_replace_all(names(PROC),',','') # Replace , with nothing
+
+###########################################
+# Group procedures for HIPE.Site file
+PROC.Site <- PROC.Site |>
+  mutate(GROUP = ifelse(Chapter_n == 19,
+                        Anatomical_Site,
+                        Chapter)) %>%
+  mutate(GROUP = ifelse(Anatomical_Site == 'Anaesthesia And Analgesia',
+                        Proc_Type, # 'Anaesthesia' or 'Analgesia'
+                        GROUP)) %>%
+  mutate(value = ifelse(is.na(GROUP),
+                        0, 1)) %>% # 1 means that Group was present.
+  mutate(GROUP = ifelse(is.na(GROUP),'blank', GROUP))
+
+###########################################
+# Now make each GROUP a separate variable
+PROC.Site <- PROC.Site |>
+  group_by(StudyID, GROUP, value) |>
+  summarise(Count = sum(value)) |> # Add up the count of procedures
+  ungroup() |>
+  pivot_wider(id_cols=StudyID,
+              names_from = GROUP, values_from = Count,
+              values_fill = 0) |> #no missing values
+  select(-blank) |> # Remove columns of zeros
+  arrange(as.numeric(StudyID))
+
+#Tidy up the names
+#
+names(PROC.Site) = str_squish(names(PROC.Site)) # Remove spaces at beginning and end, and collpase others into one space
+names(PROC.Site) = str_replace_all(names(PROC.Site),' ','.') # Replace space with .
+names(PROC.Site) = str_replace_all(names(PROC.Site),',','') # Replace , with nothing
+
+# There are two sets of Procedures which do not occur in the study hospital
+# Procedures.On.Ear.And.Mastoid.Process
+# and
+# Client.Support.Interventions
+# For sanity we add both, set to zero.
+# 
+PROC.Site <- PROC.Site %>%
+  mutate(Procedures.On.Ear.And.Mastoid.Process = 0) %>%
+  mutate(Client.Support.Interventions = 0)
+
+############ Order columns ################################
+#
+# Order the columns in the two dataframes PROC and PROC_Site the same way
+#
+PROC <- PROC %>%
+  select(order(colnames(PROC))) %>%
+  relocate(StudyID)
+
+PROC.Site <- PROC.Site %>%
+  select(order(colnames(PROC.Site))) %>%
+  relocate(StudyID)
+
+
+```
+
+Merge these ACHI codes into both datasets
+
+```{r Merge the group variables back into the main datasets}
+#####################################
+# HIPE
+# 
+HIPE <- HIPE |>
+  full_join(PROC, by = join_by(StudyID == StudyID)) |>
+  select(StudyID:Complexity,
+         Anaesthesia:Therapeutic.Interventions,
+         hosp.anon:proc.desc.20)
+
+#####################################
+# HIPE.Site
+# 
+HIPE.Site <- HIPE.Site |>
+  full_join(PROC.Site, by = join_by(StudyID == StudyID)) |>
+  select(StudyID:Complexity,
+         Anaesthesia:Therapeutic.Interventions,
+                  hosp.anon:proc.desc.20)
+```
+
+## Merge the HIPE.Site data and the chart review data
+
+Next we check and merge the Chart Review data, and the corresponding HIPE.Site data for those cases.
 
 ```{r Check and merge two sets of site data}
 
-#####################################################
-# Note there are 2 StudyIDs 41 and 405 which are 
-# not in the Cost2Care file, but are in the HIPE.Site file
-# This is correct.
+################# Check Names/StudyID's ###############
 # 
 COMBINED <- full_join(
   Cost2Care %>%
@@ -461,17 +762,15 @@ COMBINED <- full_join(
     select(StudyID, ID),
       by = join_by(StudyID)) # check for missing study IDS
 
-#####################################################
+################# Join files  #######################
 # Join the main files
-# Lose the two rows with no Encrypted_mrn - StudyID's 41 and 405
 # 
 Cost2Care.HIPE <- full_join(
     Cost2Care,
     HIPE.Site,
-    by = join_by(StudyID)) %>%
-  filter(!is.na(Encrypted_mrn))
+    by = join_by(StudyID))
 
-##################################################
+################# Check for duplicate names #########
 # Duplicate names - fixed in Cost2Care working spreadsheet sheet NAMES
 # 'data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx'
 # 
@@ -495,168 +794,6 @@ There are a total of `r PEOPLE` admissions in these records, from `r HOSPITALS` 
 ```{r Delete the numbers}
 rm(PEOPLE, HOSPITALS, STUDY)
 ```
-
-## DRG codes
-
-```{r DRG descriptions without Complexity clearly marked.}
-
-DRG_noComplexity <- HIPE |>
-  select(drgv.8,drg.desc) |>
-  filter(!grepl('omplexity',drg.desc)) |>
-  group_by(drgv.8, drg.desc) |>
-  summarise(N = n()) |>
-  arrange(desc(N))
-
-DRG_noComplexity_at_all <- HIPE |>
-  select(drgv.8,drg.desc) |>
-  filter(!grepl('omp',drg.desc)) |>
-  group_by(drgv.8, drg.desc) |>
-  summarise(N = n()) |>
-  arrange(desc(N))
-
-rm(DRG_noComplexity_at_all, DRG_noComplexity)
-```
-
-DRG codes are alphanumeric codes, which have a description attached. most of these descriptions, include an indication of complexity, either Minor, Intermediate or Major. In some (`r length(DRG_noComplexity$N` out of `r `length(DRG_used$N ) this is abbreviated to Comp, or to Inter comp, Min Comp, or it is missing altogether.
-
-Looking at the history of the DRG codes [1. Dimitropoulos V, Yeend T, Zhou Q, McAlister S, Navakatikyan M, Hoyle P, et al. A new clinical complexity model for the Australian Refined Diagnosis Related Groups. Health Policy. 2019 Nov 1;123(11):1049–52.], of those in this study, five clearly are (at least) intermediate complexity DRG's, requiring transfer within 5 days, which ought to be reflected in our analysis. Note that these are not given complexity codes in the DRG system, because the purpose of that system was to predict costs. It is also worth noting that patients who were rapidly transferred will mostly be in the study as transfers from another facility, and will have little opportunity to have our outcomes recorded in the originating hospital. These codes were -
-
-Intermediate
-* B70D (39) Stroke and Other Cerebrovascular Disorders, Transferred to Acute Facility <5 Days
-* B78C (7) Intracranial Injuries, Transferred to Acute Facility <5 Days
-* F60B (72) Circulatory Disorders, Admitted for Acute Myocardial Infarction without Invasive Cardiac Investigative Procedures, Transferred to Acute Facility <5 Days
-* F62C (20) Heart Failure and Shock, Transferred to Acute Facility <5 Days
-* Y60Z (3) Burns, Transferred to Acute Facility <5 Days
-
-In addition, a number of codes represent significantly complex conditions, and, for our purposes, ought to be further coded for complexity. These include
-
-Intermediate
-* T40Z (9) Infectious and parasitic diseases with ventilator support
-High
-* A01Z (4) Liver transplant
-* A03Z (4) Heart and/or lung transplant
-* W03Z (2) Abdominal Procedures for Multiple Significant Trauma
-* Y01Z (2) Vent >=96hrs or Trach for Burns or OR Procs for Severe Full Thickness Burns
-
-Most admissions nationally have higher complexity.
-
-```{r}
-kable(DRG)
-
-```
-
-## Process the procedures data
-
-For the diagnoses, there are two sets of summary codes already provided. These are DRG codes and MDC codes, which provide, respectively, a longer and shorter summary of the diagnosis assigned. For procedures no simple classification is accessible. Each person has up to 30 codes, and the only guide is the the first procedure is that associated with the reason for admission. After that, many of the procedure codes are blank, as most people have less than 3 procedure codes.
-
-### Intent of processing procedure codes
-
-We have two goals - 
-
-* Identify people who had anaesthetics, often used as a proxy for surgical cases.
-* Reduce the number of procedure codes to a manageable number for further analysis.
-
-To do this we have access to the following for each of the procedures used in the data -
-* proc - One of 2,469 numeric procedure codes
-* proc_desc - A description of what each code covers
-* Block -  One of 942 numeric codes for an aggregate of related procedure codes
-* block_desc - A description of each block
-* Proc_Type - One of 81 general descriptions of the type of procedure
-* Anatomical_Site - One of 119 body sites where that procedure was done
-* Chapter_n - One of 19 codes for the ACHI chapter into which that procedure falls
-* Chapter - A description of each chapter
-
-```{r}
-skim(ACHI %>%
-       mutate( across( where(is.numeric) , as.character)))
-        # Make all variables characters temporarily
-```
-
-### Task 1
-How to add ACHI codes to the main dataset.
-
-Simplify data to ID and proc codes
-
-```{r}
-PROC <- HIPE |>
-  select(StudyID,proc.01:proc.20) |>
-  pivot_longer(cols=!StudyID,
-               names_to = 'Procedure',
-               values_to = 'ACHI_code')
-
-PROC <- PROC |>
-  full_join(ACHI, by = join_by(ACHI_code == proc))
-
-    PROC_unused <- PROC |> filter(is.na(StudyID)) |> select(ACHI_code) |>
-      group_by(ACHI_code) |> unique() |>
-      arrange(ACHI_code) # 0 codes not used
-    PROC_used <- PROC |> filter(!is.na(StudyID)) |> select(ACHI_code) |>
-      group_by(ACHI_code) |> unique() |>
-      arrange(ACHI_code) # 2470 codes used
-# Total codes is 2470 - the original 2469 and the missing code
-
-```
-
-```{r Individual codes}
-
-PROC <- PROC |>
-  mutate(Anaesthetic = case_when(Block %in% c(1909,1910) ~ 1,
-                         Procedure == 1821609 ~ 1,
-                         Procedure %in% c(1821627:1821631)  ~ 1,
-                         Procedure == 3901302 ~ 1,
-                         Procedure == 9002200 ~ 1,
-                         Procedure %in% c(9250810:9251599)  ~ 1,
-                         Procedure %in% c(9251600:9251800)  ~ 1,
-                         Procedure %in% c(9251910:9251999)  ~ 1,
-                                .default = 0) ) |>
-  mutate(AHP = case_when(Block %in% c(1915,1916) ~ 1,
-                                .default = 0) )# |>
-
-  table(PROC$Anaesthetic,PROC$Proc_Type)
-```
-
-```{r Explore codes for procedures}
-##################################
-# Each person can have up to 20 ACHI procedure codes
-# The first ACHI code is the most important
-# Otherwise the ordering of the codes is not especially
-# The aim here is to generate a set of variables indicating,
-# for each (discharge) person, which group of codes they have
-#
-
-HIPE.ACHI <- HIPE %>%
-  pivot_longer(cols = proc.01:proc.20,
-               names_to = 'Procedures',
-               values_to = 'Code'
-               ) %>%
-  left_join(ACHI,
-            by = join_by(Code == proc)
-            ) %>%
-  pivot_wider(id_cols = c(StudyID:ID,Block:Chapter),
-              id_expand = FALSE,
-              names_from = 'Procedures',
-              values_from = 'Code')
-
-HIPE.ACHI %>%
-  group_by(Chapter) %>%
-  summarise(N = n()) %>%
-  arrange(desc(N))
-
-HIPE.ACHI %>%
-  group_by(Proc_Type) %>%
-  summarise(N = n()) %>%
-  arrange(desc(N)) %>%
-  print(n = 100)
-
-HIPE.ACHI %>%
-  group_by(Chapter,Proc_Type) %>%
-  summarise(N = n()) %>%
-  arrange(desc(N)) %>%
-  print(n = 200)
-
-```
-
-The next step is to create a number of additional variables required for analysis and data display. These mostly consist of a re-ordering of the 'model' variable, which indicates the type of hospital (Model 4, Model 3 Model 2, Specialist, or Maternity) and the creation of hospital ID's which number the hospitals within these groups.
 
 # Outcomes
 
@@ -688,7 +825,7 @@ rm(Admissions)
 
 It can be useful to consider comorbidity scores, and two of the most popular of these are the Elixhauser  and Charlson  scores. These are calculated using in this work using the comorbidity package , in turn based on.
 
-Figure 3 shows the joint and separate distributions of these scores amongst the discharges.  The very limited range of Charlson scores encountered, is contrasted with the much wider range of the Elixhauser scores.
+The figure shows the joint and separate distributions of these scores amongst the discharges.  The very limited range of Charlson scores encountered, is contrasted with the much wider range of the Elixhauser scores.
 
 ```{r Plot of E & C scores, fig.cap= 'Plot of Elixhauser and Charlson weighted scores for the discharges included in the analysis.', fig.dpi=1200, fig.height=5, fig.width=7}
 ggplot(data=HIPE,
@@ -811,7 +948,7 @@ We show a series of hospital level variables.
 
 ### Age
 
-Age at admission does not vary greatly between the main group of hospitals. This work is confined to an older group of patients, all aged 65 or over, and admitted for at least three days.
+Age at admission does not vary greatly between the main group of hospitals. Note that htis particualr work is confined to an older group of patients, all aged 65 or over, and admitted for at least three days.
 
 ```{r Draw age}
 ggplot(data = HIPE,
@@ -882,21 +1019,19 @@ ggplot(data = HIPE,
         y = 'Number of Health care Acquired Diagnoses coded')
 ```
 
-
 # Checking of the Chart Review data and the HIPE site data
-
 
 ## Check dataset and check matching
 
 First, we produce a summary of the chart review dataset. Please review this, and be sure that all of the variables are correct.
 
-## skimr
+## Data summary with the skimr library
 
 ```{r Check data skimr, results = 'asis'}
 skimr::skim(Cost2Care.HIPE)
 ```
 
-
+Note that hadx.01 and hadx30 are both 100% missing. They are in the summary, but as logical variables.
 ## Check matching
 
 It is desirable to check the matching, and see if the other HIPE.Site variables have the same values as those in the Cost2Care file.
@@ -960,7 +1095,9 @@ ctable(H.PN_hadx <- as_factor(Cost2Care.HIPE$H.PN_hadx),
 
 ```
 
-## There are a couple of anyf2m variable floating about - can we check which is which? I think h.any_f2m comes from the chart review, and h.any_f2m.hadx comes from HIPE?
+## anyf2m
+
+There are a couple of anyf2m variable floating about - can we check which is which? I think h.any_f2m comes from the chart review, and h.any_f2m.hadx comes from HIPE?
 
 ```{r Check match tables any failure to Maintain (F2M)}
 ##################################################
@@ -1001,6 +1138,13 @@ ctable(sex <- as_factor(
 # Age
 #
 freq(Cost2Care.HIPE$Age_discharge - Cost2Care.HIPE$age) # Mostly ok, i.e. 0, but a few large discrepancies
+
+```
+
+
+```{r Pictures, fig.cap= 'Age recorded from the chart review, against Age recorded in the HIPE data, for the study hospital.', fig.dpi=1200, fig.height=5, fig.width=7}
+ggplot(data=Cost2Care.HIPE,
+       aes(x = Age_discharge, y = age, colour=Gender)) + geom_jitter() # A bit clearer
 
 ```
 
@@ -1090,15 +1234,10 @@ ctable(H.any_F2M <- as_factor(Cost2Care.HIPE$H.any_F2M),
 
 ```
 
-```{r Pictures}
-ggplot(data=Cost2Care.HIPE,
-       aes(x = Age_discharge, y = age, colour=Gender)) + geom_jitter() # A bit clearer
-
-```
-
 # Major outcomes
 
 The main outcomes available are 
+
 * the presence of a health care associated urinary tract infection (UTI - variable beginning with 'UTI.')
 * the presence of health care associated pneumonia (PN - variable beginning with 'PN.')
 * the presence of a health care associated pressure ulcer (PU - variable beginning with 'PU.')
