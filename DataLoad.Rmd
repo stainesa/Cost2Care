@@ -1031,11 +1031,8 @@ First, we produce a summary of the chart review dataset. Please review this, and
 skimr::skim(Cost2Care.HIPE)
 ```
 
-<<<<<<< HEAD
 Note that hadx.01 and hadx30 are both 100% missing. They are in the summary, but as logical variables.
 
-=======
->>>>>>> b48b7205d1ce729c2de2d79470f979d7a13cc2d5
 ## Check matching
 
 It is desirable to check the matching, and see if the other HIPE.Site variables have the same values as those in the Cost2Care file.
