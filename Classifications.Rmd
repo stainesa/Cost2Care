@@ -130,13 +130,20 @@ Which is the correct F2M variable?
 
 # Outcomes
 
+We look at the set of outcomes suggested.
+
+
 ```{r}
 
 Outcomes <- CtCH |>
   select(PN, PN_Associated, UTI, UTI_Associated, PU, PU_Associated, DL, DL_Associated, rawlos, LosC, Source, Died, Destination)
 
 skimr::skim(Outcomes)
+```
 
+Then we complete the outcomes by setting NA to No, and creating a definitely or likely health care associated variable for each of the four key conditions.
+
+```{r Outcome_recode}
 Outcome_recode <- function(DF, COND) {
 
   ASSOC  <- paste0({{COND}},'_Associated')
@@ -167,7 +174,6 @@ Outcome_recode <- function(DF, COND) {
 return(DF)
 }
 
- DF <- Outcome_recode(Outcomes, 'DL')
 
  Outcomes <- Outcomes %>%
   Outcome_recode('PN') %>%
@@ -175,8 +181,6 @@ return(DF)
   Outcome_recode('PU') %>%
   Outcome_recode('DL')
 
- skimr::skim(Outcomes)
- 
 CtCH <- CtCH %>%
   Outcome_recode('PN') %>%
   Outcome_recode('UTI') %>%
@@ -185,27 +189,110 @@ CtCH <- CtCH %>%
  
 ```
 
-
 # Quick and dirty predictions
 
-```{r define tasks}
+We prepare some rapid predictions, using the RF models on these data for the first set of outcomes - those reported whether or not associated with health care
+
+## Prepare subset of data
+
+first, guided by earlier experiments, we prepare a subset of key data items to work with.
+
+```{r DATA}
 #################################################
 # Trim CtCH, a lot
-CCH >- CtCH %>%
-  select(StudyID, PN, UTI, PU, UTI, Source, Died, Outcome, LosC,  # Outcomes
+CCH <- CtCH %>%
+  select(PN, PN_A, UTI, UTI_A,
+         PU, PU_A, DL, DL_A, # Outcomes _A - health care associated
+         Source, Died, Destination, rawlos,  # Outcomes
          Training, # Derived random split variable
-         ModelF, AgeC, SeasonOfAdmission, ScoreEl, ScoreCh, # Variables derived from HIPE
-         ProcCount, DxCount, HadxCount, 
-         elem, fullelig, drgv.8, 
-         ) 
+         ModelF, MedSurg, AgeC, SeasonOfAdmission,  # Variables derived from HIPE
+         ProcCount, DxCount, HadxCount, ScoreEl, ScoreCh, # Variables derived from HIPE
+         Complexity,
+         elem, fullelig, drgv.8 # HIPE variables
+         )
+```
+
+## Define the classification task
+
+```{r TASK}
 #################################################
-# Define a classification task for PN
+# Define a classification task
 #
-tsk_PN <- as_task_classif(C2C.H %>%
-                            select(-c(PN_Associated, PN_A, pneumonia, rawlos)),
+# PN
+tsk_C <- as_task_classif(CCH %>%
+                            select(-c(PN_A, UTI, UTI_A, PU, PU_A, DL, DL_A, )),
                           target = "PN",
                           id = 'PN')
-  tsk_PN
-  split_PN = partition(tsk_PN)
-  
+  split_C = partition(tsk_C)
 ```  
+
+
+## Define learners
+
+```{r LEARNERS}
+lrn_featureless = lrn('classif.featureless',
+                      predict_type = 'prob')
+
+lrn_C = lrn('classif.ranger',
+            predict_type = "prob",
+            mtry = 10,
+            num.trees = 2000,
+            importance = "permutation"
+            )  %>>% po("threshold")
+
+glrn_C = GraphLearner$new(lrn_C)
+
+search_space = ps(
+  threshold.thresholds = p_dbl(lower = 0, upper = 1)
+)
+```
+
+## Assess importance
+
+```{r IMPORTANCE}
+flt_Imp = flt("importance", learner = lrn_C)
+  flt_Imp$calculate(tsk_C)
+autoplot(flt_Imp)
+```
+
+## Resampling
+
+We have seen the effect of a single split of the data, separating training and test data completely. Performance is much better on the trained data than on the test data. Resampling is another approach to the same issue. This involves creating multiple training and test sets, and repeating the analysis for each, then aggregating the results of these.
+
+```{r RESAMPLING}
+cv10 = rsmp("cv", folds = 10) # 10 folds
+```
+
+## Measures
+
+```{r MEASURES}
+measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'))
+```
+
+## Classify
+
+```{r FIT}
+rr_C.f = resample(tsk_C, lrn_featureless, cv10, store_models = TRUE)
+rr_C.rng = resample(tsk_C, lrn_C, cv10, store_models = TRUE)
+
+autoplot(rr_C.f, type = 'roc') + labs(title="C")
+autoplot(rr_C.rng, type = 'roc') + labs(title="C")
+autoplot(rr_C.f, type = 'prc') + labs(title='C')
+autoplot(rr_C.rng, type = 'prc') + labs(title='C')
+```
+
+## Optimise threshold for ranger model
+
+```{r OPTIMISE}
+instance_C = ti(
+  task = tsk_C,
+  learner = glrn_C,
+  resampling = cv10,
+  measures = msr("classif.auc"),
+  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
+  search_space = search_space
+  )
+tuner = tnr("random_search")
+  future::plan(multisession, workers = 10)
+tuner$optimize(instance_C)
+```
