@@ -210,6 +210,14 @@ CCH <- CtCH %>%
          Complexity,
          elem, fullelig, drgv.8 # HIPE variables
          )
+HIPE.Trimmed <- HIPE %>%
+  select(Source, Died, Destination, rawlos,  # Outcomes
+         Training, # Derived random split variable
+         ModelF, MedSurg, AgeC, SeasonOfAdmission,  # Variables derived from HIPE
+         ProcCount, DxCount, HadxCount, ScoreEl, ScoreCh, # Variables derived from HIPE
+         Complexity,
+         elem, fullelig, drgv.8 # HIPE variables
+         )
 ```
 
 ## Define the classification task
@@ -225,7 +233,6 @@ tsk_C <- as_task_classif(CCH %>%
                           id = 'PN')
   split_C = partition(tsk_C)
 ```  
-
 
 ## Define learners
 
@@ -272,13 +279,53 @@ measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'
 ## Classify
 
 ```{r FIT}
+lrn_featureless$train(tsk_C, split_C$train)
+prediction = lrn_featureless$predict(tsk_C, split_C$test)
+prediction
+prediction$score(measures)
+prediction$confusion
+autoplot(prediction, type = 'roc')
+
+lrn_C$train(tsk_C, split_C$train)
+prediction = lrn_C$predict(tsk_C, split_C$test)
+prediction
+prediction$score(measures)
+prediction$confusion
+autoplot(prediction, type = 'roc')
+
+
 rr_C.f = resample(tsk_C, lrn_featureless, cv10, store_models = TRUE)
 rr_C.rng = resample(tsk_C, lrn_C, cv10, store_models = TRUE)
 
+```
+
+## Evaluation
+
+```{EVALUATE at T = 0.5}
+
 autoplot(rr_C.f, type = 'roc') + labs(title="C")
 autoplot(rr_C.rng, type = 'roc') + labs(title="C")
-autoplot(rr_C.f, type = 'prc') + labs(title='C')
+
+autoplot(rr_C.f,   type = 'prc') + labs(title='C')
 autoplot(rr_C.rng, type = 'prc') + labs(title='C')
+
+prediction_C.f = lrn_featureless$predict(tsk_C, split_C$test)
+prediction_C.f$score(measures)
+prediction_C.f$confusion
+autoplot(prediction_C.f, type = 'roc')
+autoplot(rr_C.f, type = 'prc')
+
+prediction_C.rng = lrn_C$predict(tsk_C, split_C$test)
+prediction_C.rng$score(measures)
+prediction_C.rng$confusion
+autoplot(prediction_C.rng, type = 'roc')
+autoplot(prediction_C.rng, type = 'prc') + labs(title='C')
+
+autoplot(rr_C.rng, type = 'prc') + labs(title='C')
+
+prediction$score(measures)
+prediction$confusion
+autoplot(prediction, type = 'roc')
 ```
 
 ## Optimise threshold for ranger model
@@ -288,11 +335,57 @@ instance_C = ti(
   task = tsk_C,
   learner = glrn_C,
   resampling = cv10,
-  measures = msr("classif.auc"),
-  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
+  measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')),
+  terminator = trm("evals", n_evals=50), # For tuner "random_search"
   search_space = search_space
   )
 tuner = tnr("random_search")
   future::plan(multisession, workers = 10)
 tuner$optimize(instance_C)
+str(instance_C)
+autoplot(instance_C)
+
+Tuner_df <- as_tibble(
+  as.data.table(instance_C$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+       aes(x = threshold.thresholds,
+           y = classif.auc)) +
+  geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+       aes(x = threshold.thresholds,
+           y = classif.bbrier)) +
+  geom_smooth()
+LOGLOSS <- ggplot(data = Tuner_df,
+       aes(x = threshold.thresholds,
+           y = classif.logloss)) +
+  geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+       aes(x = threshold.thresholds,
+           y = classif.acc)) +
+  geom_smooth()
+AUC + BBRIER + LOGLOSS + ACC
 ```
+
+Best shot at threshold is about 0.65
+
+# Fit at optimised threshold
+
+```{r}
+prediction$set_threshold(0.65)
+prediction$score(measures)
+prediction$confusion
+glimpse(as.data.table(prediction))
+```
+
+# Prediction on HIPE data
+
+```{r PREDICT HIPE}
+H.Predicted = lrn_C$predict_newdata(HIPE.Trimmed, tsk_C)
+H.Predicted$set_threshold(0.65)
+H.Predicted$score(measures)
+H.Predicted$confusion
+glimpse(as.data.table(H.Predicted))
+```
+
