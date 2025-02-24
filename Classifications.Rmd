@@ -227,10 +227,20 @@ HIPE.Trimmed <- HIPE %>%
 # Define a classification task
 #
 # PN
-tsk_C <- as_task_classif(CCH %>%
-                            select(-c(PN_A, UTI, UTI_A, PU, PU_A, DL, DL_A, )),
-                          target = "PN",
-                          id = 'PN')
+tsk_C <- as_task_classif(CtCH %>%
+                         select( -c(Encrypted_mrn:Frailty_score),
+                                -c(LOS:ID),
+                                -c(PN_Associated, UTI_Associated,
+                                   PU_Associated, DL_Associated),
+                                -c(PN, PN_A, UTI, UTI_A, PU, PU_A, DL_A, LosC),
+                                -matches('Date'),
+                                -contains('desc'),
+                                -c(StudyID, ICD_combined),
+                                -c(age, drgv.8, ScoreCh),
+                                -ends_with('Ch')),
+                         target = "DL",
+                         positive = "Yes",
+                         id = 'PN')
   split_C = partition(tsk_C)
 ```  
 
@@ -242,12 +252,11 @@ lrn_featureless = lrn('classif.featureless',
 
 lrn_C = lrn('classif.ranger',
             predict_type = "prob",
-            mtry = 10,
             num.trees = 2000,
             importance = "permutation"
-            )  %>>% po("threshold")
+            )
 
-glrn_C = GraphLearner$new(lrn_C)
+glrn_C = GraphLearner$new(lrn_C  %>>% po("threshold"))
 
 search_space = ps(
   threshold.thresholds = p_dbl(lower = 0, upper = 1)
@@ -260,6 +269,9 @@ search_space = ps(
 flt_Imp = flt("importance", learner = lrn_C)
   flt_Imp$calculate(tsk_C)
 autoplot(flt_Imp)
+summary(1000*flt_Imp$scores)
+keep = names(which(1000*flt_Imp$scores > 0.5))
+#tsk_C$select(keep)  
 ```
 
 ## Resampling
@@ -280,19 +292,21 @@ measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'
 
 ```{r FIT}
 lrn_featureless$train(tsk_C, split_C$train)
-prediction = lrn_featureless$predict(tsk_C, split_C$test)
-prediction
-prediction$score(measures)
-prediction$confusion
-autoplot(prediction, type = 'roc')
+prediction_C.f = lrn_featureless$predict(tsk_C, row_ids = split_C$test)
+prediction_C.f
+prediction_C.f$score(measures)
+prediction_C.f$confusion
+autoplot(prediction_C.f, type = 'roc')
 
-lrn_C$train(tsk_C, split_C$train)
-prediction = lrn_C$predict(tsk_C, split_C$test)
-prediction
-prediction$score(measures)
-prediction$confusion
-autoplot(prediction, type = 'roc')
+lrn_C$train(tsk_C, row_ids = split_C$train)
+prediction_C.rng = lrn_C$predict(tsk_C, split_C$test)
+prediction_C.rng
+prediction_C.rng$score(measures)
+prediction_C.rng$confusion
+autoplot(prediction_C.rng, type = 'roc')
 
+prediction_C.rng$set_threshold(0.3)
+C.rng <- as_tibble((as.data.table(prediction_C.rng)))
 
 rr_C.f = resample(tsk_C, lrn_featureless, cv10, store_models = TRUE)
 rr_C.rng = resample(tsk_C, lrn_C, cv10, store_models = TRUE)
@@ -315,7 +329,7 @@ prediction_C.f$confusion
 autoplot(prediction_C.f, type = 'roc')
 autoplot(rr_C.f, type = 'prc')
 
-prediction_C.rng = lrn_C$predict(tsk_C, split_C$test)
+prediction_C.rng = lrn_C$predict(tsk_C, row_ids = split_C$test)
 prediction_C.rng$score(measures)
 prediction_C.rng$confusion
 autoplot(prediction_C.rng, type = 'roc')
@@ -323,27 +337,25 @@ autoplot(prediction_C.rng, type = 'prc') + labs(title='C')
 
 autoplot(rr_C.rng, type = 'prc') + labs(title='C')
 
-prediction$score(measures)
-prediction$confusion
-autoplot(prediction, type = 'roc')
+prediction_C.rng$score(measures)
+prediction_C.rng$confusion
+autoplot(prediction_C.rng, type = 'roc')
 ```
 
 ## Optimise threshold for ranger model
 
-```{r OPTIMISE}
+```{r OPTIMISE, eval = FALSE}
 instance_C = ti(
   task = tsk_C,
   learner = glrn_C,
   resampling = cv10,
   measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')),
-  terminator = trm("evals", n_evals=50), # For tuner "random_search"
+  terminator = trm("evals", n_evals=500), # For tuner "random_search"
   search_space = search_space
   )
 tuner = tnr("random_search")
   future::plan(multisession, workers = 10)
 tuner$optimize(instance_C)
-str(instance_C)
-autoplot(instance_C)
 
 Tuner_df <- as_tibble(
   as.data.table(instance_C$archive))
@@ -368,24 +380,43 @@ ACC <- ggplot(data = Tuner_df,
 AUC + BBRIER + LOGLOSS + ACC
 ```
 
-Best shot at threshold is about 0.65
+Best shot at threshold is about 0.7
 
 # Fit at optimised threshold
 
 ```{r}
-prediction$set_threshold(0.65)
-prediction$score(measures)
-prediction$confusion
-glimpse(as.data.table(prediction))
+prediction_C.rng$set_threshold(0.3)
+prediction_C.rng$score(measures)
+prediction_C.rng$confusion
+glimpse(as.data.table(prediction_C.rng))
 ```
 
 # Prediction on HIPE data
 
 ```{r PREDICT HIPE}
-H.Predicted = lrn_C$predict_newdata(HIPE.Trimmed, tsk_C)
-H.Predicted$set_threshold(0.65)
-H.Predicted$score(measures)
-H.Predicted$confusion
+H.Predicted = lrn_C$predict_newdata(HIPE, tsk_C)
+H.Predicted$set_threshold(0.3)
+
 glimpse(as.data.table(H.Predicted))
 ```
 
+
+```{R Save predictions DL, eval=FALSE}
+DL <- as_tibble( as.data.table( H.Predicted ) ) %>%
+  mutate(Response = case_match(response,
+                        'Yes' ~ 1,
+                        'No'  ~ 0))
+table(DL$Response, useNA = 'ifany')
+
+saveRDS(DL, file = 'data/DL_predicted.rds')
+```
+
+```{R Save predictions PN, eval=FALSE}
+PN <- as_tibble( as.data.table( H.Predicted ) ) %>%
+  mutate(Response = case_match(response,
+                        'Yes' ~ 1,
+                        'No'  ~ 0))
+table(PN$Response, useNA = 'ifany')
+saveRDS(PN, file = 'data/PN_predicted.rds')
+
+```
