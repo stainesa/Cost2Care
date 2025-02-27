@@ -165,7 +165,7 @@ We write a function that
     + Charlson and Elixhauser scores and components
     + ProcCount, HadxCount, and DxCount - counts of non-missing codes
     + AgeC and LosC - centred and scaled Age (age) and Length of stay (rawlos)
-
+  
 ```{r Function <HIPE_PROCESS> to process both HIPE files}
 HIPE_PROCESS <- function (HIPE_FILE) {
 ############# Tidy names ####################
@@ -194,10 +194,12 @@ HIPE_FILE <- HIPE_FILE %>%
   mutate(MonthOfAdmission = lubridate::month(DateOfAdmission, label=TRUE)) %>%
   mutate(MonthOfDischarge = lubridate::month(DateOfDischarge, label=TRUE)) %>%
   mutate(SeasonOfAdmission =
-           case_match(MonthOfAdmission,
+           case_match(as.character(MonthOfAdmission),
                       c("Nov","Dec","Jan", "Feb") ~ "Winter",
 c("Mar","Apr","May","Jun","Jul","Aug","Sep","Oct") ~ "Other"
                                     ))
+#return(HIPE_FILE)
+#}
 ############# Med/Surg ######################
 # Prepare a Medical/Surgical Group variable
 # REPLACE WHEN PROCEDURE CODES FOR ANAESTHETICS AVAILABLE!!
@@ -326,8 +328,9 @@ HIPE_FILE <- HIPE_FILE %>%
 # Scoring - Calculate Elixhauser and Charlson codes
 # 
 HIPE_FILE <- HIPE_FILE %>%
-  unite("ICD_combined", dx.01:dx.30, sep=' ',
-        remove = FALSE, na.rm=TRUE) # comorbidity expects a single variable containing all the ICD10 codes to be used as a a string, hence ICD-combined - This is a *BAD* idea.
+  unite(col = "ICD_combined",
+        dx.01:dx.30, sep=' ',
+        remove = FALSE, na.rm=TRUE) # comorbidity expects a single variable containing all the ICD10 codes to be used as a string, hence ICD-combined - This is a *BAD* idea.
 
 ################# Charlson ##################
 # Charlson
@@ -352,7 +355,7 @@ HIPE_FILE <- HIPE_FILE %>%
   left_join(elixhauser, by = join_by(ID),suffix = c("", ".el"))
 
 ############# Counts ########################
-# Ad a count of procedures, diagnoses and hadx scores
+# Add a count of procedures, diagnoses and hadx scores
 # 
 HIPE_FILE <- HIPE_FILE %>%
   mutate(ProcCount = purrr::pmap_dbl(HIPE_FILE %>% select(proc.01:proc.20),
@@ -361,7 +364,7 @@ HIPE_FILE <- HIPE_FILE %>%
                            ~sum(!is.na(c(...))))) %>%
   mutate(HadxCount = purrr::pmap_dbl(HIPE_FILE %>% select(hadx.01:hadx.30),
                            ~sum(!is.na(c(...)))))
-
+ 
 ############# Centre and scale ##############
 # Centre and scale age, rawlos and other numeric variables
 # 
@@ -779,6 +782,21 @@ NN[c(which(str_detect(NN, "\\.y|\\.x")))] # Should be PN.xray only
 rm(COMBINED, NAMES, NN)
 ```
 
+## Failure to maintain
+
+This is a variable indicating the presence of one, or , more, of PN (Pneumonia) uTI (Urinary tract infection),PU (Pressure ulcer), or DL (Delirium) associated with health care identified in the chart review.
+It adds one new variable to the Chart Review
+
+* F2M Failure to maintain
+
+
+```{r Failure to Maintain F2M}  
+############# F2M ############################
+# F2M Failure to maintain - any one of the
+
+
+
+```
 ## Summary report
 
 ```{r Calculate some useful numbers}
