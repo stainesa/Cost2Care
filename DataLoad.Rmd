@@ -3,13 +3,13 @@ title: "Data load"
 author: "Anthony Staines"
 date: "`r Sys.Date()`"
 output:
+  html_document: default
+  word_document: default
   pdf_document: 
     toc: true
     fig_caption: true
     number_sections: true
     latex_engine: xelatex
-  word_document: default
-  html_document: default
 editor_options:
   chunk_output_type: console
 bibliography: references.bib
@@ -784,19 +784,26 @@ rm(COMBINED, NAMES, NN)
 
 ## Failure to maintain
 
-This is a variable indicating the presence of one, or , more, of PN (Pneumonia) uTI (Urinary tract infection),PU (Pressure ulcer), or DL (Delirium) associated with health care identified in the chart review.
-It adds one new variable to the Chart Review
+This is a variable indicating the presence of one, or , more, of PN (Pneumonia), UTI (Urinary tract infection), PU (Pressure ulcer), or DL (Delirium) associated with health care identified in the chart review.
+
+This adds one new variable to the combined Hipe.Site and Chart Review file
 
 * F2M Failure to maintain
 
 
 ```{r Failure to Maintain F2M}  
 ############# F2M ############################
-# F2M Failure to maintain - any one of the
+# F2M Failure to maintain - any one or more of the adverse outcomes
+# PN (Pneumonia), UTI (Urinary tract infection), PU (Pressure ulcer), or DL (Delirium)
 
-
+Cost2Care.HIPE <- Cost2Care.HIPE |>
+    mutate(F2M = ifelse(
+        (UTI == "Yes" | PN == "Yes" | PU == "Yes" | DL == "Yes")
+        ,"Yes", "No")
+    )
 
 ```
+
 ## Summary report
 
 ```{r Calculate some useful numbers}
