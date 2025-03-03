@@ -1,0 +1,82 @@
+---
+title: "HIPE Outcomes"
+author: "AS"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: 
+    toc: true
+    fig_caption: true
+    number_sections: true
+    latex_engine: xelatex
+editor_options:
+  chunk_output_type: console
+bibliography: references.bib
+csl: vancouver.csl
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(lme4)
+library(broom)
+library(broom.mixed)
+library(gtsummary)
+
+#tidymodels_prefer(quiet = TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
+                      warning = NA, message = NA,
+                      fig.pos = 'H',
+                      cache.extra = knitr::rand_seed)
+N = parallel:::detectCores()
+
+options(Ncpus = N)
+options(mc.cores = N)
+options(dplyr.summarise.inform = FALSE, # shut up summarise
+        ranger.num.threads = N) # Prepare for rf models
+
+set.seed(979)
+rm(N)
+```
+
+
+# Aims
+
+This file loads the main HIPE data, 
+
+
+```{r Load the HIPE data}
+
+#####################################################
+# Load the corresponding HIPE data
+# 
+HIPE <- readRDS('data/Hipe.rds') %>%
+    filter(ModelF)
+```
+
+
+# LMER models
+
+```{r lmer1}
+Model0 <- lm(data=HIPE,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission)
+summary(Model0)
+Model1 <- lmer(data=HIPE,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission +
+               (1 | ModelF) )
+summary(Model1)
+
+Model2 <- lmer(data=HIPE,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission +
+               (1 | ModelF) +
+                (1 | HospCode))
+summary(Model2)
+
+profile(Model2)
+
+tbl_regression(Model1, Model2, tidy_fun = broom.mixed::tidy)
+ranef(Model1)
+
+
+```
