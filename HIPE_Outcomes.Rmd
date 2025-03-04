@@ -17,11 +17,13 @@ csl: vancouver.csl
 ---
 
 ```{r setup, include=FALSE}
+rm(list=ls())
 library(tidyverse)
 library(lme4)
 library(broom)
 library(broom.mixed)
 library(gtsummary)
+library(sjPlot)
 
 #tidymodels_prefer(quiet = TRUE)
 
@@ -43,8 +45,7 @@ rm(N)
 
 # Aims
 
-This file loads the main HIPE data, 
-
+This file loads the main HIPE data, and removes data and factor levels for maternity and specialist hospitals.
 
 ```{r Load the HIPE data}
 
@@ -52,7 +53,9 @@ This file loads the main HIPE data,
 # Load the corresponding HIPE data
 # 
 HIPE <- readRDS('data/Hipe.rds') %>%
-    filter(ModelF)
+    filter(ModelF %in% c('Model 4','Model 3','Model 2')) %>%
+    mutate(ModelF = fct_drop(ModelF))
+table(HIPE$ModelF)
 ```
 
 
