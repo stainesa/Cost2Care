@@ -63,8 +63,10 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fi
       cache.extra = knitr::rand_seed)
 
 st_options(ctable.round.digits = 2)
+
 #How many CPU's?
-N = 16
+N = parallel:::detectCores()
+
   options(Ncpus = N - 1)
   options(mc.cores = N - 1)
   setDTthreads(threads = N - 1,
@@ -89,7 +91,7 @@ This is the chart review file merged with the HIPE file provided by HPO.
 #####################################################
 # Load the merged HIPE/Study data file
 # 
-Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.rds')
+Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.Rds')
 NAMES <- read_excel(
       'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
       sheet = 'NAMES')
@@ -97,7 +99,7 @@ NAMES <- read_excel(
 #####################################################
 # Load the total HIPE data file
 # 
-HIPE <- readRDS('data/HIPE.rds')
+HIPE <- readRDS('data/HIPE.Rds')
 
 ```
 
@@ -125,8 +127,6 @@ The most obvious limitation is that the chart review was done in one hospital, a
 
 A good deal of thought needs to be given to deciding what outcomes to look at - basically the outcome, or the outcome definitely associated with health care.
 
-There are still comments in the PN/PU/UTI/DL_Associated columns  these need to be removed!
-Which is the correct F2M variable?
 
 # Outcomes
 
@@ -408,7 +408,7 @@ DL <- as_tibble( as.data.table( H.Predicted ) ) %>%
                         'No'  ~ 0))
 table(DL$Response, useNA = 'ifany')
 
-saveRDS(DL, file = 'data/DL_predicted.rds')
+saveRDS(DL, file = 'data/DL_predicted.Rds')
 ```
 
 ```{R Save predictions PN, eval=FALSE}
@@ -417,6 +417,6 @@ PN <- as_tibble( as.data.table( H.Predicted ) ) %>%
                         'Yes' ~ 1,
                         'No'  ~ 0))
 table(PN$Response, useNA = 'ifany')
-saveRDS(PN, file = 'data/PN_predicted.rds')
+saveRDS(PN, file = 'data/PN_predicted.Rds')
 
 ```
