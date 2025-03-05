@@ -24,6 +24,7 @@ library(broom)
 library(broom.mixed)
 library(gtsummary)
 library(sjPlot)
+library(patchwork)
 
 #tidymodels_prefer(quiet = TRUE)
 
@@ -31,10 +32,13 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
                       warning = NA, message = NA,
                       fig.pos = 'H',
                       cache.extra = knitr::rand_seed)
+
+#How many CPUs?
 N = parallel:::detectCores()
 
-options(Ncpus = N)
-options(mc.cores = N)
+  options(Ncpus = N)
+  options(mc.cores = N)
+
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
 
@@ -45,14 +49,18 @@ rm(N)
 
 # Aims
 
-This file loads the main HIPE data, and removes data and factor levels for maternity and specialist hospitals.
+To examine mixed models of the main outcomes in HIPE - Length of stay,a nd Death in hospital
+
+# Load data
+
+First, we loads the main HIPE data, and removes data and factor levels for maternity and specialist hospitals.
 
 ```{r Load the HIPE data}
 
 #####################################################
 # Load the corresponding HIPE data
 # 
-HIPE <- readRDS('data/Hipe.rds') %>%
+HIPE <- readRDS('data/HIPE.Rds') %>%
     filter(ModelF %in% c('Model 4','Model 3','Model 2')) %>%
     mutate(ModelF = fct_drop(ModelF))
 table(HIPE$ModelF)
@@ -64,22 +72,36 @@ table(HIPE$ModelF)
 ```{r lmer1}
 Model0 <- lm(data=HIPE,
              rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission)
-summary(Model0)
+
 Model1 <- lmer(data=HIPE,
              rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission +
                (1 | ModelF) )
-summary(Model1)
 
 Model2 <- lmer(data=HIPE,
+             rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission + ModelF +
+               (1 | HospCode))
+
+Model3 <- lmer(data=HIPE,
              rawlos ~ age + sex + ScoreEl + Source + SeasonOfAdmission +
-               (1 | ModelF) +
-                (1 | HospCode))
+               (1 | ModelF/HospCode))
+
+
+summary(Model0)
+summary(Model1)
 summary(Model2)
+summary(Model3)
 
-profile(Model2)
+AIC(Model0); AIC(Model1); AIC(Model2); AIC(Model3)
+P0 <-  plot_model(Model0, title = 'Model0')
+P1 <-  plot_model(Model1, title = 'Model1')
+P2 <-  plot_model(Model2, title = 'Model2')
+P3 <-  plot_model(Model3, title = 'Model3')
 
-tbl_regression(Model1, Model2, tidy_fun = broom.mixed::tidy)
-ranef(Model1)
+P0 + P1 + P2 + P3
 
+R1 <-  plot_model(Model1, type = 're', title = 'Model1')
+R2 <-  plot_model(Model2, type = "re", title = 'Model2')
+R3 <-  plot_model(Model3, type = 're', title = 'Model3')
 
+R1 + R2 + R3
 ```
