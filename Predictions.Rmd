@@ -28,17 +28,13 @@ rm(list=ls())
 
 library(tidyverse)
 library(lubridate)
-library(tibble)
 library(readxl)
 library(comorbidity)
-library(tidymodels)
 library(lme4)
-#library(lmerTest)
+
 library(knitr)
 library(kableExtra)
 library(summarytools)
-library(patchwork)
-
 
 library(ranger)
 library(mlr3verse)
@@ -48,11 +44,12 @@ library(future)
 
 library(sjPlot)
 library(sjtable2df)
-
 library(broom)
 library(broom.mixed)
 
 library(stargazer)
+
+library(patchwork)
 
 tidymodels_prefer(quiet = TRUE)
 
@@ -96,7 +93,7 @@ NAMES <- read_excel(
 #####################################################
 # Load the total HIPE data file
 # 
-HIPE <- readRDS('data/Hipe.Rds')
+HIPE <- readRDS('data/HIPE.Rds')
 
 ```
 
@@ -112,10 +109,15 @@ C2C.H <- Cost2Care.HIPE %>%
               MonthOfAdmission, MonthOfDischarge,
               mon.adm, rawlos, ICD_combined, age)
                   ) %>%
-    select(!contains('desc')) #%>% # Basically HIPE text variables
-#    select(!starts_with('proc.')) %>%
-#    select(!starts_with('dx.')) %>%
-#    select(!starts_with('hadx.')) #%>%
+  select(-c(uti, delirium, pressure.ulcer, pneumonia,
+            uti.hadx, delirium.hadx, pressure.ulcer.hadx,
+            pneumonia.hadx, any.f2m, any.f2m.hadx)) %>%
+  select(!contains('desc')) %>% # Basically HIPE text variables
+  select(!starts_with('proc.')) %>%
+  select(!starts_with('dx.')) %>%
+  select(!starts_with('hadx.')) %>%
+  select(!ends_with('Ch')) # Charlson score
+  
  
 ```
 
@@ -132,16 +134,18 @@ We actually model the scaled length of stay which has a mean of zero (but a  med
 
 ## lmer based predictions of Length of Stay (centred and scaled)
 
-```{r Sample lmer model}
+```{r Simple lmer model}
 ModelLOS <- lmer(data=C2C.H,
              LosC ~
                AgeC + as_factor(sex) + ScoreEl +
                Source + SeasonOfAdmission +
-               Outcome + ProcCount + itulos +
+               Destination + ProcCount + itulos +
                fullelig + elem +
                (1|mdc))
 
-tab_model(ModelLOS)
+FE <- plot_model(ModelLOS)
+RE <- plot_model(ModelLOS, type ='re')
+FE + RE
 
 PRED <- predict(ModelLOS, newdata = C2C.H)
 
@@ -259,7 +263,7 @@ A plot of this task is a plot of the outcome variable, in this case centred and 
 #
 tsk_C <- as_task_regr(C2C.H, target = "LosC", id = 'C')
   tsk_C
-  split_C = partition(tsk_C)
+  split_C = mlr3::partition(tsk_C)
   
   autoplot(tsk_C) + 
     labs (title = 'Length of stay',
@@ -305,15 +309,8 @@ flt_Imp = flt("importance", learner = lrn_Filter)
         labs( title  = 'Importance plot',
               y = 'Permutation importance')
 
-     Importance_Filtered %>% filter(score > 3) %>% select (-score)
-     Importance_Filtered %>% filter(score <= 3 & score > 2) %>% select (-score)
-     Importance_Filtered %>% filter(score <= 2 & score > 1) %>% select (-score)
-     Importance_Filtered %>% filter(score <= 1 & score > 0) %>% select (-score)
-     Importance_Filtered %>% filter(score == 0) %>% select (-score)
-
 ```
 
-Roughly, all the hadx scores are non-contributory. The main contributors are the proc scores, which need to be recoded.
 
 ## Tuning
 
@@ -362,14 +359,14 @@ Then we run them
 ```{r Run the tuners}
 #######################################
 # SLOW - about 3.5 hours
-#plan(multisession)
-#  tuner_mbo$optimize(instance_mbo)
-#  tuner_random_search$optimize(instance_random_search)
+plan(multisession)
+  tuner_mbo$optimize(instance_mbo)
+  tuner_random_search$optimize(instance_random_search)
 
 #SAVE them
 
-#saveRDS(instance_mbo, file = 'data/instance_mbo')
-#saveRDS(instance_random_search, file = 'data/instance_random_search')
+saveRDS(instance_mbo, file = 'data/instance_mbo')
+saveRDS(instance_random_search, file = 'data/instance_random_search')
 
 
 ```
