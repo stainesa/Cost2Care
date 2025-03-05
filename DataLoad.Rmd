@@ -49,7 +49,8 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
                       warning = NA, message = NA,
                       fig.pos = 'H',
                       cache.extra = knitr::rand_seed)
-N = 16
+#How many CPUs?
+N = parallel:::detectCores()
 
 options(Ncpus = N)
 options(mc.cores = N)
@@ -790,7 +791,6 @@ This adds one new variable to the combined Hipe.Site and Chart Review file
 
 * F2M Failure to maintain
 
-
 ```{r Failure to Maintain F2M}  
 ############# F2M ############################
 # F2M Failure to maintain - any one or more of the adverse outcomes
@@ -960,7 +960,7 @@ It is important to emphasise that these crude death rates cannot be used to meas
 
 ## Hospital coding
 
-Different hospitals will provide different bundles of care. This is partly captured in the Hospital model. They may also have different coding practices. The coders receive common training, but the materials form they which they code may be more variable. To begin to address this, we start by examining the number of codes used in each hospital.
+Different hospitals will provide different bundles of care. This is partly captured in the Hospital model. They may also have different coding practices. The coders receive common training, but the materials from they which they code may be more variable. To begin to address this, we start by examining the number of codes used in each hospital.
 
 ```{r Calculate code counts}
 Coding_Summary <- HIPE %>%
@@ -973,7 +973,7 @@ We show a series of hospital level variables.
 
 ### Age
 
-Age at admission does not vary greatly between the main group of hospitals. Note that htis particualr work is confined to an older group of patients, all aged 65 or over, and admitted for at least three days.
+Age at admission does not vary greatly between the main group of hospitals. Note that this particular work is confined to an older group of patients, all aged 65 or over, and admitted for at least three days.
 
 ```{r Draw age}
 ggplot(data = HIPE,
@@ -1121,19 +1121,18 @@ ctable(H.PN_hadx <- as_factor(Cost2Care.HIPE$H.PN_hadx),
 
 ```
 
-## anyf2m
+## F2M
 
-There are a couple of anyf2m variable floating about - can we check which is which? I think h.any_f2m comes from the chart review, and h.any_f2m.hadx comes from HIPE?
 
 ```{r Check match tables any failure to Maintain (F2M)}
 ##################################################
-# any_F2M
+# F2M
 #
 #Check
 #names(Cost2Care.HIPE)[which(str_detect(names(Cost2Care.HIPE),"hadx"))]
 #
 ctable(H.any_F2M_hadx <- as_factor(Cost2Care.HIPE$H.any_F2M_hadx),
-  any.f2m.hadx <- as_factor(Cost2Care.HIPE$any.f2m.hadx),
+  F2M <- as_factor(Cost2Care.HIPE$F2M),
   chisq = TRUE,
   prop = "n")
 
@@ -1246,17 +1245,17 @@ ctable(DL <- as_factor(Cost2Care.HIPE$DL),
 
 ```
 
-### Any F2M
+### F2M
 
-```{r Check match tables Any F2M}
+```{r Check match tables F2M}
 ##################################################
-# any_2FM
+# F2M
 #
 #Check
 #names(Cost2Care.HIPE)[which(str_detect(names(Cost2Care.HIPE),"hadx"))]
 #
 ctable(H.any_F2M <- as_factor(Cost2Care.HIPE$H.any_F2M),
-  any.f2m <- as_factor(Cost2Care.HIPE$any.f2m))
+  F2M <- as_factor(Cost2Care.HIPE$F2M))
 
 ```
 
@@ -1268,6 +1267,7 @@ The main outcomes available are
 * the presence of health care associated pneumonia (PN - variable beginning with 'PN.')
 * the presence of a health care associated pressure ulcer (PU - variable beginning with 'PU.')
 * the presence of health care associated delirium infection (DL - variable beginning with 'DL.')
+* Failure to maintian - i.e. any one or more of the above (F2M)
 * Death recorded
 * Prolonged length of stay
 
@@ -1277,15 +1277,15 @@ It is wholly possible to have several of these outcomes.
 # Save files
 
 ```{r Save the files}
-saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.HIPE.rds",
+saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.HIPE.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
-saveRDS(HIPE, file = "data/HIPE.rds",
+saveRDS(HIPE, file = "data/HIPE.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
-saveRDS(HIPE.Site, file = "data/HIPE.Site.rds",
+saveRDS(HIPE.Site, file = "data/HIPE.Site.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 ```
