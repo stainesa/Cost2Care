@@ -120,23 +120,20 @@ ggplot(data = HIPE %>% filter(LosC <= 5),
 
 The aim here is to some quick and simple predictions, and summaries
 
-
 These models can be sense checked by their ability to predict the length of stay, the destination on discharge, and specifically if this was different from the source of admission, and death in hospital.
 
 The most obvious limitation is that the chart review was done in one hospital, a model 4 centre.
 
 A good deal of thought needs to be given to deciding what outcomes to look at - basically the outcome, or the outcome definitely associated with health care.
 
-
 # Outcomes
 
 We look at the set of outcomes suggested.
 
-
 ```{r}
 
 Outcomes <- CtCH |>
-  select(PN, PN_Associated, UTI, UTI_Associated, PU, PU_Associated, DL, DL_Associated, rawlos, LosC, Source, Died, Destination)
+  select(PN, PN_Associated, UTI, UTI_Associated, PU, PU_Associated, DL, DL_Associated, F2M, rawlos, LosC, Source, Died, Destination)
 
 skimr::skim(Outcomes)
 ```
