@@ -60,9 +60,7 @@ First, we loads the main HIPE data, and removes data and factor levels for mater
 #####################################################
 # Load the corresponding HIPE data
 # 
-HIPE <- readRDS('data/HIPE.Rds') %>%
-    filter(ModelF %in% c('Model 4','Model 3','Model 2')) %>%
-    mutate(ModelF = fct_drop(ModelF))
+HIPE <- readRDS('data/HIPE.Rds')
 table(HIPE$ModelF)
 ```
 
