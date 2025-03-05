@@ -241,7 +241,7 @@ tsk_C <- as_task_classif(CtCH %>%
                          target = "DL",
                          positive = "Yes",
                          id = 'PN')
-  split_C = partition(tsk_C)
+  split_C = mlr3::partition(tsk_C)
 ```  
 
 ## Define learners
@@ -271,7 +271,7 @@ flt_Imp = flt("importance", learner = lrn_C)
 autoplot(flt_Imp)
 summary(1000*flt_Imp$scores)
 keep = names(which(1000*flt_Imp$scores > 0.5))
-#tsk_C$select(keep)  
+tsk_C$select(keep)  
 ```
 
 ## Resampling
