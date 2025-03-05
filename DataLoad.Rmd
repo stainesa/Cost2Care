@@ -1274,6 +1274,23 @@ The main outcomes available are
 It is wholly possible to have several of these outcomes.
 
 
+# Remove Maternity and Specialist hospitals
+
+The HIPE dataset contains data from Model 4, Model 3 and Model 2 hospitals, as a well as the three large maternity hospitals in Dublin, and five specialist hospitals. There is fair evidence that the latter two groups are rather different form the first three. Accordingly we remove them from the saved HIPE file. We also remove the corresponding factor levels from both the national HIPE file, and the chart review site file.
+
+
+```{r Drop specialist and maternity hospitals and corresponding factor levels}
+
+HIPE <- HIPE %>%
+    filter(ModelF %in% c('Model 4','Model 3','Model 2')) %>%
+    mutate(ModelF = fct_drop(ModelF))
+
+HIPE.Site <- HIPE.Site %>%
+    filter(ModelF %in% c('Model 4','Model 3','Model 2')) %>%
+    mutate(ModelF = fct_drop(ModelF))
+
+```
+
 # Save files
 
 ```{r Save the files}
