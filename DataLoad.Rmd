@@ -822,6 +822,40 @@ rm(PEOPLE, HOSPITALS, STUDY)
 
 # Outcomes
 
+## Counts of admissions
+
+How many discharges are included in these data? There are five types of hospital included, of very varying sizes. A simple table shows substantial variability in these.
+
+```{r discharges table by site}
+table(HIPE$ModelF)[[3]]
+
+ctable(x = HIPE$HospCode,
+       y = HIPE$ModelF,
+       prop ='n')
+```
+
+
+```{r Risk of death by hospital and hospital type, fig.cap= 'Risk of death (per person) by hospital model and site.', fig.dpi=1200, fig.height=5, fig.width=7}
+Discharge <- HIPE %>%
+  select(ModelF, HospCode) %>%
+  group_by(ModelF, HospCode) %>%
+  summarise(N = n())
+
+ggplot(data=Discharge,
+       aes(x=HospCode, y = N, colour = ModelF, fill = ModelF)) +
+           geom_col(colour = 'black') +
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+    facet_wrap(~ModelF, scales = 'free_x') +
+           labs( title = 'Number of discharges by hospital model and site)',
+                 subtitle = 'HIPE data, aged 65 years or over, 3 or more days stay, acute hospitals only',
+                 x = 'Hospital code',
+                 y = 'Number of discharges') +
+  guides(colour = "none", fill = "none", size = "none") +
+    theme_minimal(base_size = 12)
+
+rm(Dead)
+```
+
 ## Timing of admissions
 
 Although some of the admissions were a very long time before discharge, most occurred during late 2021 and  2022, as Figure 1 shows.
@@ -1274,21 +1308,110 @@ The main outcomes available are
 It is wholly possible to have several of these outcomes.
 
 
-# Remove Maternity and Specialist hospitals
 
-The HIPE dataset contains data from Model 4, Model 3 and Model 2 hospitals, as a well as the three large maternity hospitals in Dublin, and five specialist hospitals. There is fair evidence that the latter two groups are rather different form the first three. Accordingly we remove them from the saved HIPE file. We also remove the corresponding factor levels from both the national HIPE file, and the chart review site file.
+# Finalise analysis data
+
+## Remove Maternity and Specialist hospitals
+
+The HIPE dataset contains data from Model 4, Model 3 and Model 2 hospitals, as a well as the three large maternity hospitals in Dublin `r table(HIPE$ModelF)[[5]]` discharges, and five specialist hospitals, `r table(HIPE$ModelF)[[4]]` discharges. There is fair evidence, as shown above, that the latter two groups are rather different from the first three. There is also a case for removing the Model 2 hospitals, which account for  small proportion of total admissions, and serve rather different roles. Following discussion with the team, the `r table(HIPE$ModelF)[[3]]` Model 2 discharges were removed from the saved HIPE file. We also remove the corresponding factor levels from both the national HIPE file, and the chart review site file.
 
 
-```{r Drop specialist and maternity hospitals and corresponding factor levels}
+```{r Drop Model 2 specialist and maternity hospitals and corresponding factor levels}
 
 HIPE <- HIPE %>%
-    filter(ModelF %in% c('Model 4','Model 3','Model 2')) %>%
-    mutate(ModelF = fct_drop(ModelF))
+    filter(ModelF %in% c('Model 4','Model 3')) %>%
+    mutate(ModelF = fct_drop(ModelF)) %>%
+      mutate(HospCode = fct_drop(HospCode))
 
 HIPE.Site <- HIPE.Site %>%
-    filter(ModelF %in% c('Model 4','Model 3','Model 2')) %>%
-    mutate(ModelF = fct_drop(ModelF))
+    filter(ModelF %in% c('Model 4','Model 3')) %>% # Keep only Model 3 and Model 4 hospitals, in fact there is only one Model 4 hospital in the Site data.
+    mutate(ModelF = fct_drop(ModelF)) %>% # Drop the unused factor levels
+    mutate(HospCode = fct_drop(HospCode))
 
+```
+
+## Examine medical and surgical admissions in the chart review site, and the main HIPE data
+
+The chart review was augmented to secure roughly equal number of medical and surgical admissions. This leads to a sizeable over-inclusion of surgical admissions in the data, relative to the totality of admissions.to account for this, we need to define a weighting variable.
+
+The first table shows the proportion of medical and surgical patients in the chart review data, using two measures, the speciality of admission, and the use (or otherwise) of an anaesthetic.
+
+```{r Chart review breakdown}
+H.C <- HIPE.Site %>%
+  mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No')) %>%
+  select(ModelF, HospCode, MedSurg, AN)
+#table(H.C$MedSurg)
+#table(H.C$AN)
+ctable(H.C$MedSurg,H.C$AN, prop = 't')
+
+```
+
+The second is the corresponding table for all discharges in the chart review hospital.
+
+```{r Study site breakdown}
+H.S <- HIPE |>
+  filter(HospCode == '4.1') %>%
+    mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No'))  %>%
+  select(ModelF, HospCode, MedSurg, AN)
+
+#table(H.S$MedSurg)
+#table(H.S$AN)
+ctable(H.S$MedSurg,H.S$AN, prop='t')
+
+```
+
+The third shows the same in all the model 3 and 4 hospitals.
+
+```{r Model 3 and 4 breakdown}
+H.A <- HIPE |>
+  group_by(ModelF) %>%
+    mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No'))  %>%
+  select(ModelF, HospCode, MedSurg, AN)
+
+#table(H.A$MedSurg)
+#table(H.A$AN)
+ctable(H.A$MedSurg,H.A$AN, prop = 't')
+
+```
+
+Pulling these together, it's possible to calculate sampling weights, as inverse probability weights - these are the number of people in the population represented by each person in the chart review.
+
+```{r Calculate the weights}
+##############################################################
+# Calculate the totals for each group
+# 
+H.C <- H.C |> # Study site Chart review cases
+  group_by(ModelF, HospCode, MedSurg, AN) |>
+  summarise(N.C = n())
+H.S <- H.S |> # Study site total
+  group_by(ModelF, HospCode, MedSurg, AN) |>
+  summarise(N.S = n())
+H.A <- H.A |> # All Model 3 and Model 4
+  group_by(ModelF, HospCode, MedSurg, AN) |>
+  summarise(N.A = n())
+
+##############################################################
+# Calculate weights to indicate how many discharges each
+# sampled discharge represents
+# 
+Weights <- H.C |>
+  full_join(H.S,by = join_by(ModelF, HospCode, MedSurg, AN))  |>
+  mutate(Ratio = N.C/N.S) |>
+  mutate(Weight = 1/Ratio) |>
+  mutate(Check = N.C * Weight)
+
+##############################################################
+# Add the Weight variable to the Cost2Care.HIPE file
+#
+C2C <- Cost2Care.HIPE |>
+  mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No'))  |>
+  right_join(Weights |> ungroup() |> select(MedSurg, AN, Weight),
+             by = join_by(MedSurg, AN)) |>
+  select(-AN)
+```
+
+```{r Weights table}
+kable(Weights)
 ```
 
 # Save files
