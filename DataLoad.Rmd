@@ -3,13 +3,13 @@ title: "Data load"
 author: "Anthony Staines"
 date: "`r Sys.Date()`"
 output:
-  html_document: default
-  word_document: default
   pdf_document: 
     toc: true
     fig_caption: true
     number_sections: true
     latex_engine: xelatex
+  word_document: default
+  html_document: default
 editor_options:
   chunk_output_type: console
 bibliography: references.bib
@@ -835,7 +835,7 @@ ctable(x = HIPE$HospCode,
 ```
 
 
-```{r Risk of death by hospital and hospital type, fig.cap= 'Risk of death (per person) by hospital model and site.', fig.dpi=1200, fig.height=5, fig.width=7}
+```{r Discharges by hospital and hospital type, fig.cap= 'Discharges by hospital model and site.', fig.dpi=1200, fig.height=5, fig.width=7}
 Discharge <- HIPE %>%
   select(ModelF, HospCode) %>%
   group_by(ModelF, HospCode) %>%
@@ -853,7 +853,7 @@ ggplot(data=Discharge,
   guides(colour = "none", fill = "none", size = "none") +
     theme_minimal(base_size = 12)
 
-rm(Dead)
+rm(Discharge)
 ```
 
 ## Timing of admissions
@@ -964,7 +964,7 @@ rm(Dead)
 ```
 
 
-```{r Risk of death by hospital and hospital type, fig.cap= 'Risk of death (per person) by hospital model and site.', fig.dpi=1200, fig.height=5, fig.width=7}
+```{r Risk of death by hospital and hospital type Dots, fig.cap= 'Risk of death (per person) by hospital model and site.', fig.dpi=1200, fig.height=5, fig.width=7}
 Dead <- HIPE %>%
   select(ModelF, HospCode, Died) %>%
   group_by(ModelF, HospCode, Died) %>%
@@ -1330,7 +1330,7 @@ HIPE.Site <- HIPE.Site %>%
 
 ```
 
-## Examine medical and surgical admissions in the chart review site, and the main HIPE data
+## Define sampling weights
 
 The chart review was augmented to secure roughly equal number of medical and surgical admissions. This leads to a sizeable over-inclusion of surgical admissions in the data, relative to the totality of admissions.to account for this, we need to define a weighting variable.
 
