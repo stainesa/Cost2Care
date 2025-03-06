@@ -20,6 +20,9 @@ csl: vancouver.csl
 rm(list=ls())
 library(tidyverse)
 library(lme4)
+
+library(mlr3verse)
+
 library(broom)
 library(broom.mixed)
 library(gtsummary)
@@ -49,23 +52,64 @@ rm(N)
 
 # Aims
 
-To examine mixed models of the main outcomes in HIPE - Length of stay,a nd Death in hospital
+To examine mixed models of the main outcomes in HIPE - Length of stay, and Death in hospital
 
 # Load data
 
-First, we loads the main HIPE data, and removes data and factor levels for maternity and specialist hospitals.
+First, we load the main HIPE data.
 
 ```{r Load the HIPE data}
 
 #####################################################
-# Load the corresponding HIPE data
+# Load the national HIPE data
 # 
 HIPE <- readRDS('data/HIPE.Rds')
 table(HIPE$ModelF)
 ```
 
+Then we shrink the file to lose non-ertinent variables
+
+## Make smaller analysis data file
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
+
+```{r simplify data}
+ 
+HP <- HIPE %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, ICD_combined)
+                  ) %>%
+  select(-c(uti, delirium, pressure.ulcer, pneumonia,
+            uti.hadx, delirium.hadx, pressure.ulcer.hadx,
+            pneumonia.hadx, any.f2m, any.f2m.hadx)) %>%
+  select(!contains('desc')) %>% # Basically HIPE text variables
+  select(!starts_with('proc.')) %>%
+  select(!starts_with('dx.')) %>%
+  select(!starts_with('hadx.')) %>%
+  select(!ends_with('Ch')) %>% # Charlson score and components
+  mutate(Elixhauser = ScoreEl) %>%
+  select(!ends_with('El')) # Elixhauser score components only
+
+```
 
 # LMER models
+
+## rawlos Length of stay
+
+First we use ranger to identify pertinent variables
+
+```{r Identify interesting variables}
+tsk_C <- as_task_regr(HP, target = "LosC", id = 'C')
+  tsk_C
+split_C = mlr3::partition(tsk_C)
+
+lrn_Filter = lrn("regr.ranger", seed = 42)
+  lrn_Filter$param_set$values = list(importance = "permutation")
+
+flt_Imp = flt("importance", learner = lrn_Filter)
+  flt_Imp$calculate(tsk_C)
+
+```
 
 ```{r lmer1}
 Model0 <- lm(data=HIPE,
@@ -103,3 +147,53 @@ R3 <-  plot_model(Model3, type = 're', title = 'Model3')
 
 R1 + R2 + R3
 ```
+
+
+## Died
+
+
+```{r lmer1}
+ HIPE <- HIPE |>
+  mutate(Dead = case_match(Died,
+                           'Alive' ~ 0,
+                           'Dead' ~ 1))
+
+Model0 <- glm(data=HIPE,
+             Dead ~ AgeC + sex + ScoreEl + Source + SeasonOfAdmission,
+             family = binomial(link = 'logit'))
+
+Model1 <- glm(data=HIPE,
+             Dead ~ AgeC + sex + ScoreEl + Source + SeasonOfAdmission +  ModelF,
+             family = binomial(link = 'logit'))
+
+Model2 <- glmer(data=HIPE,
+             Dead ~ AgeC + sex + ScoreEl + Source + SeasonOfAdmission + ModelF +
+               (1 | HospCode),
+             family = binomial(link = 'logit'))
+
+Model3 <- glmer(data=HIPE,
+             Dead ~ AgeC + sex + ScoreEl + Source + SeasonOfAdmission + ModelF +
+               (1 | ModelF/HospCode),
+             family = binomial(link = 'logit'))
+
+
+summary(Model0)
+summary(Model1)
+summary(Model2)
+#summary(Model3)
+
+AIC(Model0); AIC(Model1); AIC(Model2); #AIC(Model3)
+P0 <-  plot_model(Model0, title = 'Model0')
+P1 <-  plot_model(Model1, title = 'Model1')
+P2 <-  plot_model(Model2, title = 'Model2')
+#P3 <-  plot_model(Model3, title = 'Model3')
+
+P0 + P1 + P2 #+ P3
+
+R1 <-  plot_model(Model1, type = 're', title = 'Model1')
+R2 <-  plot_model(Model2, type = "re", title = 'Model2')
+#R3 <-  plot_model(Model3, type = 're', title = 'Model3')
+
+R1 + R2# + R3
+```
+
