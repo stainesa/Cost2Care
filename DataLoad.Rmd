@@ -1403,7 +1403,7 @@ Weights <- H.C |>
 ##############################################################
 # Add the Weight variable to the Cost2Care.HIPE file
 #
-C2C <- Cost2Care.HIPE |>
+Cost2Care.HIPE <- Cost2Care.HIPE |>
   mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No'))  |>
   right_join(Weights |> ungroup() |> select(MedSurg, AN, Weight),
              by = join_by(MedSurg, AN)) |>
