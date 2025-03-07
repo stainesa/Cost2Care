@@ -123,6 +123,19 @@ Outcomes <- Cost2Care.HIPE |>
   select(PN, UTI, PU, DL, F2M, rawlos, LosC, Source, Died, Destination)
 
 skimr::skim(Outcomes)
+
+Proportions <- Outcomes |>
+  select(PN:F2M, Died) |>
+  mutate(across(PN:Died,
+                ~ fct_count(as_factor(.),
+                            prop=TRUE)$p[[2]])) |> # Proportion of Yes for each adverse Outcome (the smaller proportion)
+  unique()
+
+Proportions
+
+Proportions |>
+  mutate(across(everything(), ~(round(. * 100,1)))) # %
+
 ```
 
 ```{r Outcome_recode, eval = FALSE}
@@ -301,8 +314,7 @@ flt_Imp = flt("importance", learner = lrn_C)
       labs(title="Prediction for Pneumonia")
     PN
     summary(1000*flt_Imp$scores)
-    keep = names(which(flt_Imp$scores >
-                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
+    keep = names(which(flt_Imp$scores > 0.0001))
 
 tsk_PNk <- tsk_PN$clone(deep = TRUE)
 tsk_PNk <- tsk_PNk$select(keep)  
@@ -322,8 +334,7 @@ tsk_PNk <- tsk_PNk$select(keep)
     UTI
     1000*flt_Imp$scores
     summary(1000*flt_Imp$scores)
-    keep = names(which(flt_Imp$scores > 
-                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
+    keep = names(which(flt_Imp$scores > 0.0001))
 
 tsk_UTIk <- tsk_UTI$clone(deep = TRUE)
 tsk_UTIk <- tsk_UTIk$select(keep)  
@@ -342,8 +353,7 @@ tsk_UTIk <- tsk_UTIk$select(keep)
     PU
     1000*flt_Imp$scores
     summary(1000*flt_Imp$scores)
-    keep = names(which(flt_Imp$scores >
-                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
+    keep = names(which(flt_Imp$scores > 0.0001))
 
 tsk_PUk <- tsk_PU$clone(deep = TRUE)
 tsk_PUk <- tsk_PUk$select(keep)  
@@ -363,8 +373,7 @@ tsk_PUk <- tsk_PUk$select(keep)
     DL
     1000*flt_Imp$scores
     summary(1000*flt_Imp$scores)
-    keep = names(which(flt_Imp$scores > 
-                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
+    keep = names(which(flt_Imp$scores > 0.0001))
 
 tsk_DLk <- tsk_DL$clone(deep = TRUE)
 tsk_DLk <- tsk_DLk$select(keep)  
@@ -382,9 +391,8 @@ tsk_DLk <- tsk_DLk$select(keep)
       labs(title="Prediction for F2M")
     F2M
     summary(1000*flt_Imp$scores)
-    keep = names(which(flt_Imp$scores > 
-                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
-    
+    keep = names(which(flt_Imp$scores > 0.0001))
+
 tsk_F2Mk <- tsk_F2M$clone(deep = FALSE)
 tsk_F2Mk <- tsk_F2Mk$select(keep)  
   flt_Imp$calculate(tsk_F2Mk)
@@ -412,6 +420,31 @@ PUk_Imp <- PUk_Imp |> mutate(Source = 'PUk_IMP')
 DLk_Imp <- DLk_Imp |> mutate(Source = 'DLk_IMP')
 F2Mk_Imp <- F2Mk_Imp |> mutate(Source = 'F2Mk_IMP')
 
+Imp <- bind_rows(PN_Imp, PNk_Imp, UTI_Imp, UTIk_Imp,
+                 PU_Imp, PUk_Imp, DL_Imp, DLk_Imp,
+                 F2M_Imp, F2Mk_Imp) %>%
+  select(Source, names, flt_scores ) %>%
+  rename(Variable = names) %>%
+  rename(Importance = flt_scores) %>%
+  mutate(Full  =ifelse(str_detect(Source, 'k_'), 'Reduced' , 'Full'))
+
+Sums <- Imp %>%
+  group_by(Variable) %>%
+  summarise(Mean_Imp = mean(Importance), Count = n())
+
+Imp <- Imp %>%
+  left_join(Sums, by = join_by(Variable)) %>%
+  arrange(Mean_Imp) %>%
+  mutate(Variable = fct_inorder(as_factor(Variable)))
+
+ggplot(Imp, aes(x=Importance, y = Variable,
+                colour=Source, shape = Full,group = Source)) +
+  geom_point(size = 2) + geom_line() +
+  facet_wrap(~Full) +
+  theme_minimal()
+
+  rm(PN_Imp, PNk_Imp, UTI_Imp, UTIk_Imp, PU_Imp, PUk_Imp,
+     DL_Imp, DLk_Imp, F2M_Imp, F2Mk_Imp)
 ```
 
 Comparing the full set of variables considered, to those kept on the basis of their importance, there is little difference between the model measures.
@@ -464,7 +497,7 @@ lrn_C$train(tsk_UTI, row_ids = split_UTI$train)
 autoplot(prediction_UTI.rng, type = 'roc')
 
 lrn_C$train(tsk_UTIk, row_ids = split_UTI$train)
-  prediction_UTIk.rng = lrn_C$predict(tsk_UTI, split_UTI$test)
+  prediction_UTIk.rng = lrn_C$predict(tsk_UTIk, split_UTI$test)
   prediction_UTIk.rng$score(measures)
   prediction_UTIk.rng$confusion
 autoplot(prediction_UTIk.rng, type = 'roc')
@@ -831,14 +864,14 @@ F2M_image / F2Mk_image
 
 ```
 
-In pretty much every example, an mtry of between 3 and 5 is optimal. Note that while the scale of some of the graphs suggest very little effect of mtry, in that some of the parameters change little for any value of mtry studied.
+In pretty much every example, for the full data, an mtry of between 1 and 3 is optimal. Note that while the scale of some of the graphs suggest very little effect of mtry, in that some of the parameters change little for any value of mtry studied. For the restricted data, an mtry of 3 seems best, but for every condition, the restricted data set performs better.
 
 ## Evaluation
 
 ```{EVALUATE at T = 0.5, eval=FALSE}
 
-#rr_C.f = resample(tsk_C, lrn_featureless, cv10, store_models = TRUE)
-#rr_C.rng = resample(tsk_C, lrn_C, cv10, store_models = TRUE)
+rr_C.f = resample(tsk_PN, lrn_featureless, cv10, store_models = TRUE)
+rr_C.rng = resample(tsk_PN, lrn_C, cv10, store_models = TRUE)
 
 autoplot(rr_C.f, type = 'roc') + labs(title="C")
 autoplot(rr_C.rng, type = 'roc') + labs(title="C")
@@ -846,13 +879,13 @@ autoplot(rr_C.rng, type = 'roc') + labs(title="C")
 autoplot(rr_C.f,   type = 'prc') + labs(title='C')
 autoplot(rr_C.rng, type = 'prc') + labs(title='C')
 
-prediction_C.f = lrn_featureless$predict(tsk_C, split_C$test)
+prediction_C.f = lrn_featureless$predict(tsk_PN, split_PN$test)
 prediction_C.f$score(measures)
 prediction_C.f$confusion
 autoplot(prediction_C.f, type = 'roc')
 autoplot(rr_C.f, type = 'prc')
 
-prediction_C.rng = lrn_C$predict(tsk_C, row_ids = split_C$test)
+prediction_C.rng = lrn_C$predict(tsk_PN, row_ids = split_PN$test)
 prediction_C.rng$score(measures)
 prediction_C.rng$confusion
 autoplot(prediction_C.rng, type = 'roc')
@@ -864,7 +897,6 @@ prediction_C.rng$score(measures)
 prediction_C.rng$confusion
 autoplot(prediction_C.rng, type = 'roc')
 ```
-
 
 # Fit at threshold
 
@@ -883,7 +915,6 @@ H.Predicted$set_threshold(0.3)
 
 glimpse(as.data.table(H.Predicted))
 ```
-
 
 ```{R Save predictions DL, eval=FALSE}
 DL <- as_tibble( as.data.table( H.Predicted ) ) %>%
@@ -904,3 +935,79 @@ table(PN$Response, useNA = 'ifany')
 saveRDS(PN, file = 'data/PN_predicted.Rds')
 
 ```
+
+# Fit optimised models
+
+We now have five models to fit and predict from, the five restricted models, with an mtry of 3.
+
+## Define learners
+
+```{r LEARNERS for opimised models}
+lrn_featureless = lrn('classif.featureless',
+                      predict_type = 'prob')
+
+lrn_T = lrn('classif.ranger',
+            predict_type = "prob",
+            num.trees = 2000,
+            mtry = 3,
+            importance = "permutation"
+            )
+```
+
+## Run Models
+
+```{r Run all 5 models}
+rr_PNk.f    = resample(tsk_PNk, lrn_featureless, cv10, store_models = TRUE)
+rr_PNk.rng  = resample(tsk_PNk, lrn_T, cv10, store_models = TRUE)
+rr_UTIk.f   = resample(tsk_UTIk, lrn_featureless, cv10, store_models = TRUE)
+rr_UTIk.rng = resample(tsk_UTIk, lrn_T, cv10, store_models = TRUE)
+rr_PUk.f    = resample(tsk_PUk, lrn_featureless, cv10, store_models = TRUE)
+rr_PUk.rng  = resample(tsk_PUk, lrn_T, cv10, store_models = TRUE)
+rr_DLk.f    = resample(tsk_DLk, lrn_featureless, cv10, store_models = TRUE)
+rr_DLk.rng  = resample(tsk_DLk, lrn_T, cv10, store_models = TRUE)
+rr_F2Mk.f   = resample(tsk_F2Mk, lrn_featureless, cv10, store_models = TRUE)
+rr_F2Mk.rng = resample(tsk_F2Mk, lrn_T, cv10, store_models = TRUE)
+
+```
+
+## ROC curves
+
+```{r ROC curves}
+roc_PNk <- autoplot(rr_PNk.rng, type = 'roc')
+roc_UTIk <- autoplot(rr_UTIk.rng, type = 'roc')
+roc_PUk <- autoplot(rr_PUk.rng, type = 'roc')
+roc_DLk <- autoplot(rr_DLk.rng, type = 'roc')
+roc_F2Mk <- autoplot(rr_F2Mk.rng, type = 'roc')
+
+design = 
+'12
+345'
+
+roc_PNk + roc_UTIk + plot_spacer()+ roc_PUk + roc_DLk + roc_F2Mk +
+  plot_layout(ncol = 3, axes = 'collect', axis_titles = 'collect') +
+  plot_annotation(title = 'ROC curves for optimised models',
+                  tag_levels = list(c('PNk','UTIk','PUk','DLk','F2Mk')))
+
+
+```
+
+## Predictions on test data and confusion matrices
+
+```{r}
+pred_PNk <- rr_PNk.rng$prediction()
+  pred_PNk$confusion
+pred_PNk$set_threshold(0.3)
+  pred_PNk$confusion # Much better
+autoplot(pred_PNk) + labs(title = 'PNk Threshold 0.3')
+roc_PNk
+prc_PNk <- autoplot(rr_PNk.rng, type='prc')
+TEST <- prc_PNk$data |>
+  mutate(FMeasure = (4*x*y)/(x+y))
+#TEST <- roc_PNk$data |>
+#  mutate(Gmeans = 1- sqrt(y * (1-x)))
+
+summary(TEST)
+ggplot(TEST, aes(x = x, y = FMeasure)) +geom_line()
+```
+
+
