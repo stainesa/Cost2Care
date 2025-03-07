@@ -464,7 +464,7 @@ lrn_C$train(tsk_UTI, row_ids = split_UTI$train)
 autoplot(prediction_UTI.rng, type = 'roc')
 
 lrn_C$train(tsk_UTIk, row_ids = split_UTI$train)
-  prediction_UTIk.rng = lrn_C$predict(tsk_UTI, split_UTI$test)
+  prediction_UTIk.rng = lrn_C$predict(tsk_UTIk, split_UTI$test)
   prediction_UTIk.rng$score(measures)
   prediction_UTIk.rng$confusion
 autoplot(prediction_UTIk.rng, type = 'roc')
