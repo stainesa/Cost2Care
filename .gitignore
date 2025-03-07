@@ -40,7 +40,7 @@ po/*~
 rsconnect/
 Cost2Care.Rproj
 data/
-Images/
+image/
 *.docx
 *.html
 *.pdf
