@@ -400,7 +400,18 @@ PU  + PUk
 DL  + DLk
 F2M + F2Mk
 
+PN_Imp <- PN_Imp |> mutate(Source = 'PN_IMP')
+UTI_Imp <- UTI_Imp |> mutate(Source = 'UTI_IMP')
 PU_Imp <- PU_Imp |> mutate(Source = 'PU_IMP')
+DL_Imp <- DL_Imp |> mutate(Source = 'DL_IMP')
+F2M_Imp <- F2M_Imp |> mutate(Source = 'F2M_IMP')
+
+PNk_Imp <- PNk_Imp |> mutate(Source = 'PNk_IMP')
+UTIk_Imp <- UTIk_Imp |> mutate(Source = 'UTIk_IMP')
+PUk_Imp <- PUk_Imp |> mutate(Source = 'PUk_IMP')
+DLk_Imp <- DLk_Imp |> mutate(Source = 'DLk_IMP')
+F2Mk_Imp <- F2Mk_Imp |> mutate(Source = 'F2Mk_IMP')
+
 ```
 
 Comparing the full set of variables considered, to those kept on the basis of their importance, there is little difference between the model measures.
