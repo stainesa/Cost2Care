@@ -271,7 +271,7 @@ lrn_C = lrn('classif.ranger',
 lrn_T = lrn('classif.ranger',
             predict_type = "prob",
             num.trees = 2000,
-            mtry = to_tune(1,10),
+            mtry = to_tune(1,5),
             importance = "permutation"
             )
 
@@ -282,97 +282,129 @@ lrn_T = lrn('classif.ranger',
 For each outcome, we prepare a restricted prediction set.
 
 ```{r IMPORTANCE}
+
+#Ancillary function to store importance scores in a tibble
+to_tibble <- function(flt_scores) {
+  DF <- as.data.frame(flt_scores)
+  DF$names <- row.names(DF)
+  DF <- as_tibble(DF)
+  return(DF)
+}
+
 flt_Imp = flt("importance", learner = lrn_C)
 
 ###################################################
 #PN
   flt_Imp$calculate(tsk_PN)
+    PN_Imp <- to_tibble(flt_Imp$scores)
     PN <- autoplot(flt_Imp, title="Prediction for pneumonia") +
       labs(title="Prediction for Pneumonia")
     PN
-    1000*flt_Imp$scores
     summary(1000*flt_Imp$scores)
-    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+    keep = names(which(flt_Imp$scores >
+                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
 
 tsk_PNk <- tsk_PN$clone(deep = TRUE)
 tsk_PNk <- tsk_PNk$select(keep)  
   flt_Imp$calculate(tsk_PNk)
-    PNk <- autoplot(flt_Imp, title="Prediction for pneumonia") +
+    PNk_Imp <- to_tibble(flt_Imp$scores)
+    summary(1000*flt_Imp$scores)
+    PNk <- autoplot(flt_Imp, title="Prediction for pneumoniak") +
       labs(title="Prediction for Pneumoniak")
     PNk
 
 ###################################################
 #UTI
   flt_Imp$calculate(tsk_UTI)
+    UTI_Imp <- to_tibble(flt_Imp$scores)
     UTI <- autoplot(flt_Imp, title="Prediction for UTI") +
       labs(title="Prediction for UTI")
     UTI
     1000*flt_Imp$scores
     summary(1000*flt_Imp$scores)
-    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+    keep = names(which(flt_Imp$scores > 
+                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
 
 tsk_UTIk <- tsk_UTI$clone(deep = TRUE)
-tsk_UTIk <- tsk_UTI$select(keep)  
+tsk_UTIk <- tsk_UTIk$select(keep)  
   flt_Imp$calculate(tsk_UTIk)
-    UTIk <- autoplot(flt_Imp, title="Prediction for UTI") +
+    UTIk_Imp <- to_tibble(flt_Imp$scores)
+    UTIk <- autoplot(flt_Imp, title="Prediction for UTIk") +
       labs(title="Prediction for UTIk")
     UTIk
 
 ###################################################
 #PU
   flt_Imp$calculate(tsk_PU)
+    PU_Imp <- to_tibble(flt_Imp$scores)
     PU <- autoplot(flt_Imp, title="Prediction for Pressure Ulcer") +
       labs(title="Prediction for Pressure Ulcer")
     PU
     1000*flt_Imp$scores
     summary(1000*flt_Imp$scores)
-    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+    keep = names(which(flt_Imp$scores >
+                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
 
 tsk_PUk <- tsk_PU$clone(deep = TRUE)
-tsk_PUk <- tsk_PU$select(keep)  
+tsk_PUk <- tsk_PUk$select(keep)  
   flt_Imp$calculate(tsk_PUk)
-    PUk <- autoplot(flt_Imp, title="Prediction for Pressure Ulcer") +
+    summary(1000*flt_Imp$scores)
+    PUk_Imp <- to_tibble(flt_Imp$scores)
+    PUk <- autoplot(flt_Imp, title="Prediction for Pressure Ulcerk") +
       labs(title="Prediction for Pressure Ulcerk")
     PUk
 
 ###################################################
 #DL
   flt_Imp$calculate(tsk_DL)
+    DL_Imp <- to_tibble(flt_Imp$scores)
     DL <- autoplot(flt_Imp, title="Prediction for Delirium") +
       labs(title="Prediction for Delirium")
     DL
     1000*flt_Imp$scores
     summary(1000*flt_Imp$scores)
-    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+    keep = names(which(flt_Imp$scores > 
+                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
 
 tsk_DLk <- tsk_DL$clone(deep = TRUE)
-tsk_DLk <- tsk_DL$select(keep)  
+tsk_DLk <- tsk_DLk$select(keep)  
   flt_Imp$calculate(tsk_DLk)
-    DLk <- autoplot(flt_Imp, title="Prediction for Delirium") +
+    DLk_Imp <- to_tibble(flt_Imp$scores)
+    DLk <- autoplot(flt_Imp, title="Prediction for Deliriumk") +
       labs(title="Prediction for Deliriumk")
     DLk
 
 ###################################################
 #F2M
   flt_Imp$calculate(tsk_F2M)
+    F2M_Imp <- to_tibble(flt_Imp$scores)
     F2M <- autoplot(flt_Imp, title="Prediction for F2M") +
       labs(title="Prediction for F2M")
     F2M
-    1000*flt_Imp$scores
     summary(1000*flt_Imp$scores)
-    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
-
-tsk_F2Mk <- tsk_F2M$clone(deep = TRUE)
-tsk_F2Mk <- tsk_F2M$select(keep)  
+    keep = names(which(flt_Imp$scores > 
+                         (max(flt_Imp$scores)/10) & (flt_Imp$scores > 0.0015)))
+    
+tsk_F2Mk <- tsk_F2M$clone(deep = FALSE)
+tsk_F2Mk <- tsk_F2Mk$select(keep)  
   flt_Imp$calculate(tsk_F2Mk)
-    F2Mk <- autoplot(flt_Imp, title="Prediction for F2M") +
+      summary(1000*flt_Imp$scores)
+  F2Mk_Imp <- to_tibble(flt_Imp$scores)
+    F2Mk <- autoplot(flt_Imp, title="Prediction for F2Mk") +
       labs(title="Prediction for F2Mk")
     F2Mk
-PU + UTI + PU + DL
-F2M
-PUk + UTIk + PUk + DLk
-F2Mk
+
+PN  + PNk
+UTI + UTIk
+PU  + PUk
+DL  + DLk
+F2M + F2Mk
+
+PU_Imp <- PU_Imp |> mutate(Source = 'PU_IMP')
 ```
+
+Comparing the full set of variables considered, to those kept on the basis of their importance, there is little difference between the model measures.
+
 
 ## Resampling
 
@@ -391,6 +423,7 @@ measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'
 ## Classify
 
 ```{r FIT and EVALUATE}
+
 ########################################################################
 # PN
 lrn_featureless$train(tsk_PN, split_PN$train)
@@ -467,13 +500,44 @@ lrn_C$train(tsk_F2Mk, row_ids = split_F2M$train)
   prediction_F2Mk.rng$confusion
 autoplot(prediction_F2Mk.rng, type = 'roc',title='Failure to maintain - restricted predictor set') + labs(title='Failure to maintain - restricted predictor set')
 
+
 ```
 
 ## Optimise threshold for ranger model
 
+```{r Ancillary function for graphs}
+
+GRAPH_TUNING <- function(df, TITLE = 'TITLE'){
+    # Maximise
+    AUC <- ggplot(data = Tuner_df,
+          aes(x = mtry,
+              y = classif.auc)) +
+        geom_smooth(colour = 'red')
+    #Minimise
+    BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+        geom_smooth(colour = 'green')
+    #Maximise
+    ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+        geom_smooth(colour = 'red')
+    #Minimise
+    LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+        geom_smooth(colour = 'green')
+    IMAGE <- AUC + BBRIER + ACC + LOGLOSS +
+        plot_annotation(title = TITLE) +
+        plot_layout(axis_titles = 'collect')
+return(IMAGE)
+}
+
+```
 ### PN
 
-```{r OPTIMISE PN, eval = FALSE}
+```{r OPTIMISE PN}
 
 instance_T = ti(
     task = tsk_PN,
@@ -492,25 +556,7 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-PN_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "PN") + plot_layout(axis_titles = 'collect')
+PN_image <- GRAPH_TUNING(Tuner_df, "PN")
 PN_image
 ggsave("image/PN_image.png",PN_image)
 
@@ -518,7 +564,7 @@ ggsave("image/PN_image.png",PN_image)
 
 ### PNk
 
-```{r OPTIMISE PNk, eval = FALSE}
+```{r OPTIMISE PNk}
 
 instance_T = ti(
     task = tsk_PNk,
@@ -537,25 +583,7 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-PNk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "PNk") + plot_layout(axis_titles = 'collect')
+PNk_image <- GRAPH_TUNING(Tuner_df, "PNk")
 PNk_image
 ggsave("image/PNk_image.png",PNk_image)
 
@@ -564,7 +592,7 @@ ggsave("image/PNk_image.png",PNk_image)
 
 ### UTI
 
-```{r OPTIMISE UTI, eval = FALSE}
+```{r OPTIMISE UTI}
 
 instance_T = ti(
     task = tsk_UTI,
@@ -584,33 +612,16 @@ Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
 
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
 
-UTI_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "UTI") + plot_layout(axis_titles = 'collect')
+UTI_image <- GRAPH_TUNING(Tuner_df, "UTI")
 UTI_image
 ggsave("image/UTI_image.png",UTI_image)
 
 ```
 
-
 ### UTIk
 
-```{r OPTIMISE UTIk, eval = FALSE}
+```{r OPTIMISE UTIk}
 
 instance_T = ti(
     task = tsk_UTIk,
@@ -629,34 +640,15 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-UTIk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "UTIk") + plot_layout(axis_titles = 'collect')
+UTIk_image <- GRAPH_TUNING(Tuner_df, "UTIk")
 UTIk_image
 ggsave("image/UTIk_image.png",UTIk_image)
 
 ```
 
-
 ### PU
 
-```{r OPTIMISE PU, eval = FALSE}
+```{r OPTIMISE PU}
 
 instance_T = ti(
     task = tsk_PU,
@@ -675,34 +667,15 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-PU_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "PU") + plot_layout(axis_titles = 'collect')
+PU_image <- GRAPH_TUNING(Tuner_df, "PU")
 PU_image
 ggsave("image/PU_image.png",PU_image)
 
 ```
 
-
 ### PUk
 
-```{r OPTIMISE PUk, eval = FALSE}
+```{r OPTIMISE PUk}
 
 instance_T = ti(
     task = tsk_PUk,
@@ -721,34 +694,15 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-PUk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "PUk") + plot_layout(axis_titles = 'collect')
+PUk_image <- GRAPH_TUNING(Tuner_df, "PUk")
 PUk_image
 ggsave("image/PUk_image.png",PUk_image)
 
 ```
 
-
 ### DL
 
-```{r OPTIMISE DL, eval = FALSE}
+```{r OPTIMISE DL}
 
 instance_T = ti(
     task = tsk_DL,
@@ -767,34 +721,15 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-DL_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "DL") + plot_layout(axis_titles = 'collect')
+DL_image <- GRAPH_TUNING(Tuner_df, "DL")
 DL_image
 ggsave("image/DL_image.png",DL_image)
 
 ```
 
-
 ### DLk
 
-```{r OPTIMISE DLk, eval = FALSE}
+```{r OPTIMISE DLk}
 
 instance_T = ti(
     task = tsk_DLk,
@@ -813,34 +748,15 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-DLk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "DLk") + plot_layout(axis_titles = 'collect')
+DLk_image <- GRAPH_TUNING(Tuner_df, "DLk")
 DLk_image
 ggsave("image/DLk_image.png",DLk_image)
 
 ```
 
-
 ### F2M
 
-```{r OPTIMISE F2M, eval = FALSE}
+```{r OPTIMISE F2M}
 
 instance_T = ti(
     task = tsk_F2M,
@@ -859,25 +775,7 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-F2M_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "F2M") + plot_layout(axis_titles = 'collect')
+F2M_image <- GRAPH_TUNING(Tuner_df, "F2M")
 F2M_image
 ggsave("image/F2M_image.png",F2M_image)
 
@@ -885,7 +783,7 @@ ggsave("image/F2M_image.png",F2M_image)
 
 ### F2Mk
 
-```{r OPTIMISE F2Mk, eval = FALSE}
+```{r OPTIMISE F2Mk}
 
 instance_T = ti(
     task = tsk_F2Mk,
@@ -904,34 +802,29 @@ tuner$optimize(instance_T)
 Tuner_df <- as_tibble(
     as.data.table(instance_T$archive))
 
-
-AUC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.auc)) +
-    geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-                 aes(x = mtry,
-                     y = classif.bbrier)) +
-    geom_smooth(colour = 'green')
-LOGLOSS <- ggplot(data = Tuner_df,
-                  aes(x = mtry,
-                      y = classif.logloss)) +
-    geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-              aes(x = mtry,
-                  y = classif.acc)) +
-    geom_smooth(colour = 'green')
-
-F2Mk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "F2Mk") + plot_layout(axis_titles = 'collect')
+F2Mk_image <- GRAPH_TUNING(Tuner_df, "F2Mk")
 F2Mk_image
 ggsave("image/F2Mk_image.png",F2Mk_image)
 
 ```
 
+### Merge graphs
+
+```{r Merge optimisation graphs}
+PN_image / PNk_image
+UTI_image / UTIk_image
+PU_image / PUk_image
+DL_image / DLk_image
+F2M_image / F2Mk_image
+
+
+```
+
+In pretty much every example, an mtry of between 3 and 5 is optimal. Note that while the scale of some of the graphs suggest very little effect of mtry, in that some of the parameters change little for any value of mtry studied.
 
 ## Evaluation
 
-```{EVALUATE at T = 0.5}
+```{EVALUATE at T = 0.5, eval=FALSE}
 
 #rr_C.f = resample(tsk_C, lrn_featureless, cv10, store_models = TRUE)
 #rr_C.rng = resample(tsk_C, lrn_C, cv10, store_models = TRUE)
@@ -964,7 +857,7 @@ autoplot(prediction_C.rng, type = 'roc')
 
 # Fit at threshold
 
-```{r}
+```{r, eval=FALSE}
 prediction_C.rng$set_threshold(0.3)
 prediction_C.rng$score(measures)
 prediction_C.rng$confusion
@@ -973,7 +866,7 @@ glimpse(as.data.table(prediction_C.rng))
 
 # Prediction on HIPE data
 
-```{r PREDICT HIPE}
+```{r PREDICT HIPE, eval=FALSE}
 H.Predicted = lrn_C$predict_newdata(HIPE, tsk_C)
 H.Predicted$set_threshold(0.3)
 
