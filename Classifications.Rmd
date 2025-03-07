@@ -103,19 +103,6 @@ HIPE <- readRDS('data/HIPE.Rds')
 
 ```
 
-## Make analysis data file
-
-We give it a shorter typable name 
-
-```{r simplify data}
- 
-CtCH <- Cost2Care.HIPE
-   
-HIPE %>% filter(LosC <= 5) %>% summarise( N = n())
-ggplot(data = HIPE %>% filter(LosC <= 5),
-       aes(x=rawlos)) + geom_boxplot()
-```
-
 # Intent
 
 The aim here is to some quick and simple predictions, and summaries
@@ -130,18 +117,17 @@ A good deal of thought needs to be given to deciding what outcomes to look at - 
 
 We look at the set of outcomes suggested.
 
-```{r}
+```{r Summary of Outcomes}
 
-Outcomes <- CtCH |>
-  select(PN, PN_Associated, UTI, UTI_Associated, PU, PU_Associated, DL, DL_Associated, F2M, rawlos, LosC, Source, Died, Destination)
+Outcomes <- Cost2Care.HIPE |>
+  select(PN, UTI, PU, DL, F2M, rawlos, LosC, Source, Died, Destination)
 
 skimr::skim(Outcomes)
 ```
 
-Then we complete the outcomes by setting NA to No, and creating a definitely or likely health care associated variable for each of the four key conditions.
-
-```{r Outcome_recode}
-Outcome_recode <- function(DF, COND) {
+```{r Outcome_recode, eval = FALSE}
+#Keep this cos it's clever
+#Outcome_recode <- function(DF, COND) {
 
   ASSOC  <- paste0({{COND}},'_Associated')
   ABBREV <- paste0({{COND}},'_A')
@@ -171,18 +157,17 @@ Outcome_recode <- function(DF, COND) {
 return(DF)
 }
 
+# Outcomes <- Outcomes %>%
+#  Outcome_recode('PN') %>%
+#  Outcome_recode('UTI') %>%
+#  Outcome_recode('PU') %>%
+#  Outcome_recode('DL')
 
- Outcomes <- Outcomes %>%
-  Outcome_recode('PN') %>%
-  Outcome_recode('UTI') %>%
-  Outcome_recode('PU') %>%
-  Outcome_recode('DL')
-
-CtCH <- CtCH %>%
-  Outcome_recode('PN') %>%
-  Outcome_recode('UTI') %>%
-  Outcome_recode('PU') %>%
-  Outcome_recode('DL')
+#CtCH <- CtCH %>%
+#  Outcome_recode('PN') %>%
+#  Outcome_recode('UTI') %>%
+#  Outcome_recode('PU') %>%
+#  Outcome_recode('DL')
  
 ```
 
@@ -192,53 +177,83 @@ We prepare some rapid predictions, using the RF models on these data for the fir
 
 ## Prepare subset of data
 
-first, guided by earlier experiments, we prepare a subset of key data items to work with.
+First, guided by earlier experiments, we prepare a subset of key data items to work with.
 
 ```{r DATA}
 #################################################
 # Trim CtCH, a lot
-CCH <- CtCH %>%
-  select(PN, PN_A, UTI, UTI_A,
-         PU, PU_A, DL, DL_A, # Outcomes _A - health care associated
-         Source, Died, Destination, rawlos,  # Outcomes
-         Training, # Derived random split variable
-         ModelF, MedSurg, AgeC, SeasonOfAdmission,  # Variables derived from HIPE
+CCH <- Cost2Care.HIPE %>%
+  select(PN, UTI, PU, DL, F2M, # Outcomes from review
+         Source, Died, Destination, rawlos, LosC, # Outcomes from HIPE
+         ModelF, HospCode, MedSurg, AgeC, SeasonOfAdmission,  # Variables derived from HIPE
          ProcCount, DxCount, HadxCount, ScoreEl, ScoreCh, # Variables derived from HIPE
-         Complexity,
-         elem, fullelig, drgv.8 # HIPE variables
+         Complexity:Therapeutic.Interventions, 
+         elem, fullelig, mdc, # HIPE variables
+         Weight # Sampling weights from chart review
          )
 HIPE.Trimmed <- HIPE %>%
-  select(Source, Died, Destination, rawlos,  # Outcomes
-         Training, # Derived random split variable
-         ModelF, MedSurg, AgeC, SeasonOfAdmission,  # Variables derived from HIPE
+    select(Source, Died, Destination, rawlos, LosC, # Outcomes from HIPE
+         ModelF, HospCode, MedSurg, AgeC, SeasonOfAdmission,  # Variables derived from HIPE
          ProcCount, DxCount, HadxCount, ScoreEl, ScoreCh, # Variables derived from HIPE
-         Complexity,
-         elem, fullelig, drgv.8 # HIPE variables
+         Complexity:Therapeutic.Interventions, 
+         elem, fullelig, mdc # HIPE variables
          )
 ```
 
-## Define the classification task
+## Define the classification tasks
 
-```{r TASK}
+```{r TASKS}
 #################################################
 # Define a classification task
 #
 # PN
-tsk_C <- as_task_classif(CtCH %>%
-                         select( -c(Encrypted_mrn:Frailty_score),
-                                -c(LOS:ID),
-                                -c(PN_Associated, UTI_Associated,
-                                   PU_Associated, DL_Associated),
-                                -c(PN, PN_A, UTI, UTI_A, PU, PU_A, DL_A, LosC),
-                                -matches('Date'),
-                                -contains('desc'),
-                                -c(StudyID, ICD_combined),
-                                -c(age, drgv.8, ScoreCh),
-                                -ends_with('Ch')),
+tsk_PN <- as_task_classif(CCH %>%
+  select(-c(UTI, PU, DL, F2M, rawlos)), # Outcomes from review,
+                         target = "PN",
+                         positive = "Yes",
+                         weights="Weights",
+                         id = 'PN')
+  split_PN = mlr3::partition(tsk_PN)
+
+#################################################
+# UTI
+tsk_UTI <- as_task_classif(CCH %>%
+  select(-c(PN, PU, DL, F2M, rawlos)), # Outcomes from review,
+                         target = "UTI",
+                         positive = "Yes",
+                         weights="Weights",
+                         id = 'UTI')
+  split_UTI = mlr3::partition(tsk_UTI)
+
+#################################################
+# PU
+tsk_PU <- as_task_classif(CCH %>%
+  select(-c(PN, UTI, DL, F2M, rawlos)), # Outcomes from review,
+                         target = "PU",
+                         positive = "Yes",
+                         weights="Weights",
+                         id = 'PU')
+  split_PU = mlr3::partition(tsk_PU)
+
+#################################################
+# DL
+tsk_DL <- as_task_classif(CCH %>%
+  select(-c(PN, UTI, PU, F2M, rawlos)), # Outcomes from review,
                          target = "DL",
                          positive = "Yes",
-                         id = 'PN')
-  split_C = mlr3::partition(tsk_C)
+                         weights="Weights",
+                         id = 'DL')
+  split_DL = mlr3::partition(tsk_DL)
+
+#################################################
+# F2M
+tsk_F2M <- as_task_classif(CCH %>%
+  select(-c(PN, UTI, PU, DL, rawlos)), # Outcomes from review,
+                         target = "F2M",
+                         positive = "Yes",
+                         weights="Weights",
+                         id = 'F2M')
+  split_F2M = mlr3::partition(tsk_F2M)
 ```  
 
 ## Define learners
@@ -253,22 +268,110 @@ lrn_C = lrn('classif.ranger',
             importance = "permutation"
             )
 
-glrn_C = GraphLearner$new(lrn_C  %>>% po("threshold"))
+lrn_T = lrn('classif.ranger',
+            predict_type = "prob",
+            num.trees = 2000,
+            mtry = to_tune(1,10),
+            importance = "permutation"
+            )
 
-search_space = ps(
-  threshold.thresholds = p_dbl(lower = 0, upper = 1)
-)
 ```
 
 ## Assess importance
 
+For each outcome, we prepare a restricted prediction set.
+
 ```{r IMPORTANCE}
 flt_Imp = flt("importance", learner = lrn_C)
-  flt_Imp$calculate(tsk_C)
-autoplot(flt_Imp)
-summary(1000*flt_Imp$scores)
-keep = names(which(1000*flt_Imp$scores > 0.5))
-tsk_C$select(keep)  
+
+###################################################
+#PN
+  flt_Imp$calculate(tsk_PN)
+    PN <- autoplot(flt_Imp, title="Prediction for pneumonia") +
+      labs(title="Prediction for Pneumonia")
+    PN
+    1000*flt_Imp$scores
+    summary(1000*flt_Imp$scores)
+    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+
+tsk_PNk <- tsk_PN$clone(deep = TRUE)
+tsk_PNk <- tsk_PNk$select(keep)  
+  flt_Imp$calculate(tsk_PNk)
+    PNk <- autoplot(flt_Imp, title="Prediction for pneumonia") +
+      labs(title="Prediction for Pneumoniak")
+    PNk
+
+###################################################
+#UTI
+  flt_Imp$calculate(tsk_UTI)
+    UTI <- autoplot(flt_Imp, title="Prediction for UTI") +
+      labs(title="Prediction for UTI")
+    UTI
+    1000*flt_Imp$scores
+    summary(1000*flt_Imp$scores)
+    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+
+tsk_UTIk <- tsk_UTI$clone(deep = TRUE)
+tsk_UTIk <- tsk_UTI$select(keep)  
+  flt_Imp$calculate(tsk_UTIk)
+    UTIk <- autoplot(flt_Imp, title="Prediction for UTI") +
+      labs(title="Prediction for UTIk")
+    UTIk
+
+###################################################
+#PU
+  flt_Imp$calculate(tsk_PU)
+    PU <- autoplot(flt_Imp, title="Prediction for Pressure Ulcer") +
+      labs(title="Prediction for Pressure Ulcer")
+    PU
+    1000*flt_Imp$scores
+    summary(1000*flt_Imp$scores)
+    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+
+tsk_PUk <- tsk_PU$clone(deep = TRUE)
+tsk_PUk <- tsk_PU$select(keep)  
+  flt_Imp$calculate(tsk_PUk)
+    PUk <- autoplot(flt_Imp, title="Prediction for Pressure Ulcer") +
+      labs(title="Prediction for Pressure Ulcerk")
+    PUk
+
+###################################################
+#DL
+  flt_Imp$calculate(tsk_DL)
+    DL <- autoplot(flt_Imp, title="Prediction for Delirium") +
+      labs(title="Prediction for Delirium")
+    DL
+    1000*flt_Imp$scores
+    summary(1000*flt_Imp$scores)
+    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+
+tsk_DLk <- tsk_DL$clone(deep = TRUE)
+tsk_DLk <- tsk_DL$select(keep)  
+  flt_Imp$calculate(tsk_DLk)
+    DLk <- autoplot(flt_Imp, title="Prediction for Delirium") +
+      labs(title="Prediction for Deliriumk")
+    DLk
+
+###################################################
+#F2M
+  flt_Imp$calculate(tsk_F2M)
+    F2M <- autoplot(flt_Imp, title="Prediction for F2M") +
+      labs(title="Prediction for F2M")
+    F2M
+    1000*flt_Imp$scores
+    summary(1000*flt_Imp$scores)
+    keep = names(which(round(1000*flt_Imp$scores,1) > 0.5))
+
+tsk_F2Mk <- tsk_F2M$clone(deep = TRUE)
+tsk_F2Mk <- tsk_F2M$select(keep)  
+  flt_Imp$calculate(tsk_F2Mk)
+    F2Mk <- autoplot(flt_Imp, title="Prediction for F2M") +
+      labs(title="Prediction for F2Mk")
+    F2Mk
+PU + UTI + PU + DL
+F2M
+PUk + UTIk + PUk + DLk
+F2Mk
 ```
 
 ## Resampling
@@ -287,32 +390,551 @@ measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'
 
 ## Classify
 
-```{r FIT}
-lrn_featureless$train(tsk_C, split_C$train)
-prediction_C.f = lrn_featureless$predict(tsk_C, row_ids = split_C$test)
-prediction_C.f
-prediction_C.f$score(measures)
-prediction_C.f$confusion
-autoplot(prediction_C.f, type = 'roc')
+```{r FIT and EVALUATE}
+########################################################################
+# PN
+lrn_featureless$train(tsk_PN, split_PN$train)
+  prediction_PN.f = lrn_featureless$predict(tsk_PN, row_ids = split_PN$test)
+  prediction_PN.f$score(measures)
+  prediction_PN.f$confusion
+autoplot(prediction_PN.f, type = 'roc')
 
-lrn_C$train(tsk_C, row_ids = split_C$train)
-prediction_C.rng = lrn_C$predict(tsk_C, split_C$test)
-prediction_C.rng
-prediction_C.rng$score(measures)
-prediction_C.rng$confusion
-autoplot(prediction_C.rng, type = 'roc')
+lrn_C$train(tsk_PN, row_ids = split_PN$train)
+  prediction_PN.rng = lrn_C$predict(tsk_PN, split_PN$test)
+  prediction_PN.rng$score(measures)
+  prediction_PN.rng$confusion
+autoplot(prediction_PN.rng, type = 'roc')
 
-prediction_C.rng$set_threshold(0.3)
-C.rng <- as_tibble((as.data.table(prediction_C.rng)))
+lrn_C$train(tsk_PNk, row_ids = split_PN$train)
+  prediction_PNk.rng = lrn_C$predict(tsk_PNk, split_PN$test)
+  prediction_PNk.rng$score(measures)
+  prediction_PNk.rng$confusion
+autoplot(prediction_PNk.rng, type = 'roc')
 
-rr_C.f = resample(tsk_C, lrn_featureless, cv10, store_models = TRUE)
-rr_C.rng = resample(tsk_C, lrn_C, cv10, store_models = TRUE)
+########################################################################
+# UTI
+lrn_C$train(tsk_UTI, row_ids = split_UTI$train)
+  prediction_UTI.rng = lrn_C$predict(tsk_UTI, split_UTI$test)
+  prediction_UTI.rng$score(measures)
+  prediction_UTI.rng$confusion
+autoplot(prediction_UTI.rng, type = 'roc')
+
+lrn_C$train(tsk_UTIk, row_ids = split_UTI$train)
+  prediction_UTIk.rng = lrn_C$predict(tsk_UTI, split_UTI$test)
+  prediction_UTIk.rng$score(measures)
+  prediction_UTIk.rng$confusion
+autoplot(prediction_UTIk.rng, type = 'roc')
+
+########################################################################
+# PU
+lrn_C$train(tsk_PU, row_ids = split_PU$train)
+  prediction_PU.rng = lrn_C$predict(tsk_PU, split_PU$test)
+  prediction_PU.rng$score(measures)
+  prediction_PU.rng$confusion
+autoplot(prediction_PU.rng, type = 'roc')
+
+lrn_C$train(tsk_PUk, row_ids = split_PU$train)
+  prediction_PUk.rng = lrn_C$predict(tsk_PUk, split_PU$test)
+  prediction_PUk.rng$score(measures)
+  prediction_PUk.rng$confusion
+autoplot(prediction_PUk.rng, type = 'roc')
+
+########################################################################
+# DL
+lrn_C$train(tsk_DL, row_ids = split_DL$train)
+  prediction_DL.rng = lrn_C$predict(tsk_DL, split_DL$test)
+  prediction_DL.rng$score(measures)
+  prediction_DL.rng$confusion
+autoplot(prediction_DL.rng, type = 'roc')
+
+lrn_C$train(tsk_DLk, row_ids = split_DL$train)
+  prediction_DLk.rng = lrn_C$predict(tsk_DLk, split_DL$test)
+  prediction_DLk.rng$score(measures)
+  prediction_DLk.rng$confusion
+autoplot(prediction_DLk.rng, type = 'roc')
+
+########################################################################
+# F2M
+lrn_C$train(tsk_F2M, row_ids = split_F2M$train)
+  prediction_F2M.rng = lrn_C$predict(tsk_F2M, split_F2M$test)
+  prediction_F2M.rng$score(measures)
+  prediction_F2M.rng$confusion
+autoplot(prediction_F2M.rng, type = 'roc')
+
+lrn_C$train(tsk_F2Mk, row_ids = split_F2M$train)
+  prediction_F2Mk.rng = lrn_C$predict(tsk_F2Mk, split_F2M$test)
+  prediction_F2Mk.rng$score(measures)
+  prediction_F2Mk.rng$confusion
+autoplot(prediction_F2Mk.rng, type = 'roc',title='Failure to maintain - restricted predictor set') + labs(title='Failure to maintain - restricted predictor set')
 
 ```
+
+## Optimise threshold for ranger model
+
+### PN
+
+```{r OPTIMISE PN, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_PN,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+PN_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "PN") + plot_layout(axis_titles = 'collect')
+PN_image
+ggsave("image/PN_image.png",PN_image)
+
+```
+
+### PNk
+
+```{r OPTIMISE PNk, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_PNk,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+PNk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "PNk") + plot_layout(axis_titles = 'collect')
+PNk_image
+ggsave("image/PNk_image.png",PNk_image)
+
+```
+
+
+### UTI
+
+```{r OPTIMISE UTI, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_UTI,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+UTI_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "UTI") + plot_layout(axis_titles = 'collect')
+UTI_image
+ggsave("image/UTI_image.png",UTI_image)
+
+```
+
+
+### UTIk
+
+```{r OPTIMISE UTIk, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_UTIk,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+UTIk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "UTIk") + plot_layout(axis_titles = 'collect')
+UTIk_image
+ggsave("image/UTIk_image.png",UTIk_image)
+
+```
+
+
+### PU
+
+```{r OPTIMISE PU, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_PU,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+PU_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "PU") + plot_layout(axis_titles = 'collect')
+PU_image
+ggsave("image/PU_image.png",PU_image)
+
+```
+
+
+### PUk
+
+```{r OPTIMISE PUk, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_PUk,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+PUk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "PUk") + plot_layout(axis_titles = 'collect')
+PUk_image
+ggsave("image/PUk_image.png",PUk_image)
+
+```
+
+
+### DL
+
+```{r OPTIMISE DL, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_DL,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+DL_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "DL") + plot_layout(axis_titles = 'collect')
+DL_image
+ggsave("image/DL_image.png",DL_image)
+
+```
+
+
+### DLk
+
+```{r OPTIMISE DLk, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_DLk,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+DLk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "DLk") + plot_layout(axis_titles = 'collect')
+DLk_image
+ggsave("image/DLk_image.png",DLk_image)
+
+```
+
+
+### F2M
+
+```{r OPTIMISE F2M, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_F2M,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+F2M_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "F2M") + plot_layout(axis_titles = 'collect')
+F2M_image
+ggsave("image/F2M_image.png",F2M_image)
+
+```
+
+### F2Mk
+
+```{r OPTIMISE F2Mk, eval = FALSE}
+
+instance_T = ti(
+    task = tsk_F2Mk,
+    learner = lrn_T,
+    resampling = rsmp("cv", folds = 10),
+    measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
+    terminator = trm("evals", n_evals=200) # For tuner "random_search"
+)
+instance_T
+
+tuner = tnr("random_search")
+tuner
+future::plan(multisession, workers = 10)
+tuner$optimize(instance_T)
+
+Tuner_df <- as_tibble(
+    as.data.table(instance_T$archive))
+
+
+AUC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.auc)) +
+    geom_smooth(colour = 'red')
+BBRIER <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+    geom_smooth(colour = 'green')
+LOGLOSS <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+    geom_smooth(colour = 'red')
+ACC <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+    geom_smooth(colour = 'green')
+
+F2Mk_image <- AUC + BBRIER + LOGLOSS + ACC + plot_annotation(title = "F2Mk") + plot_layout(axis_titles = 'collect')
+F2Mk_image
+ggsave("image/F2Mk_image.png",F2Mk_image)
+
+```
+
 
 ## Evaluation
 
 ```{EVALUATE at T = 0.5}
+
+#rr_C.f = resample(tsk_C, lrn_featureless, cv10, store_models = TRUE)
+#rr_C.rng = resample(tsk_C, lrn_C, cv10, store_models = TRUE)
 
 autoplot(rr_C.f, type = 'roc') + labs(title="C")
 autoplot(rr_C.rng, type = 'roc') + labs(title="C")
@@ -339,47 +961,8 @@ prediction_C.rng$confusion
 autoplot(prediction_C.rng, type = 'roc')
 ```
 
-## Optimise threshold for ranger model
 
-```{r OPTIMISE, eval = FALSE}
-instance_C = ti(
-  task = tsk_C,
-  learner = glrn_C,
-  resampling = cv10,
-  measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')),
-  terminator = trm("evals", n_evals=500), # For tuner "random_search"
-  search_space = search_space
-  )
-tuner = tnr("random_search")
-  future::plan(multisession, workers = 10)
-tuner$optimize(instance_C)
-
-Tuner_df <- as_tibble(
-  as.data.table(instance_C$archive))
-
-
-AUC <- ggplot(data = Tuner_df,
-       aes(x = threshold.thresholds,
-           y = classif.auc)) +
-  geom_smooth(colour = 'red')
-BBRIER <- ggplot(data = Tuner_df,
-       aes(x = threshold.thresholds,
-           y = classif.bbrier)) +
-  geom_smooth()
-LOGLOSS <- ggplot(data = Tuner_df,
-       aes(x = threshold.thresholds,
-           y = classif.logloss)) +
-  geom_smooth(colour = 'red')
-ACC <- ggplot(data = Tuner_df,
-       aes(x = threshold.thresholds,
-           y = classif.acc)) +
-  geom_smooth()
-AUC + BBRIER + LOGLOSS + ACC
-```
-
-Best shot at threshold is about 0.7
-
-# Fit at optimised threshold
+# Fit at threshold
 
 ```{r}
 prediction_C.rng$set_threshold(0.3)
