@@ -279,6 +279,7 @@ lrn_featureless = lrn('classif.featureless',
 lrn_C = lrn('classif.ranger',
             predict_type = "prob",
             num.trees = 2000,
+ #           mtry = 13,
             importance = "permutation"
             )
 
@@ -480,13 +481,13 @@ lrn_C$train(tsk_PN, row_ids = split_PN$train)
   prediction_PN.rng = lrn_C$predict(tsk_PN, split_PN$test)
   prediction_PN.rng$score(measures)
   prediction_PN.rng$confusion
-autoplot(prediction_PN.rng, type = 'roc')
+autoplot(prediction_PN.rng) + autoplot(prediction_PN.rng, type = 'roc')
 
 lrn_C$train(tsk_PNk, row_ids = split_PN$train)
   prediction_PNk.rng = lrn_C$predict(tsk_PNk, split_PN$test)
   prediction_PNk.rng$score(measures)
   prediction_PNk.rng$confusion
-autoplot(prediction_PNk.rng, type = 'roc')
+autoplot(prediction_PN.rng) + autoplot(prediction_PNk.rng, type = 'roc')
 
 ########################################################################
 # UTI
@@ -494,13 +495,13 @@ lrn_C$train(tsk_UTI, row_ids = split_UTI$train)
   prediction_UTI.rng = lrn_C$predict(tsk_UTI, split_UTI$test)
   prediction_UTI.rng$score(measures)
   prediction_UTI.rng$confusion
-autoplot(prediction_UTI.rng, type = 'roc')
+autoplot(prediction_UTI.rng) + autoplot(prediction_UTI.rng, type = 'roc')
 
 lrn_C$train(tsk_UTIk, row_ids = split_UTI$train)
   prediction_UTIk.rng = lrn_C$predict(tsk_UTIk, split_UTI$test)
   prediction_UTIk.rng$score(measures)
   prediction_UTIk.rng$confusion
-autoplot(prediction_UTIk.rng, type = 'roc')
+autoplot(prediction_UTIk.rng) + autoplot(prediction_UTIk.rng, type = 'roc')
 
 ########################################################################
 # PU
@@ -581,7 +582,7 @@ return(IMAGE)
 ```
 ### PN
 
-```{r OPTIMISE PN}
+```{r OPTIMISE PN, eval=FALSE}
 
 instance_T = ti(
     task = tsk_PN,
@@ -608,7 +609,7 @@ ggsave("image/PN_image.png",PN_image)
 
 ### PNk
 
-```{r OPTIMISE PNk}
+```{r OPTIMISE PNk, eval=FALSE}
 
 instance_T = ti(
     task = tsk_PNk,
@@ -636,7 +637,7 @@ ggsave("image/PNk_image.png",PNk_image)
 
 ### UTI
 
-```{r OPTIMISE UTI}
+```{r OPTIMISE UTI, eval=FALSE}
 
 instance_T = ti(
     task = tsk_UTI,
@@ -665,7 +666,7 @@ ggsave("image/UTI_image.png",UTI_image)
 
 ### UTIk
 
-```{r OPTIMISE UTIk}
+```{r OPTIMISE UTIk, eval=FALSE}
 
 instance_T = ti(
     task = tsk_UTIk,
@@ -692,7 +693,7 @@ ggsave("image/UTIk_image.png",UTIk_image)
 
 ### PU
 
-```{r OPTIMISE PU}
+```{r OPTIMISE PU, eval=FALSE}
 
 instance_T = ti(
     task = tsk_PU,
@@ -719,7 +720,7 @@ ggsave("image/PU_image.png",PU_image)
 
 ### PUk
 
-```{r OPTIMISE PUk}
+```{r OPTIMISE PUk, eval=FALSE}
 
 instance_T = ti(
     task = tsk_PUk,
@@ -746,7 +747,7 @@ ggsave("image/PUk_image.png",PUk_image)
 
 ### DL
 
-```{r OPTIMISE DL}
+```{r OPTIMISE DL, eval=FALSE}
 
 instance_T = ti(
     task = tsk_DL,
@@ -773,7 +774,7 @@ ggsave("image/DL_image.png",DL_image)
 
 ### DLk
 
-```{r OPTIMISE DLk}
+```{r OPTIMISE DLk, eval=FALSE}
 
 instance_T = ti(
     task = tsk_DLk,
@@ -800,7 +801,7 @@ ggsave("image/DLk_image.png",DLk_image)
 
 ### F2M
 
-```{r OPTIMISE F2M}
+```{r OPTIMISE F2M, eval=FALSE}
 
 instance_T = ti(
     task = tsk_F2M,
@@ -827,7 +828,7 @@ ggsave("image/F2M_image.png",F2M_image)
 
 ### F2Mk
 
-```{r OPTIMISE F2Mk}
+```{r OPTIMISE F2Mk, eval=FALSE}
 
 instance_T = ti(
     task = tsk_F2Mk,
@@ -854,7 +855,7 @@ ggsave("image/F2Mk_image.png",F2Mk_image)
 
 ### Merge graphs
 
-```{r Merge optimisation graphs}
+```{r Merge optimisation graphs, eval=FALSE}
 PN_image / PNk_image
 UTI_image / UTIk_image
 PU_image / PUk_image
@@ -865,10 +866,6 @@ F2M_image / F2Mk_image
 ```
 
 In pretty much every example, for the full data, an mtry of between 1 and 3 is optimal. Note that while the scale of some of the graphs suggest very little effect of mtry, in that some of the parameters change little for any value of mtry studied. For the restricted data, an mtry of 3 seems best, but for every condition, the restricted data set performs better.
-
-## Evaluation
-
-
 
 # Fit optimised models
 
@@ -892,7 +889,7 @@ lrn_T = lrn('classif.ranger',
 
 ### Resampling
 
-```{r Run all 5 models}
+```{r Run all 5 models for the two learners}
 rr_PNk.f    = resample(tsk_PNk, lrn_featureless, cv10, store_models = TRUE)
 rr_PNk.rng  = resample(tsk_PNk, lrn_T, cv10, store_models = TRUE)
 rr_UTIk.f   = resample(tsk_UTIk, lrn_featureless, cv10, store_models = TRUE)
@@ -927,18 +924,19 @@ roc_PNk + roc_UTIk + plot_spacer()+ roc_PUk + roc_DLk + roc_F2Mk +
 
 ```
 
-## Predictions on test data and confusion matrices
+## Resampling predictions on test data and confusion matrices
 
 The requirement is to predict the total number of adverse events as well as possible. Direct inspection of the ROC curves suggests that around 0.25 to 0.35 is about right for most. UTI is probably the worst predicted outcome.
 
-```{r}
+```{r Resampling predictions}
+
 pred_PNk <- rr_PNk.rng$prediction()
 pred_UTIk <- rr_UTIk.rng$prediction()
 pred_PUk <- rr_PUk.rng$prediction()
 pred_DLk <- rr_DLk.rng$prediction()
 pred_F2Mk <- rr_F2Mk.rng$prediction()
 
-pred_PNk$set_threshold(0.2)
+pred_PNk$set_threshold(0.3)
 autoplot(pred_PNk) + labs(title = 'PNk Threshold 0.3')
 
 pred_UTIk$set_threshold(0.2)
@@ -953,80 +951,144 @@ autoplot(pred_DLk) + labs(title = 'DLk Threshold 0.275')
 pred_F2Mk$set_threshold(0.35)
 autoplot(pred_F2Mk) + labs(title = 'F2Mk Threshold 0.35')
 
-
 ```
 
-### Training
+## Progress
+
+so far, we have shown that 
+1) The importance reduced datasets fit better
+2) a good value for mtry is around 3
+
+## Training
 
 Thresholds are set to roughly equalise the true number of events in the training set, and the number of events predicted.
 
-```{r}
-task_PNk <- rr_PNk.rng$task
-task_UTIk <- rr_UTIk.rng$task
-task_PUk <- rr_PUk.rng$task
-task_DLk <- rr_DLk.rng$task
-task_F2Mk <- rr_F2Mk.rng$task
-
-PNk_trained <- lrn_T$train(task_PNk)
-  PNk_pred <- PNk_trained$predict(task_PNk)
-  PNk_pred$set_threshold(0.3)
-  autoplot(PNk_pred)
-
-UTIk_trained <- lrn_T$train(task_UTIk)
-  UTIk_pred <- UTIk_trained$predict(task_UTIk)
-  UTIk_pred$set_threshold(0.3)
-  autoplot(UTIk_pred)
-
-PUk_trained <- lrn_T$train(task_PUk)
-  PUk_pred <- PUk_trained$predict(task_PUk)
-  PUk_pred$set_threshold(0.3)
-  autoplot(PUk_pred)
-
-DLk_trained <- lrn_T$train(task_DLk)
-  DLk_pred <- DLk_trained$predict(task_DLk)
-  DLk_pred$set_threshold(0.3)
-  autoplot(DLk_pred)
-
-F2Mk_trained <- lrn_T$train(task_F2Mk)
-  F2Mk_pred <- F2Mk_trained$predict(task_F2Mk)
-  F2Mk_pred$set_threshold(0.39)
-  autoplot(F2Mk_pred)
-
+```{r ancillary function for threshold}
+SELECT_THRESHOLD <- function(df) {
+  df <- df %>%
+  rowid_to_column(var = 'Threshold') %>%
+  mutate(Threshold = Threshold/n()) %>%
+  mutate(Specificity =  1 - x) %>%
+  mutate(Sensitivity = y) %>%
+  mutate(Diff = Sensitivity - Specificity) %>%
+  slice(which.min(abs(Diff))) %>%
+  select(Threshold)
+    
+return(df)
+}
 ```
 
-# Prediction on HIPE data
+# HIPE Predictions
 
-```{r PREDICT HIPE}
+## PNk
 
-lrn_T$predict_newdata(HIPE, task = task_PNk)
+```{r PNK_predict}
+PNk_trained <- lrn_T$train(tsk_PNk, row_ids = split_PN$train)
+  PNk_pred <- PNk_trained$predict(tsk_PNk, row_ids = split_PN$test)
+ROC <- autoplot(PNk_pred, type='roc')  
+  ROC
+  Threshold <- SELECT_THRESHOLD(ROC$data)
+  Threshold
+  PNk_pred$set_threshold(Threshold$Threshold)
 
-pred_H.PNk = PNk_trained$predict_newdata(HIPE)
-PNk <-  fct_count(as_factor(pred_H.PNk$response),
-            prop = TRUE)
-PNk
-
-pred_H.UTIk = UTIk_trained$predict_newdata(HIPE)
-UTIk <- fct_count(as_factor(pred_H.UTIk$response),
-                 prop = TRUE)
-UTIk
-
-pred_H.PUk = PUk_trained$predict_newdata(HIPE)
-PUk <-  fct_count(as_factor(pred_H.PUk$response),
-            prop = TRUE)
-PUk
-
-pred_H.DLk = DLk_trained$predict_newdata(HIPE)
-DLk <-  fct_count(as_factor(pred_H.DLk$response),
-            prop = TRUE)
-DLk
-
-pred_H.F2Mk = F2Mk_trained$predict_newdata(HIPE)
-F2Mk <-  fct_count(as_factor(pred_H.F2Mk$response),
-            prop = TRUE)
-F2Mk
+PNk_pred.H <- PNk_trained$predict_newdata(HIPE, tsk_PNk)
+  PNk_pred.H$set_threshold(Threshold$Threshold)
+    autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + plot_layout(ncol = 2)
 ```
 
+## UTIk
 
-```{r}
-predict(F2Mk_trained, HIPE, predict_type = '<Prediction>')
+```{r UTIk_predict}
+UTIk_trained <- lrn_T$train(tsk_UTIk, row_ids = split_PN$train)
+  UTIk_pred <- UTIk_trained$predict(tsk_UTIk, row_ids = split_PN$test)
+ROC <- autoplot(UTIk_pred, type='roc')  
+  ROC
+  Threshold <- SELECT_THRESHOLD(ROC$data)
+  Threshold
+  UTIk_pred$set_threshold(Threshold$Threshold)
+
+UTIk_pred.H <- UTIk_trained$predict_newdata(HIPE, tsk_UTIk)
+  UTIk_pred.H$set_threshold(Threshold$Threshold)
+    autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) + plot_layout(ncol = 2)
+```
+
+## PUk
+
+```{r PUk_predict}
+PUk_trained <- lrn_T$train(tsk_PUk, row_ids = split_PN$train)
+  PUk_pred <- PUk_trained$predict(tsk_PUk, row_ids = split_PN$test)
+ROC <- autoplot(PUk_pred, type='roc')  
+  ROC
+  Threshold <- SELECT_THRESHOLD(ROC$data)
+  Threshold
+  PUk_pred$set_threshold(Threshold$Threshold)
+
+PUk_pred.H <- PUk_trained$predict_newdata(HIPE, tsk_PUk)
+  PUk_pred.H$set_threshold(Threshold$Threshold)
+    autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + plot_layout(ncol = 2)
+```
+
+## DLk
+
+```{r DLk_predict}
+DLk_trained <- lrn_T$train(tsk_DLk, row_ids = split_PN$train)
+  DLk_pred <- DLk_trained$predict(tsk_DLk, row_ids = split_PN$test)
+ROC <- autoplot(DLk_pred, type='roc')  
+  ROC
+  Threshold <- SELECT_THRESHOLD(ROC$data)
+  Threshold
+  DLk_pred$set_threshold(Threshold$Threshold)
+
+DLk_pred.H <- DLk_trained$predict_newdata(HIPE, tsk_DLk)
+  DLk_pred.H$set_threshold(Threshold$Threshold)
+    autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + plot_layout(ncol = 2)
+```
+
+## F2Mk
+
+```{r F2Mk_predict}
+F2Mk_trained <- lrn_T$train(tsk_F2Mk, row_ids = split_PN$train)
+  F2Mk_pred <- F2Mk_trained$predict(tsk_F2Mk, row_ids = split_PN$test)
+ROC <- autoplot(F2Mk_pred, type='roc')  
+  ROC
+  Threshold <- SELECT_THRESHOLD(ROC$data)
+  Threshold
+  F2Mk_pred$set_threshold(Threshold$Threshold)
+
+F2Mk_pred.H <- F2Mk_trained$predict_newdata(HIPE, tsk_F2Mk)
+  F2Mk_pred.H$set_threshold(Threshold$Threshold)
+    autoplot(F2Mk_pred) +  autoplot(F2Mk_pred, type='roc') + autoplot(F2Mk_pred.H) + plot_layout(ncol = 2)
+```
+
+# Put the predictions together
+
+```{r Accumulate predictions}
+dt_PNk = as.data.table(PNk_pred.H$response)
+dt_UTIk = as.data.table(UTIk_pred.H$response)
+dt_PUk = as.data.table(PUk_pred.H$response)
+dt_DLk = as.data.table(DLk_pred.H$response)
+dt_F2Mk = as.data.table(F2Mk_pred.H$response)
+
+
+Test_predictions <- tibble(dt_PNk, dt_UTIk, dt_PUk, dt_DLk, dt_F2Mk, .name_repair = 'universal')
+names(Test_predictions) <- c('PNk','UTIk','PUk','DLk','F2Mk')
+
+Proportions.H <- Test_predictions |>
+  mutate(across(everything(),
+                ~ (ifelse(. == 'Yes', 1, 0)))) |>
+  mutate(F2Mk_calc = (PNk | UTIk | PUk | DLk)) |>
+  mutate(across(everything(),
+                ~ (mean(., na.rm=TRUE)))) |>
+  unique()
+
+Proportions
+
+Proportions.H
+
+Proportions |>
+  mutate(across(everything(), ~(round(. * 100,1)))) # %
+
+Proportions.H |>
+  mutate(across(everything(), ~(round(. * 100,1)))) # %
+
 ```
