@@ -74,10 +74,10 @@ N = parallel:::detectCores()
                throttle = 1024)
 
 options(dplyr.summarise.inform = FALSE, # shut up summarise
-        ranger.num.threads = N) # Prepare for rf models
+        ranger.num.threads = N - 1) # Prepare for rf models
+
 lgr::get_logger("mlr3")$set_threshold("error")
 lgr::get_logger("bbotk")$set_threshold("error")
-
 
 set.seed(979)
 rm(N)
@@ -99,8 +99,9 @@ NAMES <- read_excel(
 #####################################################
 # Load the total HIPE data file
 # 
-HIPE <- readRDS('data/HIPE.Rds')
-
+HIPE <- readRDS('data/HIPE.Rds') %>%
+  mutate(Weight = NA)
+# These are the sampling weights for the training data (IPW's) and are not relevant for the HIPE data, but need to be there to match the training data for predictions.
 ```
 
 # Intent
@@ -449,7 +450,6 @@ ggplot(Imp, aes(x=Importance, y = Variable,
 
 Comparing the full set of variables considered, to those kept on the basis of their importance, there is little difference between the model measures.
 
-
 ## Resampling
 
 We have seen the effect of a single split of the data, separating training and test data completely. Performance is much better on the trained data than on the test data. Resampling is another approach to the same issue. This involves creating multiple training and test sets, and repeating the analysis for each, then aggregating the results of these.
@@ -547,7 +547,7 @@ autoplot(prediction_F2Mk.rng, type = 'roc',title='Failure to maintain - restrict
 
 ```
 
-## Optimise threshold for ranger model
+## Optimise mtry for ranger models
 
 ```{r Ancillary function for graphs}
 
@@ -868,73 +868,7 @@ In pretty much every example, for the full data, an mtry of between 1 and 3 is o
 
 ## Evaluation
 
-```{EVALUATE at T = 0.5, eval=FALSE}
 
-rr_C.f = resample(tsk_PN, lrn_featureless, cv10, store_models = TRUE)
-rr_C.rng = resample(tsk_PN, lrn_C, cv10, store_models = TRUE)
-
-autoplot(rr_C.f, type = 'roc') + labs(title="C")
-autoplot(rr_C.rng, type = 'roc') + labs(title="C")
-
-autoplot(rr_C.f,   type = 'prc') + labs(title='C')
-autoplot(rr_C.rng, type = 'prc') + labs(title='C')
-
-prediction_C.f = lrn_featureless$predict(tsk_PN, split_PN$test)
-prediction_C.f$score(measures)
-prediction_C.f$confusion
-autoplot(prediction_C.f, type = 'roc')
-autoplot(rr_C.f, type = 'prc')
-
-prediction_C.rng = lrn_C$predict(tsk_PN, row_ids = split_PN$test)
-prediction_C.rng$score(measures)
-prediction_C.rng$confusion
-autoplot(prediction_C.rng, type = 'roc')
-autoplot(prediction_C.rng, type = 'prc') + labs(title='C')
-
-autoplot(rr_C.rng, type = 'prc') + labs(title='C')
-
-prediction_C.rng$score(measures)
-prediction_C.rng$confusion
-autoplot(prediction_C.rng, type = 'roc')
-```
-
-# Fit at threshold
-
-```{r, eval=FALSE}
-prediction_C.rng$set_threshold(0.3)
-prediction_C.rng$score(measures)
-prediction_C.rng$confusion
-glimpse(as.data.table(prediction_C.rng))
-```
-
-# Prediction on HIPE data
-
-```{r PREDICT HIPE, eval=FALSE}
-H.Predicted = lrn_C$predict_newdata(HIPE, tsk_C)
-H.Predicted$set_threshold(0.3)
-
-glimpse(as.data.table(H.Predicted))
-```
-
-```{R Save predictions DL, eval=FALSE}
-DL <- as_tibble( as.data.table( H.Predicted ) ) %>%
-  mutate(Response = case_match(response,
-                        'Yes' ~ 1,
-                        'No'  ~ 0))
-table(DL$Response, useNA = 'ifany')
-
-saveRDS(DL, file = 'data/DL_predicted.Rds')
-```
-
-```{R Save predictions PN, eval=FALSE}
-PN <- as_tibble( as.data.table( H.Predicted ) ) %>%
-  mutate(Response = case_match(response,
-                        'Yes' ~ 1,
-                        'No'  ~ 0))
-table(PN$Response, useNA = 'ifany')
-saveRDS(PN, file = 'data/PN_predicted.Rds')
-
-```
 
 # Fit optimised models
 
@@ -948,13 +882,15 @@ lrn_featureless = lrn('classif.featureless',
 
 lrn_T = lrn('classif.ranger',
             predict_type = "prob",
-            num.trees = 2000,
-            mtry = 3,
-            importance = "permutation"
+            num.trees = 2000, # Determined in earlier experiments
+            mtry = 3, # Assessed above
+            importance = "permutation" # Most sensible choice
             )
 ```
 
 ## Run Models
+
+### Resampling
 
 ```{r Run all 5 models}
 rr_PNk.f    = resample(tsk_PNk, lrn_featureless, cv10, store_models = TRUE)
@@ -993,21 +929,104 @@ roc_PNk + roc_UTIk + plot_spacer()+ roc_PUk + roc_DLk + roc_F2Mk +
 
 ## Predictions on test data and confusion matrices
 
+The requirement is to predict the total number of adverse events as well as possible. Direct inspection of the ROC curves suggests that around 0.25 to 0.35 is about right for most. UTI is probably the worst predicted outcome.
+
 ```{r}
 pred_PNk <- rr_PNk.rng$prediction()
-  pred_PNk$confusion
-pred_PNk$set_threshold(0.3)
-  pred_PNk$confusion # Much better
-autoplot(pred_PNk) + labs(title = 'PNk Threshold 0.3')
-roc_PNk
-prc_PNk <- autoplot(rr_PNk.rng, type='prc')
-TEST <- prc_PNk$data |>
-  mutate(FMeasure = (4*x*y)/(x+y))
-#TEST <- roc_PNk$data |>
-#  mutate(Gmeans = 1- sqrt(y * (1-x)))
+pred_UTIk <- rr_UTIk.rng$prediction()
+pred_PUk <- rr_PUk.rng$prediction()
+pred_DLk <- rr_DLk.rng$prediction()
+pred_F2Mk <- rr_F2Mk.rng$prediction()
 
-summary(TEST)
-ggplot(TEST, aes(x = x, y = FMeasure)) +geom_line()
+pred_PNk$set_threshold(0.2)
+autoplot(pred_PNk) + labs(title = 'PNk Threshold 0.3')
+
+pred_UTIk$set_threshold(0.2)
+autoplot(pred_UTIk) + labs(title = 'UTIk Threshold 0.2')
+
+pred_PUk$set_threshold(0.23)
+autoplot(pred_PUk) + labs(title = 'PUk Threshold 0.23')
+
+pred_DLk$set_threshold(0.275)
+autoplot(pred_DLk) + labs(title = 'DLk Threshold 0.275')
+
+pred_F2Mk$set_threshold(0.35)
+autoplot(pred_F2Mk) + labs(title = 'F2Mk Threshold 0.35')
+
+
+```
+
+### Training
+
+Thresholds are set to roughly equalise the true number of events in the training set, and the number of events predicted.
+
+```{r}
+task_PNk <- rr_PNk.rng$task
+task_UTIk <- rr_UTIk.rng$task
+task_PUk <- rr_PUk.rng$task
+task_DLk <- rr_DLk.rng$task
+task_F2Mk <- rr_F2Mk.rng$task
+
+PNk_trained <- lrn_T$train(task_PNk)
+  PNk_pred <- PNk_trained$predict(task_PNk)
+  PNk_pred$set_threshold(0.3)
+  autoplot(PNk_pred)
+
+UTIk_trained <- lrn_T$train(task_UTIk)
+  UTIk_pred <- UTIk_trained$predict(task_UTIk)
+  UTIk_pred$set_threshold(0.3)
+  autoplot(UTIk_pred)
+
+PUk_trained <- lrn_T$train(task_PUk)
+  PUk_pred <- PUk_trained$predict(task_PUk)
+  PUk_pred$set_threshold(0.3)
+  autoplot(PUk_pred)
+
+DLk_trained <- lrn_T$train(task_DLk)
+  DLk_pred <- DLk_trained$predict(task_DLk)
+  DLk_pred$set_threshold(0.3)
+  autoplot(DLk_pred)
+
+F2Mk_trained <- lrn_T$train(task_F2Mk)
+  F2Mk_pred <- F2Mk_trained$predict(task_F2Mk)
+  F2Mk_pred$set_threshold(0.39)
+  autoplot(F2Mk_pred)
+
+```
+
+# Prediction on HIPE data
+
+```{r PREDICT HIPE}
+
+lrn_T$predict_newdata(HIPE, task = task_PNk)
+
+pred_H.PNk = PNk_trained$predict_newdata(HIPE)
+PNk <-  fct_count(as_factor(pred_H.PNk$response),
+            prop = TRUE)
+PNk
+
+pred_H.UTIk = UTIk_trained$predict_newdata(HIPE)
+UTIk <- fct_count(as_factor(pred_H.UTIk$response),
+                 prop = TRUE)
+UTIk
+
+pred_H.PUk = PUk_trained$predict_newdata(HIPE)
+PUk <-  fct_count(as_factor(pred_H.PUk$response),
+            prop = TRUE)
+PUk
+
+pred_H.DLk = DLk_trained$predict_newdata(HIPE)
+DLk <-  fct_count(as_factor(pred_H.DLk$response),
+            prop = TRUE)
+DLk
+
+pred_H.F2Mk = F2Mk_trained$predict_newdata(HIPE)
+F2Mk <-  fct_count(as_factor(pred_H.F2Mk$response),
+            prop = TRUE)
+F2Mk
 ```
 
 
+```{r}
+predict(F2Mk_trained, HIPE, predict_type = '<Prediction>')
+```
