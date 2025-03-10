@@ -195,7 +195,7 @@ First, guided by earlier experiments, we prepare a subset of key data items to w
 
 ```{r DATA}
 #################################################
-# Trim CtCH, a lot
+# Trim Cost2Care.HIPE, a lot
 CCH <- Cost2Care.HIPE %>%
   select(PN, UTI, PU, DL, F2M, # Outcomes from review
          Source, Died, Destination, rawlos, LosC, # Outcomes from HIPE
@@ -212,6 +212,7 @@ HIPE.Trimmed <- HIPE %>%
          Complexity:Therapeutic.Interventions, 
          elem, fullelig, mdc # HIPE variables
          )
+saveRDS(CCH,'data/CCH.Rds')
 ```
 
 ## Define the classification tasks
