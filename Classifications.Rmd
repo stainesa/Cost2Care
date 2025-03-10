@@ -483,8 +483,10 @@ lrn_C$train(tsk_PN, row_ids = split_PN$train)
   prediction_PN.rng$confusion
 autoplot(prediction_PN.rng) + autoplot(prediction_PN.rng, type = 'roc')
 
-lrn_C$train(tsk_PNk, row_ids = split_PN$train)
-  prediction_PNk.rng = lrn_C$predict(tsk_PNk, split_PN$test)
+split_PNk = mlr3::partition(tsk_PNk)
+
+lrn_C$train(tsk_PNk, row_ids = split_PNk$train)
+  prediction_PNk.rng = lrn_C$predict(tsk_PNk, split_PNk$test)
   prediction_PNk.rng$score(measures)
   prediction_PNk.rng$confusion
 autoplot(prediction_PN.rng) + autoplot(prediction_PNk.rng, type = 'roc')
@@ -497,8 +499,10 @@ lrn_C$train(tsk_UTI, row_ids = split_UTI$train)
   prediction_UTI.rng$confusion
 autoplot(prediction_UTI.rng) + autoplot(prediction_UTI.rng, type = 'roc')
 
-lrn_C$train(tsk_UTIk, row_ids = split_UTI$train)
-  prediction_UTIk.rng = lrn_C$predict(tsk_UTIk, split_UTI$test)
+split_UTIk = mlr3::partition(tsk_UTIk)
+
+lrn_C$train(tsk_UTIk, row_ids = split_UTIk$train)
+  prediction_UTIk.rng = lrn_C$predict(tsk_UTIk, split_UTIk$test)
   prediction_UTIk.rng$score(measures)
   prediction_UTIk.rng$confusion
 autoplot(prediction_UTIk.rng) + autoplot(prediction_UTIk.rng, type = 'roc')
@@ -511,8 +515,10 @@ lrn_C$train(tsk_PU, row_ids = split_PU$train)
   prediction_PU.rng$confusion
 autoplot(prediction_PU.rng, type = 'roc')
 
-lrn_C$train(tsk_PUk, row_ids = split_PU$train)
-  prediction_PUk.rng = lrn_C$predict(tsk_PUk, split_PU$test)
+split_PUk = mlr3::partition(tsk_PUk)
+
+lrn_C$train(tsk_PUk, row_ids = split_PUk$train)
+  prediction_PUk.rng = lrn_C$predict(tsk_PUk, split_PUk$test)
   prediction_PUk.rng$score(measures)
   prediction_PUk.rng$confusion
 autoplot(prediction_PUk.rng, type = 'roc')
@@ -525,8 +531,10 @@ lrn_C$train(tsk_DL, row_ids = split_DL$train)
   prediction_DL.rng$confusion
 autoplot(prediction_DL.rng, type = 'roc')
 
-lrn_C$train(tsk_DLk, row_ids = split_DL$train)
-  prediction_DLk.rng = lrn_C$predict(tsk_DLk, split_DL$test)
+split_DLk = mlr3::partition(tsk_DLk)
+
+lrn_C$train(tsk_DLk, row_ids = split_DLk$train)
+  prediction_DLk.rng = lrn_C$predict(tsk_DLk, split_DLk$test)
   prediction_DLk.rng$score(measures)
   prediction_DLk.rng$confusion
 autoplot(prediction_DLk.rng, type = 'roc')
@@ -539,12 +547,13 @@ lrn_C$train(tsk_F2M, row_ids = split_F2M$train)
   prediction_F2M.rng$confusion
 autoplot(prediction_F2M.rng, type = 'roc')
 
-lrn_C$train(tsk_F2Mk, row_ids = split_F2M$train)
-  prediction_F2Mk.rng = lrn_C$predict(tsk_F2Mk, split_F2M$test)
+split_F2Mk = mlr3::partition(tsk_F2Mk)
+
+lrn_C$train(tsk_F2Mk, row_ids = split_F2Mk$train)
+  prediction_F2Mk.rng = lrn_C$predict(tsk_F2Mk, split_F2Mk$test)
   prediction_F2Mk.rng$score(measures)
   prediction_F2Mk.rng$confusion
 autoplot(prediction_F2Mk.rng, type = 'roc',title='Failure to maintain - restricted predictor set') + labs(title='Failure to maintain - restricted predictor set')
-
 
 ```
 
@@ -873,7 +882,7 @@ We now have five models to fit and predict from, the five restricted models, wit
 
 ## Define learners
 
-```{r LEARNERS for opimised models}
+```{r LEARNERS for optimised models}
 lrn_featureless = lrn('classif.featureless',
                       predict_type = 'prob')
 
@@ -890,16 +899,16 @@ lrn_T = lrn('classif.ranger',
 ### Resampling
 
 ```{r Run all 5 models for the two learners}
-rr_PNk.f    = resample(tsk_PNk, lrn_featureless, cv10, store_models = TRUE)
-rr_PNk.rng  = resample(tsk_PNk, lrn_T, cv10, store_models = TRUE)
-rr_UTIk.f   = resample(tsk_UTIk, lrn_featureless, cv10, store_models = TRUE)
-rr_UTIk.rng = resample(tsk_UTIk, lrn_T, cv10, store_models = TRUE)
-rr_PUk.f    = resample(tsk_PUk, lrn_featureless, cv10, store_models = TRUE)
-rr_PUk.rng  = resample(tsk_PUk, lrn_T, cv10, store_models = TRUE)
-rr_DLk.f    = resample(tsk_DLk, lrn_featureless, cv10, store_models = TRUE)
-rr_DLk.rng  = resample(tsk_DLk, lrn_T, cv10, store_models = TRUE)
-rr_F2Mk.f   = resample(tsk_F2Mk, lrn_featureless, cv10, store_models = TRUE)
-rr_F2Mk.rng = resample(tsk_F2Mk, lrn_T, cv10, store_models = TRUE)
+rr_PNk.f    = resample(tsk_PNk, lrn_featureless, cv10, store_models = TRUE, store_backends =TRUE)
+rr_PNk.rng  = resample(tsk_PNk, lrn_T, cv10, store_models = TRUE, store_backends =TRUE)
+rr_UTIk.f   = resample(tsk_UTIk, lrn_featureless, cv10, store_models = TRUE, store_backends =TRUE)
+rr_UTIk.rng = resample(tsk_UTIk, lrn_T, cv10, store_models = TRUE, store_backends =TRUE)
+rr_PUk.f    = resample(tsk_PUk, lrn_featureless, cv10, store_models = TRUE, store_backends =TRUE)
+rr_PUk.rng  = resample(tsk_PUk, lrn_T, cv10, store_models = TRUE, store_backends =TRUE)
+rr_DLk.f    = resample(tsk_DLk, lrn_featureless, cv10, store_models = TRUE, store_backends =TRUE)
+rr_DLk.rng  = resample(tsk_DLk, lrn_T, cv10, store_models = TRUE, store_backends =TRUE)
+rr_F2Mk.f   = resample(tsk_F2Mk, lrn_featureless, cv10, store_models = TRUE, store_backends =TRUE)
+rr_F2Mk.rng = resample(tsk_F2Mk, lrn_T, cv10, store_models = TRUE, store_backends =TRUE)
 
 ```
 
@@ -983,8 +992,8 @@ return(df)
 ## PNk
 
 ```{r PNK_predict}
-PNk_trained <- lrn_T$train(tsk_PNk, row_ids = split_PN$train)
-  PNk_pred <- PNk_trained$predict(tsk_PNk, row_ids = split_PN$test)
+PNk_trained <- lrn_T$train(tsk_PNk, row_ids = split_PNk$train)
+  PNk_pred <- PNk_trained$predict(tsk_PNk, row_ids = split_PNk$test)
 ROC <- autoplot(PNk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
@@ -999,8 +1008,8 @@ PNk_pred.H <- PNk_trained$predict_newdata(HIPE, tsk_PNk)
 ## UTIk
 
 ```{r UTIk_predict}
-UTIk_trained <- lrn_T$train(tsk_UTIk, row_ids = split_PN$train)
-  UTIk_pred <- UTIk_trained$predict(tsk_UTIk, row_ids = split_PN$test)
+UTIk_trained <- lrn_T$train(tsk_UTIk, row_ids = split_UTIk$train)
+  UTIk_pred <- UTIk_trained$predict(tsk_UTIk, row_ids = split_UTIk$test)
 ROC <- autoplot(UTIk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
@@ -1015,8 +1024,8 @@ UTIk_pred.H <- UTIk_trained$predict_newdata(HIPE, tsk_UTIk)
 ## PUk
 
 ```{r PUk_predict}
-PUk_trained <- lrn_T$train(tsk_PUk, row_ids = split_PN$train)
-  PUk_pred <- PUk_trained$predict(tsk_PUk, row_ids = split_PN$test)
+PUk_trained <- lrn_T$train(tsk_PUk, row_ids = split_PUk$train)
+  PUk_pred <- PUk_trained$predict(tsk_PUk, row_ids = split_PUk$test)
 ROC <- autoplot(PUk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
@@ -1031,8 +1040,8 @@ PUk_pred.H <- PUk_trained$predict_newdata(HIPE, tsk_PUk)
 ## DLk
 
 ```{r DLk_predict}
-DLk_trained <- lrn_T$train(tsk_DLk, row_ids = split_PN$train)
-  DLk_pred <- DLk_trained$predict(tsk_DLk, row_ids = split_PN$test)
+DLk_trained <- lrn_T$train(tsk_DLk, row_ids = split_DLk$train)
+  DLk_pred <- DLk_trained$predict(tsk_DLk, row_ids = split_DLk$test)
 ROC <- autoplot(DLk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
@@ -1047,8 +1056,8 @@ DLk_pred.H <- DLk_trained$predict_newdata(HIPE, tsk_DLk)
 ## F2Mk
 
 ```{r F2Mk_predict}
-F2Mk_trained <- lrn_T$train(tsk_F2Mk, row_ids = split_PN$train)
-  F2Mk_pred <- F2Mk_trained$predict(tsk_F2Mk, row_ids = split_PN$test)
+F2Mk_trained <- lrn_T$train(tsk_F2Mk, row_ids = split_F2Mk$train)
+  F2Mk_pred <- F2Mk_trained$predict(tsk_F2Mk, row_ids = split_F2Mk$test)
 ROC <- autoplot(F2Mk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
