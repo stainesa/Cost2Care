@@ -105,7 +105,7 @@ HIPE <- readRDS('data/HIPE.Rds') %>%
 # These are the sampling weights for the training data (IPW's) and are not relevant for the HIPE data, but need to be there to match the training data for predictions.
 ```
 
-# Intent
+# Intent 
 
 The aim here is to some quick and simple predictions, and summaries
 
@@ -202,7 +202,7 @@ First, guided by earlier experiments, and the literature, we prepare a subset of
 CCH <- Cost2Care.HIPE %>%
   select(PN, UTI, PU, DL, F2M, # Outcomes from review
          Source, Died, Destination, rawlos, LosC, # Outcomes from HIPE
-         ModelF, HospCode, MedSurg, AgeC, SeasonOfAdmission,  # Variables derived from HIPE
+         MedSurg, AgeC, SeasonOfAdmission,  # Variables derived from HIPE
          ProcCount, DxCount, HadxCount, ScoreEl, # HIPE variables derived by me
          Complexity:Therapeutic.Interventions, # HIPE variables derived by me
          uti:any.f2m.hadx, # Hipe variables derived by HPO
@@ -211,7 +211,7 @@ CCH <- Cost2Care.HIPE %>%
          )
 HIPE.Trimmed <- HIPE %>%
     select(Source, Died, Destination, rawlos, LosC, # Outcomes from HIPE
-         ModelF, HospCode, MedSurg, AgeC, SeasonOfAdmission, # HIPE variables derived by me
+         MedSurg, AgeC, SeasonOfAdmission, # HIPE variables derived by me
          ProcCount, DxCount, HadxCount, ScoreEl, # HIPE variables derived by me
          Complexity:Therapeutic.Interventions, # HIPE variables derived by me
          uti:any.f2m.hadx, # Hipe variables derived by HPO
@@ -386,7 +386,6 @@ tsk_PNk <- tsk_PNk$select(keep.PN)
     summary(1000*flt_Imp$scores)
     keep.UTI = names(which(flt_Imp$scores > 0.0001))
 
-tsk_UTIk <- tsk_UTI$clone(deep = TRUE)
 tsk_UTIk <- tsk_UTIk$select(keep.UTI)  
   flt_Imp$calculate(tsk_UTIk)
     UTIk_Imp <- to_tibble(flt_Imp$scores)
@@ -405,7 +404,6 @@ tsk_UTIk <- tsk_UTIk$select(keep.UTI)
     summary(1000*flt_Imp$scores)
     keep.PU = names(which(flt_Imp$scores > 0.0001))
 
-tsk_PUk <- tsk_PU$clone(deep = TRUE)
 tsk_PUk <- tsk_PUk$select(keep.PU)  
   flt_Imp$calculate(tsk_PUk)
     summary(1000*flt_Imp$scores)
@@ -425,7 +423,6 @@ tsk_PUk <- tsk_PUk$select(keep.PU)
     summary(1000*flt_Imp$scores)
     keep.DL = names(which(flt_Imp$scores > 0.0001))
 
-tsk_DLk <- tsk_DL$clone(deep = TRUE)
 tsk_DLk <- tsk_DLk$select(keep.DL)
   flt_Imp$calculate(tsk_DLk)
     DLk_Imp <- to_tibble(flt_Imp$scores)
@@ -443,7 +440,6 @@ tsk_DLk <- tsk_DLk$select(keep.DL)
     summary(1000*flt_Imp$scores)
     keep.F2M = names(which(flt_Imp$scores > 0.0001))
 
-tsk_F2Mk <- tsk_F2M$clone(deep = FALSE)
 tsk_F2Mk <- tsk_F2Mk$select(keep.F2M)
   flt_Imp$calculate(tsk_F2Mk)
       summary(1000*flt_Imp$scores)
@@ -715,7 +711,7 @@ return(IMAGE)
 
 ### PN
 
-```{r OPTIMISE PN, eval = TRUE}
+```{r OPTIMISE PN, eval = FALSE}
 
 instance_T = ti(
     task = tsk_PN,
@@ -742,7 +738,7 @@ ggsave("image/PN_image.png",PN_image)
 
 ### PNk
 
-```{r OPTIMISE PNk, eval = TRUE}
+```{r OPTIMISE PNk, eval = FALSE}
 
 instance_T = ti(
     task = tsk_PNk,
@@ -770,7 +766,7 @@ ggsave("image/PNk_image.png",PNk_image)
 
 ### UTI
 
-```{r OPTIMISE UTI, eval = TRUE}
+```{r OPTIMISE UTI, eval = FALSE}
 
 instance_T = ti(
     task = tsk_UTI,
@@ -799,7 +795,7 @@ ggsave("image/UTI_image.png",UTI_image)
 
 ### UTIk
 
-```{r OPTIMISE UTIk, eval = TRUE}
+```{r OPTIMISE UTIk, eval = FALSE}
 
 instance_T = ti(
     task = tsk_UTIk,
@@ -826,7 +822,7 @@ ggsave("image/UTIk_image.png",UTIk_image)
 
 ### PU
 
-```{r OPTIMISE PU, eval = TRUE}
+```{r OPTIMISE PU, eval = FALSE}
 
 instance_T = ti(
     task = tsk_PU,
@@ -853,7 +849,7 @@ ggsave("image/PU_image.png",PU_image)
 
 ### PUk
 
-```{r OPTIMISE PUk, eval = TRUE}
+```{r OPTIMISE PUk, eval = FALSE}
 
 instance_T = ti(
     task = tsk_PUk,
@@ -880,7 +876,7 @@ ggsave("image/PUk_image.png",PUk_image)
 
 ### DL
 
-```{r OPTIMISE DL, eval = TRUE}
+```{r OPTIMISE DL, eval = FALSE}
 
 instance_T = ti(
     task = tsk_DL,
@@ -907,7 +903,7 @@ ggsave("image/DL_image.png",DL_image)
 
 ### DLk
 
-```{r OPTIMISE DLk, eval = TRUE}
+```{r OPTIMISE DLk, eval = FALSE}
 
 instance_T = ti(
     task = tsk_DLk,
@@ -934,7 +930,7 @@ ggsave("image/DLk_image.png",DLk_image)
 
 ### F2M
 
-```{r OPTIMISE F2M, eval = TRUE}
+```{r OPTIMISE F2M, eval = FALSE}
 
 instance_T = ti(
     task = tsk_F2M,
@@ -961,7 +957,7 @@ ggsave("image/F2M_image.png",F2M_image)
 
 ### F2Mk
 
-```{r OPTIMISE F2Mk, eval = TRUE}
+```{r OPTIMISE F2Mk, eval = FALSE}
 
 instance_T = ti(
     task = tsk_F2Mk,
@@ -988,7 +984,7 @@ ggsave("image/F2Mk_image.png",F2Mk_image)
 
 ### Merge graphs
 
-```{r Merge optimisation graphs, eval = TRUE}
+```{r Merge optimisation graphs, eval = FALSE}
 PN_image / PNk_image
 UTI_image / UTIk_image
 PU_image / PUk_image
@@ -1027,7 +1023,6 @@ Looking at these we come up with the following suggestions for mtry
 * F2Mk 6
 
 Note that the scale of some of the graphs suggest very little effect of mtry, in that some of the parameters change little for any value of mtry studied.
-
 
 # Fit optimised models
 
@@ -1145,7 +1140,6 @@ roc_PN + roc_UTI + plot_spacer()+ roc_PU + roc_DL + roc_F2M +
   plot_annotation(title = 'ROC curves for full optimised models',
                   tag_levels = list(c('PN','UTI','PU','DL','F2M')))
 
-
 ```
 
 ```{r ROCk curves}
@@ -1200,7 +1194,6 @@ roc_F2M + roc_F2Mk  +
 
 ```
 
-
 ```{r Resampling measures}
 ## PN
 rr_PN.rng$aggregate(measures)
@@ -1223,9 +1216,10 @@ rr_F2M.rng$aggregate(measures)
 rr_F2Mk.rng$aggregate(measures)
 
 ```
+
 ## Resampling predictions on test data and confusion matrices
 
-The requirement is to predict the total number of adverse events as well as possible. Direct inspection of the ROC curves suggests that around 0.25 to 0.35 is about right for most. UTI is probably the worst predicted outcome.
+The requirement is to predict the total number of adverse events as well as possible. Direct inspection of the ROC curves suggests that around 0.25 to 0.35 is about right for most. UTI is probably the worst predicted outcome. We use a more formal procedure for the adjusted thresholds, setting it where the difference between sensitivity and specificity are as smalll as possible.
 
 ```{r ancillary function for threshold}
 SELECT_THRESHOLD <- function(df) {
@@ -1241,7 +1235,6 @@ SELECT_THRESHOLD <- function(df) {
 return(df)
 }
 ```
-
 
 ```{r Resampling predictions}
 
@@ -1353,8 +1346,9 @@ ROC <- autoplot(PN_pred, type='roc')
   Threshold
   PN_pred$set_threshold(Threshold$Threshold)
 
-PN_pred.H <- PN_trained$predict_newdata(HIPE, tsk_PN)
-  PN_pred.H$set_threshold(Threshold$Threshold)
+PN_pred.H <- PN_trained$predict_newdata(HIPE.Trimmed, tsk_PN)
+  
+PN_pred.H$set_threshold(Threshold$Threshold)
     autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_layout(ncol = 2) +  
   plot_annotation(title = 'PN Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
 
@@ -1376,7 +1370,6 @@ PNk_pred.H <- PNk_trained$predict_newdata(HIPE, tsk_PNk)
   PNk_pred.H$set_threshold(Threshold$Threshold)
     autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PNk Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
 ```
-
 
 ## UTI
 
@@ -1539,28 +1532,306 @@ F2Mk_pred$score(measures)
 
 ```
 
+## Importance (again)
+
+```{r Final importance}
+flt_Imp = flt("importance", learner = lrn_T)
+#flt_Imp = flt("importance", learner = lrn_C)
+
+#Ancillary function to store importance scores in a tibble
+to_tibble <- function(flt_scores) {
+  DF <- as.data.frame(flt_scores)
+  DF$names <- row.names(DF)
+  DF <- as_tibble(DF)
+  return(DF)
+}
+
+###################################################
+#PN
+  lrn_T <- setMtry(lrn_T, mtry_PN)
+flt_Imp$calculate(tsk_PN)
+    PN_Imp <- to_tibble(flt_Imp$scores)
+    PN <- autoplot(flt_Imp, title="Prediction for pneumonia") +
+      labs(title="Prediction for Pneumonia")
+    PN
+    summary(1000*flt_Imp$scores)
+    keep.PN = names(which(flt_Imp$scores > 0.0001))
+
+  lrn_T <- setMtry(lrn_T, mtry_PNk)
+  flt_Imp$calculate(tsk_PNk)
+    PNk_Imp <- to_tibble(flt_Imp$scores)
+    summary(1000*flt_Imp$scores)
+    PNk <- autoplot(flt_Imp, title="Prediction for pneumoniak") +
+      labs(title="Prediction for Pneumoniak")
+    PNk
+
+###################################################
+#UTI
+  lrn_T <- setMtry(lrn_T, mtry_UTI)
+flt_Imp$calculate(tsk_UTI)
+    UTI_Imp <- to_tibble(flt_Imp$scores)
+    UTI <- autoplot(flt_Imp, title="Prediction for UTI") +
+      labs(title="Prediction for UTI")
+    UTI
+    1000*flt_Imp$scores
+    summary(1000*flt_Imp$scores)
+    keep.UTI = names(which(flt_Imp$scores > 0.0001))
+
+    lrn_T <- setMtry(lrn_T, mtry_UTI)
+  lrn_T <- setMtry(lrn_T, mtry_UTIk)
+
+  flt_Imp$calculate(tsk_UTIk)
+    UTIk_Imp <- to_tibble(flt_Imp$scores)
+    UTIk <- autoplot(flt_Imp, title="Prediction for UTIk") +
+      labs(title="Prediction for UTIk")
+    UTIk
+
+###################################################
+#PU
+  lrn_T <- setMtry(lrn_T, mtry_PU)
+flt_Imp$calculate(tsk_PU)
+    PU_Imp <- to_tibble(flt_Imp$scores)
+    PU <- autoplot(flt_Imp, title="Prediction for Pressure Ulcer") +
+      labs(title="Prediction for Pressure Ulcer")
+    PU
+    1000*flt_Imp$scores
+    summary(1000*flt_Imp$scores)
+    keep.PU = names(which(flt_Imp$scores > 0.0001))
+
+  lrn_T <- setMtry(lrn_T, mtry_PUk)
+  flt_Imp$calculate(tsk_PUk)
+    summary(1000*flt_Imp$scores)
+    PUk_Imp <- to_tibble(flt_Imp$scores)
+    PUk <- autoplot(flt_Imp, title="Prediction for Pressure Ulcerk") +
+      labs(title="Prediction for Pressure Ulcerk")
+    PUk
+
+###################################################
+#DL
+  lrn_T <- setMtry(lrn_T, mtry_DL)
+flt_Imp$calculate(tsk_DL)
+    DL_Imp <- to_tibble(flt_Imp$scores)
+    DL <- autoplot(flt_Imp, title="Prediction for Delirium") +
+      labs(title="Prediction for Delirium")
+    DL
+    1000*flt_Imp$scores
+    summary(1000*flt_Imp$scores)
+    keep.DL = names(which(flt_Imp$scores > 0.0001))
+
+  lrn_T <- setMtry(lrn_T, mtry_DLk)
+  flt_Imp$calculate(tsk_DLk)
+    DLk_Imp <- to_tibble(flt_Imp$scores)
+    DLk <- autoplot(flt_Imp, title="Prediction for Deliriumk") +
+      labs(title="Prediction for Deliriumk")
+    DLk
+
+###################################################
+#F2M
+  lrn_T <- setMtry(lrn_T, mtry_F2M)
+flt_Imp$calculate(tsk_F2M)
+    F2M_Imp <- to_tibble(flt_Imp$scores)
+    F2M <- autoplot(flt_Imp, title="Prediction for F2M") +
+      labs(title="Prediction for F2M")
+    F2M
+    summary(1000*flt_Imp$scores)
+    keep.F2M = names(which(flt_Imp$scores > 0.0001))
+
+  lrn_T <- setMtry(lrn_T, mtry_F2Mk)
+  flt_Imp$calculate(tsk_F2Mk)
+      summary(1000*flt_Imp$scores)
+  F2Mk_Imp <- to_tibble(flt_Imp$scores)
+    F2Mk <- autoplot(flt_Imp, title="Prediction for F2Mk") +
+      labs(title="Prediction for F2Mk")
+    F2Mk
+
+############
+# Graphs
+PN  + PNk
+UTI + UTIk
+PU  + PUk
+DL  + DLk
+F2M + F2Mk
+
+###########
+# Tibble
+PN_Imp <- PN_Imp |> mutate(Source = 'PN_IMP')
+UTI_Imp <- UTI_Imp |> mutate(Source = 'UTI_IMP')
+PU_Imp <- PU_Imp |> mutate(Source = 'PU_IMP')
+DL_Imp <- DL_Imp |> mutate(Source = 'DL_IMP')
+F2M_Imp <- F2M_Imp |> mutate(Source = 'F2M_IMP')
+
+PNk_Imp <- PNk_Imp |> mutate(Source = 'PNk_IMP')
+UTIk_Imp <- UTIk_Imp |> mutate(Source = 'UTIk_IMP')
+PUk_Imp <- PUk_Imp |> mutate(Source = 'PUk_IMP')
+DLk_Imp <- DLk_Imp |> mutate(Source = 'DLk_IMP')
+F2Mk_Imp <- F2Mk_Imp |> mutate(Source = 'F2Mk_IMP')
+
+ImpFinal <- bind_rows(PN_Imp, PNk_Imp, UTI_Imp, UTIk_Imp,
+                 PU_Imp, PUk_Imp, DL_Imp, DLk_Imp,
+                 F2M_Imp, F2Mk_Imp) %>%
+  select(Source, names, flt_scores ) %>%
+  rename(Variable = names) %>%
+  rename(Importance = flt_scores) %>%
+  mutate(Full = ifelse(str_detect(Source, 'k_'), 'Reduced' , 'Full'))
+
+SumsFinal <- ImpFinal %>%
+  group_by(Variable) %>%
+  summarise(Mean_Imp = mean(Importance), Count = n()) %>%
+  arrange(desc(Mean_Imp))
+
+ImpFinal <- ImpFinal %>%
+  left_join(Sums, by = join_by(Variable)) %>%
+  arrange(Mean_Imp) %>%
+  mutate(Variable = fct_inorder(as_factor(Variable)))
+
+#######################
+#Graph
+ImpFinal <- ImpFinal |>
+  mutate(Model = ifelse(str_detect(Source, 'k'), 'Restricted', 'Full')) |>
+  mutate(Outcome = str_remove(Source, '_IMP$')) |>
+  mutate(Outcome = str_remove(Outcome, 'k$'))
+  
+ggplot(ImpFinal, aes(x=Importance, y = Variable,
+                colour=Outcome, shape = Model, group = Outcome)) +
+  geom_point(size = 2) +
+  geom_line() +
+  scale_shape(guide = 'none') +
+  facet_wrap(~Model) +
+  theme_minimal() +
+  labs(title = 'Importance scores by variable and outcome',
+       subtitle = 'Full and restricted optimised models')
+
+  rm(PN_Imp, PNk_Imp, UTI_Imp, UTIk_Imp, PU_Imp, PUk_Imp,
+     DL_Imp, DLk_Imp, F2M_Imp, F2Mk_Imp)
+```
+
 ## Put the predictions together
 
 ```{r Accumulate predictions}
-dt_PN = as.data.table(PN_pred.H$response)
-dt_UTI = as.data.table(UTI_pred.H$response)
-dt_PU = as.data.table(PU_pred.H$response)
-dt_DL = as.data.table(DL_pred.H$response)
-dt_F2M = as.data.table(F2M_pred.H$response)
+CODES <- HIPE |>
+  select(HospCode, ModelCode) |>
+  rowid_to_column()
 
-Test_predictions <- tibble(dt_PN, dt_UTI, dt_PU, dt_DL, dt_F2M, .name_repair = 'universal')
-names(Test_predictions) <- c('PN','UTI','PU','DL','F2M')
+dt_PN = as_tibble(
+  bind_cols(
+    as.data.table(PN_pred.H$response),
+    as.data.table(PN_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'PN')
+dt_PNk = as_tibble(
+  bind_cols(
+    as.data.table(PNk_pred.H$response),
+    as.data.table(PNk_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'PNk')
+
+dt_UTI = as_tibble(
+  bind_cols(
+    as.data.table(UTI_pred.H$response),
+    as.data.table(UTI_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'UTI')
+dt_UTIk = as_tibble(
+  bind_cols(
+    as.data.table(UTIk_pred.H$response),
+    as.data.table(UTIk_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'UTIk')
+
+dt_PU = as_tibble(
+  bind_cols(
+    as.data.table(PU_pred.H$response),
+    as.data.table(PU_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'PU')
+dt_PUk = as_tibble(
+  bind_cols(
+    as.data.table(PUk_pred.H$response),
+    as.data.table(PUk_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'PUk')
+
+dt_DL = as_tibble(
+  bind_cols(
+    as.data.table(DL_pred.H$response),
+    as.data.table(DL_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'DL')
+dt_DLk = as_tibble(
+  bind_cols(
+    as.data.table(DLk_pred.H$response),
+    as.data.table(DLk_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'DLk')
+
+dt_F2M = as_tibble(
+  bind_cols(
+    as.data.table(F2M_pred.H$response),
+    as.data.table(F2M_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'F2M')
+dt_F2Mk = as_tibble(
+  bind_cols(
+    as.data.table(F2Mk_pred.H$response),
+    as.data.table(F2Mk_pred.H$prob))) |>
+  rowid_to_column() |>
+  left_join(CODES, by = join_by(rowid)) |>
+  mutate(Outcome = 'F2Mk')
+
+Test_predictions <- bind_rows(dt_PN, dt_PNk,
+                              dt_UTI, dt_UTIk,
+                              dt_PU, dt_PUk,
+                              dt_DL, dt_DLk,
+                              dt_F2M, dt_F2Mk,
+                              ) |>
+  mutate(Prediction = V1) |>
+  select(-V1) |>
+  group_by(Outcome)
+
+Test_predictions_nested <- Test_predictions |> group_by(Outcome) |> nest()
+
+```
+
+# Predictions
+We've three sets of predictions
+
+* Outcomes, binary Yes, or No (mostly no)
+* Probabilities of being a Yes (mostly low)
+* Probabilities of being a No (Mostly high)
+
+We want these
+
+* Nationally
+* By hospital
+
+```{r}
+#MeanYes <- function(df)
+#Test_predictions_nested %>% 
+#   mutate(MeanYes, function(df) lm(mpg ~ wt, data = df))
+#   
+Test_predictions |>
+  count(Prediction) %>% 
+  mutate(prop = n/sum(n)) %>%
+  mutate(Pct = round(100*prop,2)) %>%
+  filter(Prediction == 'Yes')
 
 
-dt_PNk = as.data.table(PNk_pred.H$response)
-dt_UTIk = as.data.table(UTIk_pred.H$response)
-dt_PUk = as.data.table(PUk_pred.H$response)
-dt_DLk = as.data.table(DLk_pred.H$response)
-dt_F2Mk = as.data.table(F2Mk_pred.H$response)
-
-Test_predictionsk <- tibble(dt_PNk, dt_UTIk, dt_PUk, dt_DLk, dt_F2Mk, .name_repair = 'universal')
-names(Test_predictionsk) <- c('PNk','UTIk','PUk','DLk','F2Mk')
-
+Test_predictions |>
+  group_by(HospCode, Outcome) |>
+  count(Prediction) %>% 
+  mutate(prop = n/sum(n)) %>%
+  mutate(Pct = round(100*prop,2)) %>%
+  filter(Prediction == 'Yes')
+```
 
 Proportions.H <- Test_predictions |>
   mutate(across(everything(),
@@ -1592,5 +1863,6 @@ Proportions.H |>
 
 Proportions.Hk |>
   mutate(across(everything(), ~(round(. * 100,1)))) # %
+
 
 ```
