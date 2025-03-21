@@ -416,7 +416,6 @@ HIPE.Site <- HIPE_PROCESS(HIPE.Site)
 
 ```
 
-
 ## DRG
 
 DRG codes are alphanumeric codes, which have a description attached. most of these descriptions, include an indication of complexity, either Minor, Intermediate or Major.
@@ -1157,7 +1156,6 @@ ctable(H.PN_hadx <- as_factor(Cost2Care.HIPE$H.PN_hadx),
 
 ## F2M
 
-
 ```{r Check match tables any failure to Maintain (F2M)}
 ##################################################
 # F2M
@@ -1307,14 +1305,11 @@ The main outcomes available are
 
 It is wholly possible to have several of these outcomes.
 
-
-
 # Finalise analysis data
 
 ## Remove Maternity and Specialist hospitals
 
 The HIPE dataset contains data from Model 4, Model 3 and Model 2 hospitals, as a well as the three large maternity hospitals in Dublin `r table(HIPE$ModelF)[[5]]` discharges, and five specialist hospitals, `r table(HIPE$ModelF)[[4]]` discharges. There is fair evidence, as shown above, that the latter two groups are rather different from the first three. There is also a case for removing the Model 2 hospitals, which account for  small proportion of total admissions, and serve rather different roles. Following discussion with the team, the `r table(HIPE$ModelF)[[3]]` Model 2 discharges were removed from the saved HIPE file. We also remove the corresponding factor levels from both the national HIPE file, and the chart review site file.
-
 
 ```{r Drop Model 2 specialist and maternity hospitals and corresponding factor levels}
 
