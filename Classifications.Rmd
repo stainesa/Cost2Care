@@ -1346,7 +1346,7 @@ ROC <- autoplot(PN_pred, type='roc')
   Threshold
   PN_pred$set_threshold(Threshold$Threshold)
 
-PN_pred.H <- PN_trained$predict_newdata(HIPE.Trimmed, tsk_PN)
+PN_pred.H <- PN_trained$predict_newdata(HIPE, tsk_PN)
   
 PN_pred.H$set_threshold(Threshold$Threshold)
     autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_layout(ncol = 2) +  
