@@ -59,7 +59,8 @@ library(gtsummary)
 
 tidymodels_prefer(quiet = TRUE)
 
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.lazy = FALSE, 
+knitr::opts_chunk$set(echo = FALSE,
+                      cache = FALSE, cache.lazy = FALSE, 
                       warning = NA, message = NA, fig.pos = 'H',
                       cache.extra = knitr::rand_seed)
 
@@ -1124,6 +1125,8 @@ lrn_T
 
 ## ROC curves
 
+### For full models
+
 ```{r ROC curves}
 roc_PN <- autoplot(rr_PN.rng, type = 'roc')
 roc_UTI <- autoplot(rr_UTI.rng, type = 'roc')
@@ -1141,6 +1144,8 @@ roc_PN + roc_UTI + plot_spacer()+ roc_PU + roc_DL + roc_F2M +
                   tag_levels = list(c('PN','UTI','PU','DL','F2M')))
 
 ```
+
+### For limited models
 
 ```{r ROCk curves}
 roc_PNk <- autoplot(rr_PNk.rng, type = 'roc')
@@ -1160,6 +1165,8 @@ roc_PNk + roc_UTIk + plot_spacer()+ roc_PUk + roc_DLk + roc_F2Mk +
 
 
 ```
+
+### By outcome, comparing full and restricted models
 
 ```{r ROC curves per outcome}
 
@@ -1194,6 +1201,8 @@ roc_F2M + roc_F2Mk  +
 
 ```
 
+## Model performance measures from resampling
+
 ```{r Resampling measures}
 ## PN
 rr_PN.rng$aggregate(measures)
@@ -1219,7 +1228,7 @@ rr_F2Mk.rng$aggregate(measures)
 
 ## Resampling predictions on test data and confusion matrices
 
-The requirement is to predict the total number of adverse events as well as possible. Direct inspection of the ROC curves suggests that around 0.25 to 0.35 is about right for most. UTI is probably the worst predicted outcome. We use a more formal procedure for the adjusted thresholds, setting it where the difference between sensitivity and specificity are as smalll as possible.
+The requirement is to predict the total number of adverse events as well as possible. Direct inspection of the ROC curves suggests that around 0.25 to 0.35 is about right for most. UTI is probably the worst predicted outcome. We use a more formal procedure for the adjusted thresholds, setting it where the difference between sensitivity and specificity are as small as possible.
 
 ```{r ancillary function for threshold}
 SELECT_THRESHOLD <- function(df) {
@@ -1249,14 +1258,22 @@ pred_UTIk <- rr_UTIk.rng$prediction()
 pred_PUk <- rr_PUk.rng$prediction()
 pred_DLk <- rr_DLk.rng$prediction()
 pred_F2Mk <- rr_F2Mk.rng$prediction()
+```
 
+###PN
+
+```{r Resampling prediction PN}
 ## PN
 Threshold <- SELECT_THRESHOLD(roc_PN$data)
   Threshold
   pred_PN$set_threshold(Threshold$Threshold)
 
 autoplot(pred_PN) + labs(title = paste0('PN Threshold ', round(Threshold$Threshold,3)))
+```
 
+## PNk
+
+```{r Resampling prediction PNk}
 ## PNk
 Threshold <- SELECT_THRESHOLD(roc_PNk$data)
   Threshold
@@ -1264,6 +1281,11 @@ Threshold <- SELECT_THRESHOLD(roc_PNk$data)
 
 autoplot(pred_PNk) + labs(title = paste0('PNk Threshold ', round(Threshold$Threshold,3)))
 
+```
+
+## UTI
+
+```{r Resampling prediction UTI}
 ## UTI
 Threshold <- SELECT_THRESHOLD(roc_UTI$data)
   Threshold
@@ -1271,6 +1293,11 @@ Threshold <- SELECT_THRESHOLD(roc_UTI$data)
 
 autoplot(pred_UTI) + labs(title = paste0('UTI Threshold ', round(Threshold$Threshold,3)))
 
+```
+
+## UTIk
+
+```{r Resampling prediction UTIk}
 ## UTIk
 Threshold <- SELECT_THRESHOLD(roc_UTIk$data)
   Threshold
@@ -1278,7 +1305,11 @@ Threshold <- SELECT_THRESHOLD(roc_UTIk$data)
 
 autoplot(pred_UTIk) + labs(title = paste0('UTIk Threshold ', round(Threshold$Threshold,3)))
 
+```
 
+## PU
+
+```{r Resampling prediction PU}
 ## PU
 Threshold <- SELECT_THRESHOLD(roc_PU$data)
   Threshold
@@ -1286,6 +1317,11 @@ Threshold <- SELECT_THRESHOLD(roc_PU$data)
 
 autoplot(pred_PU) + labs(title = paste0('PU Threshold ', round(Threshold$Threshold,3)))
 
+```
+
+## PUk
+
+```{r Resampling prediction PUk}
 ## PUk
 Threshold <- SELECT_THRESHOLD(roc_PUk$data)
   Threshold
@@ -1293,7 +1329,11 @@ Threshold <- SELECT_THRESHOLD(roc_PUk$data)
 
 autoplot(pred_PUk) + labs(title = paste0('PUk Threshold ', round(Threshold$Threshold,3)))
 
+```
 
+## DL
+
+```{r Resampling prediction DL}
 ## DL
 Threshold <- SELECT_THRESHOLD(roc_DL$data)
   Threshold
@@ -1301,6 +1341,11 @@ Threshold <- SELECT_THRESHOLD(roc_DL$data)
 
 autoplot(pred_DL) + labs(title = paste0('DL Threshold ', round(Threshold$Threshold,3)))
 
+```
+
+## DLk
+
+```{r Resampling prediction DLk}
 ## DLk
 Threshold <- SELECT_THRESHOLD(roc_DLk$data)
   Threshold
@@ -1308,7 +1353,11 @@ Threshold <- SELECT_THRESHOLD(roc_DLk$data)
 
 autoplot(pred_DLk) + labs(title = paste0('DLk Threshold ', round(Threshold$Threshold,3)))
 
+```
 
+## F2M
+
+```{r Resampling prediction F2Mk}
 ## F2M
 Threshold <- SELECT_THRESHOLD(roc_F2M$data)
   Threshold
@@ -1316,6 +1365,11 @@ Threshold <- SELECT_THRESHOLD(roc_F2M$data)
 
 autoplot(pred_F2M) + labs(title = paste0('F2M Threshold ', round(Threshold$Threshold,3)))
 
+```
+
+## F2Mk
+
+```{r Resampling prediction F2Mk}
 ## F2Mk
 Threshold <- SELECT_THRESHOLD(roc_F2Mk$data)
   Threshold
@@ -1325,17 +1379,15 @@ autoplot(pred_F2Mk) + labs(title = paste0('F2Mk Threshold ', round(Threshold$Thr
 
 ```
 
-## Progress
-
-## Training
+# Training and predicting
 
 Thresholds are set to roughly equalise the true number of events in the training set, and the number of events predicted. The threshold is set where the difference between sensitivity and specificity is as small as possible.
 
-# HIPE Predictions
+Predictions are done using the test set, not the training set.
 
 ## PN
 
-```{r PN_predict}
+```{r PN_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_PN)
 PN_trained <- lrn_T$train(tsk_PN, row_ids = split_PN$train)
   PN_pred <- PN_trained$predict(tsk_PN, row_ids = split_PN$test)
@@ -1346,17 +1398,12 @@ ROC <- autoplot(PN_pred, type='roc')
   Threshold
   PN_pred$set_threshold(Threshold$Threshold)
 
-PN_pred.H <- PN_trained$predict_newdata(HIPE, tsk_PN)
-  
-PN_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_layout(ncol = 2) +  
-  plot_annotation(title = 'PN Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
-
+  threshold_PN = Threshold$Threshold
 ```
 
 ## PNk
 
-```{r PNK_predict}
+```{r PNK_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_PNk)
 PNk_trained <- lrn_T$train(tsk_PNk, row_ids = split_PNk$train)
   PNk_pred <- PNk_trained$predict(tsk_PNk, row_ids = split_PNk$test)
@@ -1366,14 +1413,12 @@ ROC <- autoplot(PNk_pred, type='roc')
   Threshold
   PNk_pred$set_threshold(Threshold$Threshold)
 
-PNk_pred.H <- PNk_trained$predict_newdata(HIPE, tsk_PNk)
-  PNk_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PNk Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+  threshold_PNk = Threshold$Threshold
 ```
 
 ## UTI
 
-```{r UTI_predict}
+```{r UTI_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_UTI)
 UTI_trained <- lrn_T$train(tsk_UTI, row_ids = split_UTI$train)
   UTI_pred <- UTI_trained$predict(tsk_UTI, row_ids = split_UTI$test)
@@ -1383,14 +1428,12 @@ ROC <- autoplot(UTI_pred, type='roc')
   Threshold
   UTI_pred$set_threshold(Threshold$Threshold)
 
-UTI_pred.H <- UTI_trained$predict_newdata(HIPE, tsk_UTI)
-  UTI_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(UTI_pred) +  autoplot(UTI_pred, type='roc') + autoplot(UTI_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTI Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+threshold_UTI = Threshold$Threshold
 ```
 
 ## UTIk
 
-```{r UTIk_predict}
+```{r UTIk_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_UTIk)
 UTIk_trained <- lrn_T$train(tsk_UTIk, row_ids = split_UTIk$train)
   UTIk_pred <- UTIk_trained$predict(tsk_UTIk, row_ids = split_UTIk$test)
@@ -1400,14 +1443,12 @@ ROC <- autoplot(UTIk_pred, type='roc')
   Threshold
   UTIk_pred$set_threshold(Threshold$Threshold)
 
-UTIk_pred.H <- UTIk_trained$predict_newdata(HIPE, tsk_UTIk)
-  UTIk_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTIk Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+threshold_UTIk = Threshold$Threshold
 ```
 
 ## PU
 
-```{r PU_predict}
+```{r PU_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_PU)
 PU_trained <- lrn_T$train(tsk_PU, row_ids = split_PU$train)
   PU_pred <- PU_trained$predict(tsk_PU, row_ids = split_PU$test)
@@ -1417,14 +1458,12 @@ ROC <- autoplot(PU_pred, type='roc')
   Threshold
   PU_pred$set_threshold(Threshold$Threshold)
 
-PU_pred.H <- PU_trained$predict_newdata(HIPE, tsk_PU)
-  PU_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(PU_pred) +  autoplot(PU_pred, type='roc') + autoplot(PU_pred.H) + plot_layout(ncol = 2) +    plot_annotation(title = 'PU Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+threshold_PU = Threshold$Threshold
 ```
 
 ## PUk
 
-```{r PUk_predict}
+```{r PUk_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_PUk)
 PUk_trained <- lrn_T$train(tsk_PUk, row_ids = split_PUk$train)
   PUk_pred <- PUk_trained$predict(tsk_PUk, row_ids = split_PUk$test)
@@ -1434,14 +1473,12 @@ ROC <- autoplot(PUk_pred, type='roc')
   Threshold
   PUk_pred$set_threshold(Threshold$Threshold)
 
-PUk_pred.H <- PUk_trained$predict_newdata(HIPE, tsk_PUk)
-  PUk_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PUk Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+threshold_PUk = Threshold$Threshold
 ```
 
 ## DL
 
-```{r DL_predict}
+```{r DL_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_DL)
 DL_trained <- lrn_T$train(tsk_DL, row_ids = split_DL$train)
   DL_pred <- DL_trained$predict(tsk_DL, row_ids = split_DL$test)
@@ -1451,14 +1488,12 @@ ROC <- autoplot(DL_pred, type='roc')
   Threshold
   DL_pred$set_threshold(Threshold$Threshold)
 
-DL_pred.H <- DL_trained$predict_newdata(HIPE, tsk_DL)
-  DL_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(DL_pred) +  autoplot(DL_pred, type='roc') + autoplot(DL_pred.H) + plot_layout(ncol = 2)  +    plot_annotation(title = 'DL Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+threshold_DL = Threshold$Threshold
 ```
 
 ## DLk
 
-```{r DLk_predict}
+```{r DLk_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_DLk)
 DLk_trained <- lrn_T$train(tsk_DLk, row_ids = split_DLk$train)
   DLk_pred <- DLk_trained$predict(tsk_DLk, row_ids = split_DLk$test)
@@ -1468,14 +1503,12 @@ ROC <- autoplot(DLk_pred, type='roc')
   Threshold
   DLk_pred$set_threshold(Threshold$Threshold)
 
-DLk_pred.H <- DLk_trained$predict_newdata(HIPE, tsk_DLk)
-  DLk_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'DLk Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+threshold_DLk = Threshold$Threshold
 ```
 
 ## F2M
 
-```{r F2M_predict}
+```{r F2M_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_F2M)
 F2M_trained <- lrn_T$train(tsk_F2M, row_ids = split_F2M$train)
   F2M_pred <- F2M_trained$predict(tsk_F2M, row_ids = split_F2M$test)
@@ -1485,14 +1518,12 @@ ROC <- autoplot(F2M_pred, type='roc')
   Threshold
   F2M_pred$set_threshold(Threshold$Threshold)
 
-F2M_pred.H <- F2M_trained$predict_newdata(HIPE, tsk_F2M)
-  F2M_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(F2M_pred) +  autoplot(F2M_pred, type='roc') + autoplot(F2M_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'F2M Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+threshold_F2M = Threshold$Threshold
 ```
 
 ## F2Mk
 
-```{r F2Mk_predict}
+```{r F2Mk_train_predict}
       lrn_T <- setMtry(lrn_T, mtry_F2Mk)
 F2Mk_trained <- lrn_T$train(tsk_F2Mk, row_ids = split_F2Mk$train)
   F2Mk_pred <- F2Mk_trained$predict(tsk_F2Mk, row_ids = split_F2Mk$test)
@@ -1502,14 +1533,14 @@ ROC <- autoplot(F2Mk_pred, type='roc')
   Threshold
   F2Mk_pred$set_threshold(Threshold$Threshold)
 
-F2Mk_pred.H <- F2Mk_trained$predict_newdata(HIPE, tsk_F2Mk)
-  F2Mk_pred.H$set_threshold(Threshold$Threshold)
-    autoplot(F2Mk_pred) +  autoplot(F2Mk_pred, type='roc') + autoplot(F2Mk_pred.H) + plot_layout(ncol = 2) +  plot_annotation(title = 'F2Mk Outcome and Predictions', tag_levels = list(c('Counts','ROC')))
+threshold_F2Mk = Threshold$Threshold
 ```
 
-## Measures
+# Measures
 
-```{r Training measures}
+## Training and prediction meaures (grouped)
+
+```{r Training and prediction measures}
 ## PN
 PN_pred$score(measures)
 PNk_pred$score(measures)
@@ -1705,21 +1736,170 @@ ggplot(ImpFinal, aes(x=Importance, y = Variable,
      DL_Imp, DLk_Imp, F2M_Imp, F2Mk_Imp)
 ```
 
+# HIPE and Chart review predictions
+
+Now we use the models trained on the training set, the thresholds from the test set, and we predict the results for the HIPE data, and for the chart review.
+
+```{r Check data}
+HIPE_names <- read_csv('data/HIPE_names.csv')
+HIPE.Trimmed_names <- read_csv('data/HIPE.Trimmed_names.csv')
+tsk_PN_names <- tsk_PN$feature_types
+
+HIPE_names <- HIPE_names |>
+  full_join(tsk_PN_names, by = join_by(Name == id))
+HIPE_names |> filter(Type == '<fct>')
+HIPE.Trimmed_names <- HIPE.Trimmed_names |>
+  full_join(tsk_PN_names, by = join_by(Name == id))
+HIPE.Trimmed_names |> filter(Type == '<fct>')
+
+table(HIPE$Complexity)
+table(HIPE.Trimmed$Complexity)
+table(CCH$Complexity)
+
+
+
+```
+
+## PN
+
+```{r PN_HIPE_predict}}
+
+PN_pred.H <- PN_trained$predict_newdata(HIPE)
+PN_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_layout(ncol = 2) + plot_annotation(title = 'PN Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## PNk
+
+```{r PNK_HIPE_predict}}
+PNk_pred.H <- PNk_trained$predict_newdata(HIPE)
+  PNk_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PNk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## UTI
+
+```{r UTI_HIPE_predict}}
+UTI_pred.H <- UTI_trained$predict_newdata(HIPE)
+  UTI_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(UTI_pred) +  autoplot(UTI_pred, type='roc') + autoplot(UTI_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTI Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## UTIk
+
+```{r UTIk_HIPE_predict}}
+UTIk_pred.H <- UTIk_trained$predict_newdata(HIPE)
+  UTIk_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTIk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## PU
+
+```{r PU_HIPE_predict}}
+PU_pred.H <- PU_trained$predict_newdata(HIPE)
+  PU_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(PU_pred) +  autoplot(PU_pred, type='roc') + autoplot(PU_pred.H) + plot_layout(ncol = 2) +    plot_annotation(title = 'PU Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## PUk
+
+```{r PUk_HIPE_predict}}
+PUk_pred.H <- PUk_trained$predict_newdata(HIPE)
+  PUk_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PUk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## DL
+
+```{r DL_HIPE_predict}}
+DL_pred.H <- DL_trained$predict_newdata(HIPE)
+  DL_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(DL_pred) +  autoplot(DL_pred, type='roc') + autoplot(DL_pred.H) + plot_layout(ncol = 2)  +    plot_annotation(title = 'DL Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## DLk
+
+```{r DLk_HIPE_predict}}
+DLk_pred.H <- DLk_trained$predict_newdata(HIPE)
+  DLk_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'DLk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## F2M
+
+```{r F2M_HIPE_predict}}
+F2M_pred.H <- F2M_trained$predict_newdata(HIPE)
+  F2M_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(F2M_pred) +  autoplot(F2M_pred, type='roc') + autoplot(F2M_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'F2M Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+## F2Mk
+
+```{r F2Mk_HIPE_predict}}
+F2Mk_pred.H <- F2Mk_trained$predict_newdata(HIPE)
+  F2Mk_pred.H$set_threshold(Threshold$Threshold)
+
+autoplot(F2Mk_pred) +  autoplot(F2Mk_pred, type='roc') + autoplot(F2Mk_pred.H) + plot_layout(ncol = 2) +  plot_annotation(title = 'F2Mk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+```
+
+# Assess the predictions
+
 ## Put the predictions together
 
-```{r Accumulate predictions}
+### Chart review
+
+```{r Accumulate chart review predictions}
+dt_PN  <- as_tibble(as.data.table(PN_pred))|>
+  mutate(Outcome = 'PN')
+dt_PNk <- as_tibble(as.data.table(PNk_pred))|>
+  mutate(Outcome = 'PNk')
+
+dt_UTI  <- as_tibble(as.data.table(UTI_pred))|>
+  mutate(Outcome = 'UTI')
+dt_UTIk <- as_tibble(as.data.table(UTIk_pred))|>
+  mutate(Outcome = 'UTIk')
+
+dt_PU  <- as_tibble(as.data.table(PU_pred))|>
+  mutate(Outcome = 'PU')
+dt_PUk <- as_tibble(as.data.table(PUk_pred))|>
+  mutate(Outcome = 'PUk')
+
+dt_DL  <- as_tibble(as.data.table(DL_pred))|>
+  mutate(Outcome = 'DL')
+dt_DLk <- as_tibble(as.data.table(DLk_pred))|>
+  mutate(Outcome = 'DLk')
+
+dt_F2M  <- as_tibble(as.data.table(F2M_pred))|>
+  mutate(Outcome = 'F2M')
+dt_F2Mk <- as_tibble(as.data.table(F2Mk_pred))|>
+  mutate(Outcome = 'F2Mk')
+
+```
+
+### HIPE
+
+```{r Accumulate HIPE predictions}
 CODES <- HIPE |>
   select(HospCode, ModelCode) |>
   rowid_to_column()
 
-dt_PN = as_tibble(
+dt_PN.H = as_tibble(
   bind_cols(
     as.data.table(PN_pred.H$response),
     as.data.table(PN_pred.H$prob))) |>
   rowid_to_column() |>
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'PN')
-dt_PNk = as_tibble(
+dt_PNk.H = as_tibble(
   bind_cols(
     as.data.table(PNk_pred.H$response),
     as.data.table(PNk_pred.H$prob))) |>
@@ -1727,15 +1907,14 @@ dt_PNk = as_tibble(
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'PNk')
 
-
-dt_UTI = as_tibble(
+dt_UTI.H = as_tibble(
   bind_cols(
     as.data.table(UTI_pred.H$response),
     as.data.table(UTI_pred.H$prob))) |>
   rowid_to_column() |>
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'UTI')
-dt_UTIk = as_tibble(
+dt_UTIk.H = as_tibble(
   bind_cols(
     as.data.table(UTIk_pred.H$response),
     as.data.table(UTIk_pred.H$prob))) |>
@@ -1743,14 +1922,14 @@ dt_UTIk = as_tibble(
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'UTIk')
 
-dt_PU = as_tibble(
+dt_PU.H = as_tibble(
   bind_cols(
     as.data.table(PU_pred.H$response),
     as.data.table(PU_pred.H$prob))) |>
   rowid_to_column() |>
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'PU')
-dt_PUk = as_tibble(
+dt_PUk.H = as_tibble(
   bind_cols(
     as.data.table(PUk_pred.H$response),
     as.data.table(PUk_pred.H$prob))) |>
@@ -1758,14 +1937,14 @@ dt_PUk = as_tibble(
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'PUk')
 
-dt_DL = as_tibble(
+dt_DL.H = as_tibble(
   bind_cols(
     as.data.table(DL_pred.H$response),
     as.data.table(DL_pred.H$prob))) |>
   rowid_to_column() |>
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'DL')
-dt_DLk = as_tibble(
+dt_DLk.H = as_tibble(
   bind_cols(
     as.data.table(DLk_pred.H$response),
     as.data.table(DLk_pred.H$prob))) |>
@@ -1773,32 +1952,20 @@ dt_DLk = as_tibble(
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'DLk')
 
-dt_F2M = as_tibble(
+dt_F2M.H = as_tibble(
   bind_cols(
     as.data.table(F2M_pred.H$response),
     as.data.table(F2M_pred.H$prob))) |>
   rowid_to_column() |>
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'F2M')
-dt_F2Mk = as_tibble(
+dt_F2Mk.H = as_tibble(
   bind_cols(
     as.data.table(F2Mk_pred.H$response),
     as.data.table(F2Mk_pred.H$prob))) |>
   rowid_to_column() |>
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'F2Mk')
-
-Test_predictions <- bind_rows(dt_PN, dt_PNk,
-                              dt_UTI, dt_UTIk,
-                              dt_PU, dt_PUk,
-                              dt_DL, dt_DLk,
-                              dt_F2M, dt_F2Mk,
-                              ) |>
-  mutate(Prediction = V1) |>
-  select(-V1) |>
-  group_by(Outcome)
-
-Test_predictions_nested <- Test_predictions |> group_by(Outcome) |> nest()
 
 ```
 
@@ -1811,31 +1978,37 @@ We've three sets of predictions
 
 We want these
 
+* For the review data
 * Nationally
 * By hospital
 
-```{r}
+The only 'ground truth' we have is the review data.
 
-
-
-
+```{r Summary of HIPE predictions}
 Test_predictions <- bind_rows(dt_PN, dt_PNk,
                               dt_UTI, dt_UTIk,
                               dt_PU, dt_PUk,
                               dt_DL, dt_DLk,
                               dt_F2M, dt_F2Mk,
                               ) |>
-  mutate(Prediction = V1) |>
-  select(-V1)
+  rename(Prediction = response) |>
+  rename(Truth = truth)
 
-Test_predictions_nested <- Test_predictions |> group_by(Outcome) |> nest()
+Test_predictions.H <- bind_rows(dt_PN.H, dt_PNk.H,
+                              dt_UTI.H, dt_UTIk.H,
+                              dt_PU.H, dt_PUk.H,
+                              dt_DL.H, dt_DLk.H,
+                              dt_F2M.H, dt_F2Mk.H,
+                              ) |>
+  rename(Prediction = V1)
+
+Test_predictions.H_nested <- Test_predictions |> group_by(Outcome) |> nest()
 
 Test_predictions |>
   count(Prediction) %>% 
   mutate(prop = n/sum(n)) %>%
   mutate(Pct = round(100*prop,2)) %>%
   filter(Prediction == 'Yes')
-
 
 Test_predictions |>
   group_by(HospCode, Outcome) |>
@@ -1876,5 +2049,3 @@ Proportions.H |>
 Proportions.Hk |>
   mutate(across(everything(), ~(round(. * 100,1)))) # %
 
-
-```
