@@ -234,90 +234,131 @@ saveRDS(HIPE.Trimmed,'data/HIPE.Trimmed.Rds')
 tsk_PN <- as_task_classif(CCH %>%
   select(-c(UTI, PU, DL, F2M, rawlos)), # Outcomes from review,
                          target = "PN",
+                         stratum = "PN",
                          positive = "Yes",
                          weights = "Weights",
                          id = 'PN')
   split_PN = mlr3::partition(tsk_PN)
-
+  
+    table(CCH$PN[split_PN$train])
+    table(CCH$PN[split_PN$test])
+    
 tsk_PNk <- as_task_classif(CCH %>%
   select(-c(UTI, PU, DL, F2M, rawlos)), # Outcomes from review,
                          target = "PN",
+                         stratum = "PN",
                          positive = "Yes",
                          weights="Weights",
                          id = 'PNk')
   split_PNk = mlr3::partition(tsk_PNk)
+  
+    table(CCH$PN[split_PNk$train])
+    table(CCH$PN[split_PNk$test])
+    
   
 #################################################
 # UTI
 tsk_UTI <- as_task_classif(CCH %>%
   select(-c(PN, PU, DL, F2M, rawlos)), # Outcomes from review,
                          target = "UTI",
+                         stratum = "UTI",
                          positive = "Yes",
                          weights="Weights",
                          id = 'UTI')
   split_UTI = mlr3::partition(tsk_UTI)
+  
+    table(CCH$UTI[split_UTI$train])
+    table(CCH$UTI[split_UTI$test])
 
 tsk_UTIk <- as_task_classif(CCH %>%
   select(-c(PN, PU, DL, F2M, rawlos)), # Outcomes from review,
                          target = "UTI",
+                         stratum = "UTI",
                          positive = "Yes",
                          weights="Weights",
                          id = 'UTIk')
   split_UTIk = mlr3::partition(tsk_UTIk)
+  
+    table(CCH$UTI[split_UTIk$train])
+    table(CCH$UTI[split_UTIk$test])
 
 #################################################
 # PU
 tsk_PU <- as_task_classif(CCH %>%
   select(-c(PN, UTI, DL, F2M, rawlos)), # Outcomes from review,
                          target = "PU",
+                         stratum = "PU",
                          positive = "Yes",
                          weights="Weights",
                          id = 'PU')
   split_PU = mlr3::partition(tsk_PU)
+  
+    table(CCH$PU[split_PU$train])
+    table(CCH$PU[split_PU$test])
 
 tsk_PUk <- as_task_classif(CCH %>%
   select(-c(PN, UTI, DL, F2M, rawlos)), # Outcomes from review,
                          target = "PU",
+                         stratum = "PU",
                          positive = "Yes",
                          weights="Weights",
                          id = 'PUk')
   split_PUk = mlr3::partition(tsk_PUk)
+  
+    table(CCH$PU[split_PUk$train])
+    table(CCH$PU[split_PUk$test])
 
 #################################################
 # DL
 tsk_DL <- as_task_classif(CCH %>%
   select(-c(PN, UTI, PU, F2M, rawlos)), # Outcomes from review,
                          target = "DL",
+                         stratum = "DL",
                          positive = "Yes",
                          weights="Weights",
                          id = 'DL')
   split_DL = mlr3::partition(tsk_DL)
+  
+    table(CCH$DL[split_DL$train])
+    table(CCH$DL[split_DL$test])
 
 tsk_DLk <- as_task_classif(CCH %>%
   select(-c(PN, UTI, PU, F2M, rawlos)), # Outcomes from review,
                          target = "DL",
+                         stratum = "DL",
                          positive = "Yes",
                          weights="Weights",
                          id = 'DLk')
   split_DLk = mlr3::partition(tsk_DLk)
+  
+    table(CCH$DL[split_DLk$train])
+    table(CCH$DL[split_DLk$test])
 
 #################################################
 # F2M
 tsk_F2M <- as_task_classif(CCH %>%
   select(-c(PN, UTI, PU, DL, rawlos)), # Outcomes from review,
                          target = "F2M",
+                         stratum = "F2M",
                          positive = "Yes",
                          weights="Weights",
                          id = 'F2M')
   split_F2M = mlr3::partition(tsk_F2M)
+  
+    table(CCH$F2M[split_F2M$train])
+    table(CCH$F2M[split_F2M$test])
 
 tsk_F2Mk <- as_task_classif(CCH %>%
   select(-c(PN, UTI, PU, DL, rawlos)), # Outcomes from review,
                          target = "F2M",
+                         stratum = "F2M",
                          positive = "Yes",
                          weights="Weights",
                          id = 'F2Mk')
   split_F2Mk = mlr3::partition(tsk_F2Mk)
+  
+    table(CCH$F2M[split_F2Mk$train])
+    table(CCH$F2M[split_F2Mk$test])
 
 ```  
 
@@ -456,7 +497,6 @@ UTI + UTIk
 PU  + PUk
 DL  + DLk
 F2M + F2Mk
-
 
 ###########
 # Tibble
@@ -2002,13 +2042,27 @@ Test_predictions.H <- bind_rows(dt_PN.H, dt_PNk.H,
 
 Test_predictions.H_nested <- Test_predictions |> group_by(Outcome) |> nest()
 
-Test_predictions |>
+Truth <- Test_predictions |>
+  group_by(Outcome) |>
+  count(Truth) %>% 
+  mutate(prop = n/sum(n)) %>%
+  mutate(pct = round(100*prop, 2)) %>%
+  rename(Result = Truth)
+
+Prediction <- Test_predictions |>
+  group_by(Outcome) |>
   count(Prediction) %>% 
   mutate(prop = n/sum(n)) %>%
-  mutate(Pct = round(100*prop,2)) %>%
-  filter(Prediction == 'Yes')
+  mutate(pct = round(100*prop, 2)) %>%
+  rename(Result = Prediction)
 
-Test_predictions |>
+Chart_review <- Truth |>
+  full_join(Prediction,
+            by = join_by(Outcome, Result),
+            suffix = c('.T','.P')) |>
+  arrange(Outcome, Result, n.T, n.P, prop.T, prop.P, pct.T, pct.P)
+
+Test_predictions.H |>
   group_by(HospCode, Outcome) |>
   count(Prediction) %>% 
   mutate(prop = n/sum(n)) %>%
