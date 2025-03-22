@@ -1756,8 +1756,6 @@ table(HIPE$Complexity)
 table(HIPE.Trimmed$Complexity)
 table(CCH$Complexity)
 
-
-
 ```
 
 ## PN
@@ -1765,7 +1763,7 @@ table(CCH$Complexity)
 ```{r PN_HIPE_predict}}
 
 PN_pred.H <- PN_trained$predict_newdata(HIPE)
-PN_pred.H$set_threshold(Threshold$Threshold)
+PN_pred.H$set_threshold(threshold_PN)
 
 autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_layout(ncol = 2) + plot_annotation(title = 'PN Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1774,7 +1772,7 @@ autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_
 
 ```{r PNK_HIPE_predict}}
 PNk_pred.H <- PNk_trained$predict_newdata(HIPE)
-  PNk_pred.H$set_threshold(Threshold$Threshold)
+  PNk_pred.H$set_threshold(threshold_PNk)
 
 autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PNk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1783,7 +1781,7 @@ autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + pl
 
 ```{r UTI_HIPE_predict}}
 UTI_pred.H <- UTI_trained$predict_newdata(HIPE)
-  UTI_pred.H$set_threshold(Threshold$Threshold)
+  UTI_pred.H$set_threshold(threshold_UTI)
 
 autoplot(UTI_pred) +  autoplot(UTI_pred, type='roc') + autoplot(UTI_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTI Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1792,7 +1790,7 @@ autoplot(UTI_pred) +  autoplot(UTI_pred, type='roc') + autoplot(UTI_pred.H) + pl
 
 ```{r UTIk_HIPE_predict}}
 UTIk_pred.H <- UTIk_trained$predict_newdata(HIPE)
-  UTIk_pred.H$set_threshold(Threshold$Threshold)
+  UTIk_pred.H$set_threshold(threshold_UTIk)
 
 autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTIk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1801,7 +1799,7 @@ autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) +
 
 ```{r PU_HIPE_predict}}
 PU_pred.H <- PU_trained$predict_newdata(HIPE)
-  PU_pred.H$set_threshold(Threshold$Threshold)
+  PU_pred.H$set_threshold(threshold_PU)
 
 autoplot(PU_pred) +  autoplot(PU_pred, type='roc') + autoplot(PU_pred.H) + plot_layout(ncol = 2) +    plot_annotation(title = 'PU Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1810,7 +1808,7 @@ autoplot(PU_pred) +  autoplot(PU_pred, type='roc') + autoplot(PU_pred.H) + plot_
 
 ```{r PUk_HIPE_predict}}
 PUk_pred.H <- PUk_trained$predict_newdata(HIPE)
-  PUk_pred.H$set_threshold(Threshold$Threshold)
+  PUk_pred.H$set_threshold(threshold_PUk)
 
 autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PUk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1819,7 +1817,7 @@ autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + pl
 
 ```{r DL_HIPE_predict}}
 DL_pred.H <- DL_trained$predict_newdata(HIPE)
-  DL_pred.H$set_threshold(Threshold$Threshold)
+  DL_pred.H$set_threshold(threshold_DL)
 
 autoplot(DL_pred) +  autoplot(DL_pred, type='roc') + autoplot(DL_pred.H) + plot_layout(ncol = 2)  +    plot_annotation(title = 'DL Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1828,7 +1826,7 @@ autoplot(DL_pred) +  autoplot(DL_pred, type='roc') + autoplot(DL_pred.H) + plot_
 
 ```{r DLk_HIPE_predict}}
 DLk_pred.H <- DLk_trained$predict_newdata(HIPE)
-  DLk_pred.H$set_threshold(Threshold$Threshold)
+  DLk_pred.H$set_threshold(threshold_DLk)
 
 autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'DLk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1837,7 +1835,7 @@ autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + pl
 
 ```{r F2M_HIPE_predict}}
 F2M_pred.H <- F2M_trained$predict_newdata(HIPE)
-  F2M_pred.H$set_threshold(Threshold$Threshold)
+  F2M_pred.H$set_threshold(threshold_F2M)
 
 autoplot(F2M_pred) +  autoplot(F2M_pred, type='roc') + autoplot(F2M_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'F2M Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1846,7 +1844,7 @@ autoplot(F2M_pred) +  autoplot(F2M_pred, type='roc') + autoplot(F2M_pred.H) + pl
 
 ```{r F2Mk_HIPE_predict}}
 F2Mk_pred.H <- F2Mk_trained$predict_newdata(HIPE)
-  F2Mk_pred.H$set_threshold(Threshold$Threshold)
+  F2Mk_pred.H$set_threshold(threshold_F2M)
 
 autoplot(F2Mk_pred) +  autoplot(F2Mk_pred, type='roc') + autoplot(F2Mk_pred.H) + plot_layout(ncol = 2) +  plot_annotation(title = 'F2Mk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
