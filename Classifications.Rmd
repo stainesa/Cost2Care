@@ -1094,9 +1094,9 @@ lrn_T <- setMtry(lrn_T, 15)
 lrn_T
 ```
 
-## Run Models
+# Run Models
 
-### Resampling
+## Resampling
 
 ```{r Run all 5 full models for the two learners}
 rr_PN.f    = resample(tsk_PN, lrn_featureless, cv10, store_models = TRUE, store_backends =TRUE)
@@ -1163,7 +1163,7 @@ rr_F2Mk.rng = resample(tsk_F2Mk, lrn_T, cv10, store_models = TRUE, store_backend
 lrn_T
 ```
 
-## ROC curves
+### ROC curves
 
 ### For full models
 
@@ -1780,24 +1780,6 @@ ggplot(ImpFinal, aes(x=Importance, y = Variable,
 
 Now we use the models trained on the training set, the thresholds from the test set, and we predict the results for the HIPE data, and for the chart review.
 
-```{r Check data}
-HIPE_names <- read_csv('data/HIPE_names.csv')
-HIPE.Trimmed_names <- read_csv('data/HIPE.Trimmed_names.csv')
-tsk_PN_names <- tsk_PN$feature_types
-
-HIPE_names <- HIPE_names |>
-  full_join(tsk_PN_names, by = join_by(Name == id))
-HIPE_names |> filter(Type == '<fct>')
-HIPE.Trimmed_names <- HIPE.Trimmed_names |>
-  full_join(tsk_PN_names, by = join_by(Name == id))
-HIPE.Trimmed_names |> filter(Type == '<fct>')
-
-table(HIPE$Complexity)
-table(HIPE.Trimmed$Complexity)
-table(CCH$Complexity)
-
-```
-
 ## PN
 
 ```{r PN_HIPE_predict}}
@@ -2059,8 +2041,42 @@ Prediction <- Test_predictions |>
 Chart_review <- Truth |>
   full_join(Prediction,
             by = join_by(Outcome, Result),
-            suffix = c('.T','.P')) |>
-  arrange(Outcome, Result, n.T, n.P, prop.T, prop.P, pct.T, pct.P)
+            suffix = c('.True','.Predicted')) |>
+    pivot_longer(cols = n.True:pct.Predicted,
+            cols_vary = "slowest",
+            names_to = c(".value", "Type"),
+            names_sep = "\\.",
+            names_repair = 'unique') |>
+  arrange(Outcome, Result, Type, n, prop, pct) |>
+  ungroup() |>
+  mutate(prop.lower = qbeta(0.95/2,
+                            n+0.5,
+                            330-n+0.5)) |>
+  mutate(prop.upper = qbeta(1-0.95/2,
+                            n+0.5,
+                            330-n+0.5))
+
+ggplot(Chart_review,
+       aes(x = Outcome,
+           y = prop,
+           colour = Type,
+           shape  = Result)) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(ymin = prop.lower,
+        ymax = prop.upper), colour = 'gray') +
+  theme_minimal() +
+#  scale_color_discrete() +
+  scale_colour_brewer(palette = "Dark2") +
+  scale_y_continuous(labels = scales::label_percent()) +
+  labs(title = "True and predicted values for Chart review TEST set",
+       y = 'Percentage')
+
+```
+
+This shows the observed values, and the predictions from our models for each outcome (DL to UTIk), for the two sets of random forest models, those with a limited number of variables (DLk to UTIk), and those with almost all variables (DL to UTI).
+
+Most of the models do reasonably well on this test, but the models for UTI grossly underestimate the prevalence of UTI in the test data, and those for F2M significantly overestimate the prevalence. 
 
 Test_predictions.H |>
   group_by(HospCode, Outcome) |>
