@@ -2022,7 +2022,7 @@ Test_predictions.H <- bind_rows(dt_PN.H, dt_PNk.H,
                               ) |>
   rename(Prediction = V1)
 
-Test_predictions.H_nested <- Test_predictions |> group_by(Outcome) |> nest()
+Test_predictions.H_nested <- Test_predictions.H |> group_by(Outcome) |> nest()
 
 Truth <- Test_predictions |>
   group_by(Outcome) |>
@@ -2055,7 +2055,17 @@ Chart_review <- Truth |>
   mutate(prop.upper = qbeta(1-0.95/2,
                             n+0.5,
                             330-n+0.5))
+```
 
+## Prediction and observed results from the Test data
+
+For each outcome separate test and training datasets were selected, stratified by outcome, so that test and training sets would have approximately the same proportion of their outcomes in each pair. For each training data set two models were developed, guided by the overall permutation importance of the potential predictor variables. there are referred to as the full model which included all 52 variables, and the restricted models, which excluded variable with a permutation importance under 0.0001. From each of these 10 trained model, predictions for the test data and the overall HIPE data were calculated.
+
+The underlying random forest model is a classifier, but it generates two predictions, for each record. The first is the probability of that record being in the positive class, which here corresponds to one of the five adverse outcomes. The second is an estimate of whether that record is classified into the positive class or not.
+
+This decision, in turn, depends on the choice of a threshold, a cutoff of probability above which the record is classified as positive and below which it is classified as negative. The default cutoff is 0.5, but this has been adjusted to the cutoff from the ROC curve, which minimise the difference between the sensitivity and the specificity (1. Jiménez-Valverde A, Lobo JM. Threshold criteria for conversion of probability of species presence to either–or presence–absence. Acta Oecologica. 2007 May 1;31(3):361–9). These thresholds, derived as part of the analysis above, are used in the class prediction here.
+
+```{r Chart of predictions and truths}
 ggplot(Chart_review,
        aes(x = Outcome,
            y = prop,
@@ -2078,13 +2088,67 @@ This shows the observed values, and the predictions from our models for each out
 
 Most of the models do reasonably well on this test, but the models for UTI grossly underestimate the prevalence of UTI in the test data, and those for F2M significantly overestimate the prevalence. 
 
-A different way of looking at the same model is to look at the estimated probabilities.
+A different way of looking at the same model is to look at density of the estimated probabilities.
 
+```{r Density chart of predictions}
+TP <- Test_predictions |>
+  mutate(Model = ifelse(str_detect(Outcome, 'k'), 'Restricted', 'Full')) |>
+  mutate(Outcome = str_remove(Outcome,'k'))
 
-```{r}
+TP.prob <- TP |>
+  group_by(Model, Outcome) |>
+  summarise(Prob = sum(prob.Yes)/330)
 
+CR <- Chart_review |>
+  filter(Type == 'True' & Result == 'Yes') |>
+  mutate(Model =
+     ifelse(str_detect(Outcome, 'k'),
+            'Restricted', 'Full')) |>
+   mutate(Outcome = str_remove(Outcome,'k'))
+
+RESULT_test <- TP.prob |>
+  full_join(CR, by = join_by(Model, Outcome)) |>
+  mutate(Ratio = 100 * round(Prob/prop,4)) |>
+  mutate(Prob = 100 * round(Prob,4)) |>
+  select(Model, Outcome, Prob, pct, Ratio, everything())
+
+ggplot(TP, aes(fill = Outcome)) +
+  geom_density(aes(x = prob.Yes)) +
+  geom_vline(data = CR, #   TRUTH from chart review test
+          aes(xintercept = prop),
+          colour = 'green',
+          linewidth = 1) +
+  geom_vline(data = TP.prob, #  PREDICTED from chart review test
+          aes(xintercept = Prob, colour = Outcome),
+          linewidth = 1) +
+  facet_wrap(~ Outcome + Model, scales = 'free_y') +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Dark2", guide = 'none') +
+  scale_colour_brewer(palette = "Dark2", guide = 'none') +
+  scale_x_continuous(labels = scales::label_percent(), limits = c(0,0.4)) +
+  labs(title = "Predicted probabilities for Chart review TEST set",
+       subtitle  = 'Vertical lines are observed results, and predicited results',
+       x = 'Probability of Yes',
+       y = 'Density')
 
 ```
+
+These predictions are better, perhaps because they do not depend on setting an arbitrary threshold for decision. In this setting, where essentially, we are modelling individual level risk, the most reasonable approach is to add these together for the population under study. Here that population is the 330 cases in the test dataset.
+
+```{r}
+RESULT_test |>
+  select(Model:Ratio) |>
+  rename(Predicted = Prob) |>
+  rename(Truth = pct) |>
+  kable()
+
+```
+
+## Prediction from the HIPE data
+
+```{r}
+```
+
 
 Test_predictions.H |>
   group_by(HospCode, Outcome) |>
