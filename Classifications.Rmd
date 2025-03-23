@@ -1439,6 +1439,8 @@ ROC <- autoplot(PN_pred, type='roc')
   PN_pred$set_threshold(Threshold$Threshold)
 
   threshold_PN = Threshold$Threshold
+  
+PN_pred.H <- PN_trained$predict_newdata(HIPE)
 ```
 
 ## PNk
@@ -1454,6 +1456,8 @@ ROC <- autoplot(PNk_pred, type='roc')
   PNk_pred$set_threshold(Threshold$Threshold)
 
   threshold_PNk = Threshold$Threshold
+  
+PNk_pred.H <- PNk_trained$predict_newdata(HIPE)
 ```
 
 ## UTI
@@ -1469,6 +1473,8 @@ ROC <- autoplot(UTI_pred, type='roc')
   UTI_pred$set_threshold(Threshold$Threshold)
 
 threshold_UTI = Threshold$Threshold
+
+UTI_pred.H <- UTI_trained$predict_newdata(HIPE)
 ```
 
 ## UTIk
@@ -1484,6 +1490,8 @@ ROC <- autoplot(UTIk_pred, type='roc')
   UTIk_pred$set_threshold(Threshold$Threshold)
 
 threshold_UTIk = Threshold$Threshold
+
+UTIk_pred.H <- UTIk_trained$predict_newdata(HIPE)
 ```
 
 ## PU
@@ -1499,6 +1507,8 @@ ROC <- autoplot(PU_pred, type='roc')
   PU_pred$set_threshold(Threshold$Threshold)
 
 threshold_PU = Threshold$Threshold
+
+PU_pred.H <- PU_trained$predict_newdata(HIPE)
 ```
 
 ## PUk
@@ -1514,6 +1524,8 @@ ROC <- autoplot(PUk_pred, type='roc')
   PUk_pred$set_threshold(Threshold$Threshold)
 
 threshold_PUk = Threshold$Threshold
+
+PUk_pred.H <- PUk_trained$predict_newdata(HIPE)
 ```
 
 ## DL
@@ -1529,6 +1541,8 @@ ROC <- autoplot(DL_pred, type='roc')
   DL_pred$set_threshold(Threshold$Threshold)
 
 threshold_DL = Threshold$Threshold
+
+DL_pred.H <- DL_trained$predict_newdata(HIPE)
 ```
 
 ## DLk
@@ -1544,6 +1558,8 @@ ROC <- autoplot(DLk_pred, type='roc')
   DLk_pred$set_threshold(Threshold$Threshold)
 
 threshold_DLk = Threshold$Threshold
+
+DLk_pred.H <- DLk_trained$predict_newdata(HIPE)
 ```
 
 ## F2M
@@ -1559,6 +1575,8 @@ ROC <- autoplot(F2M_pred, type='roc')
   F2M_pred$set_threshold(Threshold$Threshold)
 
 threshold_F2M = Threshold$Threshold
+
+F2M_pred.H <- F2M_trained$predict_newdata(HIPE)
 ```
 
 ## F2Mk
@@ -1574,6 +1592,8 @@ ROC <- autoplot(F2Mk_pred, type='roc')
   F2Mk_pred$set_threshold(Threshold$Threshold)
 
 threshold_F2Mk = Threshold$Threshold
+
+F2Mk_pred.H <- F2Mk_trained$predict_newdata(HIPE)
 ```
 
 # Measures
@@ -1783,8 +1803,6 @@ Now we use the models trained on the training set, the thresholds from the test 
 ## PN
 
 ```{r PN_HIPE_predict}}
-
-PN_pred.H <- PN_trained$predict_newdata(HIPE)
 PN_pred.H$set_threshold(threshold_PN)
 
 autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_layout(ncol = 2) + plot_annotation(title = 'PN Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1793,7 +1811,6 @@ autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_
 ## PNk
 
 ```{r PNK_HIPE_predict}}
-PNk_pred.H <- PNk_trained$predict_newdata(HIPE)
   PNk_pred.H$set_threshold(threshold_PNk)
 
 autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PNk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1802,7 +1819,6 @@ autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + pl
 ## UTI
 
 ```{r UTI_HIPE_predict}}
-UTI_pred.H <- UTI_trained$predict_newdata(HIPE)
   UTI_pred.H$set_threshold(threshold_UTI)
 
 autoplot(UTI_pred) +  autoplot(UTI_pred, type='roc') + autoplot(UTI_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTI Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1811,7 +1827,6 @@ autoplot(UTI_pred) +  autoplot(UTI_pred, type='roc') + autoplot(UTI_pred.H) + pl
 ## UTIk
 
 ```{r UTIk_HIPE_predict}}
-UTIk_pred.H <- UTIk_trained$predict_newdata(HIPE)
   UTIk_pred.H$set_threshold(threshold_UTIk)
 
 autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTIk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1820,7 +1835,6 @@ autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) +
 ## PU
 
 ```{r PU_HIPE_predict}}
-PU_pred.H <- PU_trained$predict_newdata(HIPE)
   PU_pred.H$set_threshold(threshold_PU)
 
 autoplot(PU_pred) +  autoplot(PU_pred, type='roc') + autoplot(PU_pred.H) + plot_layout(ncol = 2) +    plot_annotation(title = 'PU Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1829,7 +1843,6 @@ autoplot(PU_pred) +  autoplot(PU_pred, type='roc') + autoplot(PU_pred.H) + plot_
 ## PUk
 
 ```{r PUk_HIPE_predict}}
-PUk_pred.H <- PUk_trained$predict_newdata(HIPE)
   PUk_pred.H$set_threshold(threshold_PUk)
 
 autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PUk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1838,7 +1851,6 @@ autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + pl
 ## DL
 
 ```{r DL_HIPE_predict}}
-DL_pred.H <- DL_trained$predict_newdata(HIPE)
   DL_pred.H$set_threshold(threshold_DL)
 
 autoplot(DL_pred) +  autoplot(DL_pred, type='roc') + autoplot(DL_pred.H) + plot_layout(ncol = 2)  +    plot_annotation(title = 'DL Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1847,7 +1859,6 @@ autoplot(DL_pred) +  autoplot(DL_pred, type='roc') + autoplot(DL_pred.H) + plot_
 ## DLk
 
 ```{r DLk_HIPE_predict}}
-DLk_pred.H <- DLk_trained$predict_newdata(HIPE)
   DLk_pred.H$set_threshold(threshold_DLk)
 
 autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'DLk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1856,7 +1867,6 @@ autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + pl
 ## F2M
 
 ```{r F2M_HIPE_predict}}
-F2M_pred.H <- F2M_trained$predict_newdata(HIPE)
   F2M_pred.H$set_threshold(threshold_F2M)
 
 autoplot(F2M_pred) +  autoplot(F2M_pred, type='roc') + autoplot(F2M_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'F2M Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1865,8 +1875,7 @@ autoplot(F2M_pred) +  autoplot(F2M_pred, type='roc') + autoplot(F2M_pred.H) + pl
 ## F2Mk
 
 ```{r F2Mk_HIPE_predict}}
-F2Mk_pred.H <- F2Mk_trained$predict_newdata(HIPE)
-  F2Mk_pred.H$set_threshold(threshold_F2M)
+ F2Mk_pred.H$set_threshold(threshold_F2M)
 
 autoplot(F2Mk_pred) +  autoplot(F2Mk_pred, type='roc') + autoplot(F2Mk_pred.H) + plot_layout(ncol = 2) +  plot_annotation(title = 'F2Mk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
@@ -1987,6 +1996,7 @@ dt_F2Mk.H = as_tibble(
   left_join(CODES, by = join_by(rowid)) |>
   mutate(Outcome = 'F2Mk')
 
+
 ```
 
 # Predictions
@@ -2093,10 +2103,10 @@ A different way of looking at the same model is to look at density of the estima
 ```{r Density chart of predictions}
 TP <- Test_predictions |>
   mutate(Model = ifelse(str_detect(Outcome, 'k'), 'Restricted', 'Full')) |>
-  mutate(Outcome = str_remove(Outcome,'k'))
+  mutate(Outcome_name = str_remove(Outcome,'k'))
 
 TP.prob <- TP |>
-  group_by(Model, Outcome) |>
+  group_by(Model, Outcome_name) |>
   summarise(Prob = sum(prob.Yes)/330)
 
 CR <- Chart_review |>
@@ -2104,30 +2114,31 @@ CR <- Chart_review |>
   mutate(Model =
      ifelse(str_detect(Outcome, 'k'),
             'Restricted', 'Full')) |>
-   mutate(Outcome = str_remove(Outcome,'k'))
+   mutate(Outcome_name = str_remove(Outcome,'k'))
 
 RESULT_test <- TP.prob |>
-  full_join(CR, by = join_by(Model, Outcome)) |>
+  full_join(CR, by = join_by(Model, Outcome_name)) |>
   mutate(Ratio = 100 * round(Prob/prop,4)) |>
   mutate(Prob = 100 * round(Prob,4)) |>
-  select(Model, Outcome, Prob, pct, Ratio, everything())
+  select(Model, Outcome_name, Prob, pct, Ratio, everything())
 
-ggplot(TP, aes(fill = Outcome)) +
+ggplot(TP, aes(fill = Outcome_name)) +
   geom_density(aes(x = prob.Yes)) +
   geom_vline(data = CR, #   TRUTH from chart review test
           aes(xintercept = prop),
           colour = 'green',
           linewidth = 1) +
   geom_vline(data = TP.prob, #  PREDICTED from chart review test
-          aes(xintercept = Prob, colour = Outcome),
+          aes(xintercept = Prob,
+          colour = Outcome_name),
           linewidth = 1) +
-  facet_wrap(~ Outcome + Model, scales = 'free_y') +
+  facet_wrap(~ Outcome_name + Model, scales = 'free_y') +
   theme_minimal() +
   scale_fill_brewer(palette = "Dark2", guide = 'none') +
   scale_colour_brewer(palette = "Dark2", guide = 'none') +
   scale_x_continuous(labels = scales::label_percent(), limits = c(0,0.4)) +
   labs(title = "Predicted probabilities for Chart review TEST set",
-       subtitle  = 'Vertical lines are observed results, and predicited results',
+       subtitle  = 'Vertical lines are observed results, and predicted results',
        x = 'Probability of Yes',
        y = 'Density')
 
@@ -2146,7 +2157,53 @@ RESULT_test |>
 
 ## Prediction from the HIPE data
 
-```{r}
+```{r HIPE predictions}
+# Two new variables
+# Model Full or Restricted
+# Outcome_name 5 values, 'PN', 'UTI', 'PU', 'DL', 'F2M', no k variants
+# 
+
+mean(dt_PN.H$Yes)
+mean(dt_PNk.H$Yes)
+mean(dt_UTI.H$Yes)
+mean(dt_UTIk.H$Yes)
+mean(dt_PU.H$Yes)
+mean(dt_PUk.H$Yes)
+mean(dt_PU.H$Yes)
+mean(dt_PUk.H$Yes)
+mean(dt_DL.H$Yes)
+mean(dt_DLk.H$Yes)
+mean(dt_F2M.H$Yes)
+mean(dt_F2Mk.H$Yes)
+
+Test_predictions.H <- Test_predictions.H |>
+  mutate(Model = ifelse(str_detect(Outcome, 'k'), 'Restricted', 'Full')) |>
+  mutate(Outcome_name = str_remove(Outcome,'k'))
+
+TP.prob.H <- Test_predictions.H |>
+  group_by(Model, Outcome_name) |>
+  summarise(Prob = mean(Yes))
+
+ggplot(Test_predictions.H, aes(fill = Outcome_name)) +
+  geom_density(aes(x = Yes)) +
+  geom_vline(data = CR, #   TRUTH from chart review test for one site
+          aes(xintercept = prop),
+          colour = 'green',
+          linewidth = 1) +
+  geom_vline(data = TP.prob.H, #  PREDICTED from HIPE data for all sites
+          aes(xintercept = Prob,
+          colour = Outcome_name),
+          linewidth = 1) +
+  facet_wrap(~ Outcome_name + Model, scales = 'free_y') +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Dark2", guide = 'none') +
+  scale_colour_brewer(palette = "Dark2", guide = 'none') +
+  scale_x_continuous(labels = scales::label_percent(), limits = c(0,0.4)) +
+  labs(title = "Predicted probabilities for HIPE data",
+       subtitle  = 'Vertical lines are chart review results, and predicted results',
+       x = 'Probability of Yes',
+       y = 'Density')
+
 ```
 
 
