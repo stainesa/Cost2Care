@@ -2078,6 +2078,14 @@ This shows the observed values, and the predictions from our models for each out
 
 Most of the models do reasonably well on this test, but the models for UTI grossly underestimate the prevalence of UTI in the test data, and those for F2M significantly overestimate the prevalence. 
 
+A different way of looking at the same model is to look at the estimated probabilities.
+
+
+```{r}
+
+
+```
+
 Test_predictions.H |>
   group_by(HospCode, Outcome) |>
   count(Prediction) %>% 
