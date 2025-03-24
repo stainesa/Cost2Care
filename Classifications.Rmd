@@ -2146,7 +2146,7 @@ ggplot(TP, aes(fill = Outcome_name)) +
 
 These predictions are better, perhaps because they do not depend on setting an arbitrary threshold for decision. In this setting, where essentially, we are modelling individual level risk, the most reasonable approach is to add these together for the population under study. Here that population is the 330 cases in the test dataset.
 
-```{r}
+```{r Table of results}
 RESULT_test |>
   select(Model:Ratio) |>
   rename(Predicted = Prob) |>
@@ -2163,6 +2163,7 @@ RESULT_test |>
 # Outcome_name 5 values, 'PN', 'UTI', 'PU', 'DL', 'F2M', no k variants
 # 
 
+########## Check means!
 mean(dt_PN.H$Yes)
 mean(dt_PNk.H$Yes)
 mean(dt_UTI.H$Yes)
@@ -2175,14 +2176,17 @@ mean(dt_DL.H$Yes)
 mean(dt_DLk.H$Yes)
 mean(dt_F2M.H$Yes)
 mean(dt_F2Mk.H$Yes)
+############# These are different as they should be
 
 Test_predictions.H <- Test_predictions.H |>
   mutate(Model = ifelse(str_detect(Outcome, 'k'), 'Restricted', 'Full')) |>
   mutate(Outcome_name = str_remove(Outcome,'k'))
 
 TP.prob.H <- Test_predictions.H |>
-  group_by(Model, Outcome_name) |>
-  summarise(Prob = mean(Yes))
+group_by(Model, Outcome_name) |>
+  summarise(Prob = mean(Yes),
+            Prob.lower = Prob - 2*sd(Yes),
+            Prob.upper = Prob + 2*sd(Yes))
 
 ggplot(Test_predictions.H, aes(fill = Outcome_name)) +
   geom_density(aes(x = Yes)) +
@@ -2206,43 +2210,75 @@ ggplot(Test_predictions.H, aes(fill = Outcome_name)) +
 
 ```
 
+The prediction on the HIPE data are shown. These are not so far from the observed results on the chart review data, though this is not a measure of the quality or accuracy of the predictions, rather it is more of a sanity check, an indication than the predictions are not completely wrong.
 
-Test_predictions.H |>
-  group_by(HospCode, Outcome) |>
-  count(Prediction) %>% 
-  mutate(prop = n/sum(n)) %>%
-  mutate(Pct = round(100*prop,2)) %>%
-  filter(Prediction == 'Yes')
+the next step is to examine these at hospital level. There are 17 Model 3 hospitals and 9 Model 4 hospitals in these data. Model 3 hospitals primarily provide routine acute general hospital services. Model 4 hospitals both serve the function of Model 3 hospitals, and, usually several, regional or national speciality services. The number of discharges included from model 3 hospitals ranges from 1779 to 4965, and those in Model 4 centres from 5906 to 8868
+
+```{r Hospital discharge table}
+ctable(HIPE$HospCode, HIPE$ModelF,  weights = rep(1,length(HIPE$ModelF)), prop = 'n', totals = FALSE)
+
 ```
 
-Proportions.H <- Test_predictions |>
-  mutate(across(everything(),
-                ~ (ifelse(. == 'Yes', 1, 0)))) |>
-  mutate(F2Mk_calc = (PN | UTI | PU | DL)) |>
-  mutate(across(everything(),
-                ~ (mean(., na.rm=TRUE)))) |>
-  unique()
+There are 5 types of adverse event, with 2 models per event (full and restricted), for 2 Models of hospital, in a total of 17 Model 3 hospitals, and 9 Model 4 hospitals.
 
-Proportions.Hk <- Test_predictionsk |>
-  mutate(across(everything(),
-                ~ (ifelse(. == 'Yes', 1, 0)))) |>
-  mutate(F2Mk_calc = (PNk | UTIk | PUk | DLk)) |>
-  mutate(across(everything(),
-                ~ (mean(., na.rm=TRUE)))) |>
-  unique()
+```{r}
+TP.H <- Test_predictions.H |>
+  group_by(Outcome_name, Model, ModelCode, HospCode) |>
+  summarise(Prob = mean(Yes)) #|>
 
-Proportions
+TP.Mean <- TP.H |> # Hospital level mean
+  group_by(Outcome_name, Model) |>
+  summarise(Hospital.mean = mean(Prob))
 
-Proportions.H
+TP.H <- TP.H |>
+  right_join(TP.Mean,
+             by = join_by(Outcome_name, Model)) |>
+  mutate(Diff1 = Prob - Hospital.mean)
 
-Proportions.Hk
+TP.H <- TP.H |> # Person level mean
+  right_join(TP.prob.H |> rename(Person.mean = Prob),
+             by = join_by(Outcome_name, Model)) |>
+  mutate(Diff2 = Prob - Person.mean)
 
-Proportions |>
-  mutate(across(everything(), ~(round(. * 100,1)))) # %
+```
 
-Proportions.H |>
-  mutate(across(everything(), ~(round(. * 100,1)))) # %
+The next graph is a plot of the mean of the percentage risk for each adverse event, for the two models, for each of the hospitals.
 
-Proportions.Hk |>
-  mutate(across(everything(), ~(round(. * 100,1)))) # %
+```{Plot of probabilities by hospital}
+ggplot(TP.H,
+       aes(x = Prob, y = Outcome_name,
+           colour = Model)) +
+  geom_point() +
+  facet_wrap(~ HospCode) +
+  theme_minimal() +
+  theme(legend.position = 'bottom') +
+  scale_fill_brewer(palette = "Dark2", guide = 'none') +
+  scale_colour_brewer(palette = "Dark2") + # guide = 'none') +
+  scale_x_continuous(labels = scales::label_percent()) + # limits = c(0,0.4)) +
+  labs(title = 'Risk estimates, by hospital',
+       subtitle = 'Based on chart review trained model, and HIPE data',
+       x = 'Risk',
+       y = 'Outcome')
 
+```
+
+A more informative graph, when it comes to looking at differences between hospitals, is a graph of the differences from the overall mean. A graph against the unweighted hospital level mean is very similar.
+
+```{Plot of differences by hospital}
+ggplot(TP.H,
+       aes(x = Diff2, y = Outcome_name,
+           colour = Model)) +
+  geom_point() +
+  facet_wrap(~ HospCode) +
+  geom_vline(xintercept = 0, colour = 'black') +
+  theme_minimal() +
+  theme(legend.position = 'bottom') +
+  scale_fill_brewer(palette = "Dark2", guide = 'none') +
+  scale_colour_brewer(palette = "Dark2") + # guide = 'none') +
+  scale_x_continuous(labels = scales::label_percent()) + # limits = c(0,0.4)) +
+  labs(title = 'Differences from overall mean risk estimates, by hospital',
+       subtitle = 'Based on chart review trained model, and HIPE data',
+       x = 'Risk',
+       y = 'Outcome')
+
+```
