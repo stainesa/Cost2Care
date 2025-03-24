@@ -1397,7 +1397,7 @@ autoplot(pred_DLk) + labs(title = paste0('DLk Threshold ', round(Threshold$Thres
 
 ## F2M
 
-```{r Resampling prediction F2Mk}
+```{r Resampling prediction F2M}
 ## F2M
 Threshold <- SELECT_THRESHOLD(roc_F2M$data)
   Threshold
