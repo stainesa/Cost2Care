@@ -60,7 +60,7 @@ library(gtsummary)
 tidymodels_prefer(quiet = TRUE)
 
 knitr::opts_chunk$set(echo = FALSE,
-                      cache = FALSE, cache.lazy = FALSE, 
+                      cache = TRUE, cache.lazy = FALSE, 
                       warning = NA, message = NA, fig.pos = 'H',
                       cache.extra = knitr::rand_seed)
 
@@ -405,17 +405,17 @@ flt_Imp = flt("importance", learner = lrn_C)
     PN_Imp <- to_tibble(flt_Imp$scores)
     PN <- autoplot(flt_Imp, title="Prediction for pneumonia") +
       labs(title="Prediction for Pneumonia")
-    PN
-    summary(1000*flt_Imp$scores)
+#    PN
+#    summary(1000*flt_Imp$scores)
     keep.PN = names(which(flt_Imp$scores > 0.0001))
 
 tsk_PNk <- tsk_PNk$select(keep.PN)  
   flt_Imp$calculate(tsk_PNk)
     PNk_Imp <- to_tibble(flt_Imp$scores)
-    summary(1000*flt_Imp$scores)
+#    summary(1000*flt_Imp$scores)
     PNk <- autoplot(flt_Imp, title="Prediction for pneumoniak") +
       labs(title="Prediction for Pneumoniak")
-    PNk
+#    PNk
 
 ###################################################
 #UTI
@@ -423,9 +423,9 @@ tsk_PNk <- tsk_PNk$select(keep.PN)
     UTI_Imp <- to_tibble(flt_Imp$scores)
     UTI <- autoplot(flt_Imp, title="Prediction for UTI") +
       labs(title="Prediction for UTI")
-    UTI
-    1000*flt_Imp$scores
-    summary(1000*flt_Imp$scores)
+#    UTI
+#    1000*flt_Imp$scores
+#    summary(1000*flt_Imp$scores)
     keep.UTI = names(which(flt_Imp$scores > 0.0001))
 
 tsk_UTIk <- tsk_UTIk$select(keep.UTI)  
@@ -433,7 +433,7 @@ tsk_UTIk <- tsk_UTIk$select(keep.UTI)
     UTIk_Imp <- to_tibble(flt_Imp$scores)
     UTIk <- autoplot(flt_Imp, title="Prediction for UTIk") +
       labs(title="Prediction for UTIk")
-    UTIk
+#    UTIk
 
 ###################################################
 #PU
@@ -441,18 +441,18 @@ tsk_UTIk <- tsk_UTIk$select(keep.UTI)
     PU_Imp <- to_tibble(flt_Imp$scores)
     PU <- autoplot(flt_Imp, title="Prediction for Pressure Ulcer") +
       labs(title="Prediction for Pressure Ulcer")
-    PU
-    1000*flt_Imp$scores
-    summary(1000*flt_Imp$scores)
+#    PU
+#    1000*flt_Imp$scores
+#    summary(1000*flt_Imp$scores)
     keep.PU = names(which(flt_Imp$scores > 0.0001))
 
 tsk_PUk <- tsk_PUk$select(keep.PU)  
   flt_Imp$calculate(tsk_PUk)
-    summary(1000*flt_Imp$scores)
+#    summary(1000*flt_Imp$scores)
     PUk_Imp <- to_tibble(flt_Imp$scores)
     PUk <- autoplot(flt_Imp, title="Prediction for Pressure Ulcerk") +
       labs(title="Prediction for Pressure Ulcerk")
-    PUk
+#    PUk
 
 ###################################################
 #DL
@@ -460,9 +460,9 @@ tsk_PUk <- tsk_PUk$select(keep.PU)
     DL_Imp <- to_tibble(flt_Imp$scores)
     DL <- autoplot(flt_Imp, title="Prediction for Delirium") +
       labs(title="Prediction for Delirium")
-    DL
-    1000*flt_Imp$scores
-    summary(1000*flt_Imp$scores)
+#    DL
+#    1000*flt_Imp$scores
+#    summary(1000*flt_Imp$scores)
     keep.DL = names(which(flt_Imp$scores > 0.0001))
 
 tsk_DLk <- tsk_DLk$select(keep.DL)
@@ -470,7 +470,7 @@ tsk_DLk <- tsk_DLk$select(keep.DL)
     DLk_Imp <- to_tibble(flt_Imp$scores)
     DLk <- autoplot(flt_Imp, title="Prediction for Deliriumk") +
       labs(title="Prediction for Deliriumk")
-    DLk
+#    DLk
 
 ###################################################
 #F2M
@@ -478,17 +478,17 @@ tsk_DLk <- tsk_DLk$select(keep.DL)
     F2M_Imp <- to_tibble(flt_Imp$scores)
     F2M <- autoplot(flt_Imp, title="Prediction for F2M") +
       labs(title="Prediction for F2M")
-    F2M
-    summary(1000*flt_Imp$scores)
+#    F2M
+#    summary(1000*flt_Imp$scores)
     keep.F2M = names(which(flt_Imp$scores > 0.0001))
 
 tsk_F2Mk <- tsk_F2Mk$select(keep.F2M)
   flt_Imp$calculate(tsk_F2Mk)
-      summary(1000*flt_Imp$scores)
+#      summary(1000*flt_Imp$scores)
   F2Mk_Imp <- to_tibble(flt_Imp$scores)
     F2Mk <- autoplot(flt_Imp, title="Prediction for F2Mk") +
       labs(title="Prediction for F2Mk")
-    F2Mk
+#    F2Mk
 
 ############
 # Graphs
@@ -1626,7 +1626,7 @@ F2Mk_pred$score(measures)
 ## Importance (again)
 
 ```{r Final importance}
-flt_Imp = flt("importance", learner = lrn_T)
+#flt_Imp = flt("importance", learner = lrn_T)
 #flt_Imp = flt("importance", learner = lrn_C)
 
 #Ancillary function to store importance scores in a tibble
@@ -1644,17 +1644,17 @@ flt_Imp$calculate(tsk_PN)
     PN_Imp <- to_tibble(flt_Imp$scores)
     PN <- autoplot(flt_Imp, title="Prediction for pneumonia") +
       labs(title="Prediction for Pneumonia")
-    PN
-    summary(1000*flt_Imp$scores)
+#    PN
+#    summary(1000*flt_Imp$scores)
     keep.PN = names(which(flt_Imp$scores > 0.0001))
 
   lrn_T <- setMtry(lrn_T, mtry_PNk)
   flt_Imp$calculate(tsk_PNk)
     PNk_Imp <- to_tibble(flt_Imp$scores)
-    summary(1000*flt_Imp$scores)
+#    summary(1000*flt_Imp$scores)
     PNk <- autoplot(flt_Imp, title="Prediction for pneumoniak") +
       labs(title="Prediction for Pneumoniak")
-    PNk
+#    PNk
 
 ###################################################
 #UTI
@@ -1663,9 +1663,9 @@ flt_Imp$calculate(tsk_UTI)
     UTI_Imp <- to_tibble(flt_Imp$scores)
     UTI <- autoplot(flt_Imp, title="Prediction for UTI") +
       labs(title="Prediction for UTI")
-    UTI
-    1000*flt_Imp$scores
-    summary(1000*flt_Imp$scores)
+#    UTI
+#    1000*flt_Imp$scores
+#    summary(1000*flt_Imp$scores)
     keep.UTI = names(which(flt_Imp$scores > 0.0001))
 
     lrn_T <- setMtry(lrn_T, mtry_UTI)
@@ -1675,7 +1675,7 @@ flt_Imp$calculate(tsk_UTI)
     UTIk_Imp <- to_tibble(flt_Imp$scores)
     UTIk <- autoplot(flt_Imp, title="Prediction for UTIk") +
       labs(title="Prediction for UTIk")
-    UTIk
+#   UTIk
 
 ###################################################
 #PU
@@ -1684,9 +1684,9 @@ flt_Imp$calculate(tsk_PU)
     PU_Imp <- to_tibble(flt_Imp$scores)
     PU <- autoplot(flt_Imp, title="Prediction for Pressure Ulcer") +
       labs(title="Prediction for Pressure Ulcer")
-    PU
-    1000*flt_Imp$scores
-    summary(1000*flt_Imp$scores)
+#    PU
+#    1000*flt_Imp$scores
+#    summary(1000*flt_Imp$scores)
     keep.PU = names(which(flt_Imp$scores > 0.0001))
 
   lrn_T <- setMtry(lrn_T, mtry_PUk)
@@ -1695,7 +1695,7 @@ flt_Imp$calculate(tsk_PU)
     PUk_Imp <- to_tibble(flt_Imp$scores)
     PUk <- autoplot(flt_Imp, title="Prediction for Pressure Ulcerk") +
       labs(title="Prediction for Pressure Ulcerk")
-    PUk
+#    PUk
 
 ###################################################
 #DL
@@ -1704,9 +1704,9 @@ flt_Imp$calculate(tsk_DL)
     DL_Imp <- to_tibble(flt_Imp$scores)
     DL <- autoplot(flt_Imp, title="Prediction for Delirium") +
       labs(title="Prediction for Delirium")
-    DL
-    1000*flt_Imp$scores
-    summary(1000*flt_Imp$scores)
+#    DL
+#    1000*flt_Imp$scores
+#    summary(1000*flt_Imp$scores)
     keep.DL = names(which(flt_Imp$scores > 0.0001))
 
   lrn_T <- setMtry(lrn_T, mtry_DLk)
@@ -1714,7 +1714,7 @@ flt_Imp$calculate(tsk_DL)
     DLk_Imp <- to_tibble(flt_Imp$scores)
     DLk <- autoplot(flt_Imp, title="Prediction for Deliriumk") +
       labs(title="Prediction for Deliriumk")
-    DLk
+#    DLk
 
 ###################################################
 #F2M
@@ -1723,8 +1723,8 @@ flt_Imp$calculate(tsk_F2M)
     F2M_Imp <- to_tibble(flt_Imp$scores)
     F2M <- autoplot(flt_Imp, title="Prediction for F2M") +
       labs(title="Prediction for F2M")
-    F2M
-    summary(1000*flt_Imp$scores)
+#    F2M
+#    summary(1000*flt_Imp$scores)
     keep.F2M = names(which(flt_Imp$scores > 0.0001))
 
   lrn_T <- setMtry(lrn_T, mtry_F2Mk)
@@ -1733,7 +1733,7 @@ flt_Imp$calculate(tsk_F2M)
   F2Mk_Imp <- to_tibble(flt_Imp$scores)
     F2Mk <- autoplot(flt_Imp, title="Prediction for F2Mk") +
       labs(title="Prediction for F2Mk")
-    F2Mk
+#    F2Mk
 
 ############
 # Graphs
@@ -1802,15 +1802,15 @@ Now we use the models trained on the training set, the thresholds from the test 
 
 ## PN
 
-```{r PN_HIPE_predict}}
+```{r PN_HIPE_predict}
 PN_pred.H$set_threshold(threshold_PN)
 
-autoplot(PN_pred) +  autoplot(PN_pred, type='roc') + autoplot(PN_pred.H) + plot_layout(ncol = 2) + plot_annotation(title = 'PN Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
+autoplot(PN_pred) +  autoplot(PN_pred, type = 'roc') + autoplot(PN_pred.H) + plot_layout(ncol = 2) + plot_annotation(title =  'PN Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
 ```
 
 ## PNk
 
-```{r PNK_HIPE_predict}}
+```{r PNK_HIPE_predict}
   PNk_pred.H$set_threshold(threshold_PNk)
 
 autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PNk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1818,7 +1818,7 @@ autoplot(PNk_pred) +  autoplot(PNk_pred, type='roc') + autoplot(PNk_pred.H) + pl
 
 ## UTI
 
-```{r UTI_HIPE_predict}}
+```{r UTI_HIPE_predict}
   UTI_pred.H$set_threshold(threshold_UTI)
 
 autoplot(UTI_pred) +  autoplot(UTI_pred, type='roc') + autoplot(UTI_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTI Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1826,7 +1826,7 @@ autoplot(UTI_pred) +  autoplot(UTI_pred, type='roc') + autoplot(UTI_pred.H) + pl
 
 ## UTIk
 
-```{r UTIk_HIPE_predict}}
+```{r UTIk_HIPE_predict}
   UTIk_pred.H$set_threshold(threshold_UTIk)
 
 autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'UTIk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1834,7 +1834,7 @@ autoplot(UTIk_pred) +  autoplot(UTIk_pred, type='roc') + autoplot(UTIk_pred.H) +
 
 ## PU
 
-```{r PU_HIPE_predict}}
+```{r PU_HIPE_predict}
   PU_pred.H$set_threshold(threshold_PU)
 
 autoplot(PU_pred) +  autoplot(PU_pred, type='roc') + autoplot(PU_pred.H) + plot_layout(ncol = 2) +    plot_annotation(title = 'PU Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1842,7 +1842,7 @@ autoplot(PU_pred) +  autoplot(PU_pred, type='roc') + autoplot(PU_pred.H) + plot_
 
 ## PUk
 
-```{r PUk_HIPE_predict}}
+```{r PUk_HIPE_predict}
   PUk_pred.H$set_threshold(threshold_PUk)
 
 autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'PUk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1850,7 +1850,7 @@ autoplot(PUk_pred) +  autoplot(PUk_pred, type='roc') + autoplot(PUk_pred.H) + pl
 
 ## DL
 
-```{r DL_HIPE_predict}}
+```{r DL_HIPE_predict}
   DL_pred.H$set_threshold(threshold_DL)
 
 autoplot(DL_pred) +  autoplot(DL_pred, type='roc') + autoplot(DL_pred.H) + plot_layout(ncol = 2)  +    plot_annotation(title = 'DL Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1858,7 +1858,7 @@ autoplot(DL_pred) +  autoplot(DL_pred, type='roc') + autoplot(DL_pred.H) + plot_
 
 ## DLk
 
-```{r DLk_HIPE_predict}}
+```{r DLk_HIPE_predict}
   DLk_pred.H$set_threshold(threshold_DLk)
 
 autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'DLk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1866,7 +1866,7 @@ autoplot(DLk_pred) +  autoplot(DLk_pred, type='roc') + autoplot(DLk_pred.H) + pl
 
 ## F2M
 
-```{r F2M_HIPE_predict}}
+```{r F2M_HIPE_predict}
   F2M_pred.H$set_threshold(threshold_F2M)
 
 autoplot(F2M_pred) +  autoplot(F2M_pred, type='roc') + autoplot(F2M_pred.H) + plot_layout(ncol = 2)  +  plot_annotation(title = 'F2M Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -1874,7 +1874,7 @@ autoplot(F2M_pred) +  autoplot(F2M_pred, type='roc') + autoplot(F2M_pred.H) + pl
 
 ## F2Mk
 
-```{r F2Mk_HIPE_predict}}
+```{r F2Mk_HIPE_predict}
  F2Mk_pred.H$set_threshold(threshold_F2M)
 
 autoplot(F2Mk_pred) +  autoplot(F2Mk_pred, type='roc') + autoplot(F2Mk_pred.H) + plot_layout(ncol = 2) +  plot_annotation(title = 'F2Mk Outcome and Predictions', tag_levels = list(c('Review', '', 'HIPE')))
@@ -2221,7 +2221,7 @@ ctable(HIPE$HospCode, HIPE$ModelF,  weights = rep(1,length(HIPE$ModelF)), prop =
 
 There are 5 types of adverse event, with 2 models per event (full and restricted), for 2 Models of hospital, in a total of 17 Model 3 hospitals, and 9 Model 4 hospitals.
 
-```{r}
+```{r Calculate mean risks and more}
 TP.H <- Test_predictions.H |>
   group_by(Outcome_name, Model, ModelCode, HospCode) |>
   summarise(Prob = mean(Yes)) #|>
@@ -2244,7 +2244,7 @@ TP.H <- TP.H |> # Person level mean
 
 The next graph is a plot of the mean of the percentage risk for each adverse event, for the two models, for each of the hospitals.
 
-```{Plot of probabilities by hospital}
+```{r Plot of probabilities by hospital}
 ggplot(TP.H,
        aes(x = Prob, y = Outcome_name,
            colour = Model)) +
@@ -2264,7 +2264,7 @@ ggplot(TP.H,
 
 A more informative graph, when it comes to looking at differences between hospitals, is a graph of the differences from the overall mean. A graph against the unweighted hospital level mean is very similar.
 
-```{Plot of differences by hospital}
+```{r Plot of differences by hospital}
 ggplot(TP.H,
        aes(x = Diff2, y = Outcome_name,
            colour = Model)) +
