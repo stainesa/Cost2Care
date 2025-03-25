@@ -752,7 +752,7 @@ return(IMAGE)
 
 ### PN
 
-```{r OPTIMISE PN, eval = FALSE}
+```{r OPTIMISE PN, eval = TRUE}
 
 instance_T = ti(
     task = tsk_PN,
@@ -779,7 +779,7 @@ ggsave("image/PN_image.png",PN_image)
 
 ### PNk
 
-```{r OPTIMISE PNk, eval = FALSE}
+```{r OPTIMISE PNk, eval = TRUE}
 
 instance_T = ti(
     task = tsk_PNk,
@@ -807,7 +807,7 @@ ggsave("image/PNk_image.png",PNk_image)
 
 ### UTI
 
-```{r OPTIMISE UTI, eval = FALSE}
+```{r OPTIMISE UTI, eval = TRUE}
 
 instance_T = ti(
     task = tsk_UTI,
@@ -836,7 +836,7 @@ ggsave("image/UTI_image.png",UTI_image)
 
 ### UTIk
 
-```{r OPTIMISE UTIk, eval = FALSE}
+```{r OPTIMISE UTIk, eval = TRUE}
 
 instance_T = ti(
     task = tsk_UTIk,
@@ -863,7 +863,7 @@ ggsave("image/UTIk_image.png",UTIk_image)
 
 ### PU
 
-```{r OPTIMISE PU, eval = FALSE}
+```{r OPTIMISE PU, eval = TRUE}
 
 instance_T = ti(
     task = tsk_PU,
@@ -890,7 +890,7 @@ ggsave("image/PU_image.png",PU_image)
 
 ### PUk
 
-```{r OPTIMISE PUk, eval = FALSE}
+```{r OPTIMISE PUk, eval = TRUE}
 
 instance_T = ti(
     task = tsk_PUk,
@@ -917,7 +917,7 @@ ggsave("image/PUk_image.png",PUk_image)
 
 ### DL
 
-```{r OPTIMISE DL, eval = FALSE}
+```{r OPTIMISE DL, eval = TRUE}
 
 instance_T = ti(
     task = tsk_DL,
@@ -944,7 +944,7 @@ ggsave("image/DL_image.png",DL_image)
 
 ### DLk
 
-```{r OPTIMISE DLk, eval = FALSE}
+```{r OPTIMISE DLk, eval = TRUE}
 
 instance_T = ti(
     task = tsk_DLk,
@@ -971,7 +971,7 @@ ggsave("image/DLk_image.png",DLk_image)
 
 ### F2M
 
-```{r OPTIMISE F2M, eval = FALSE}
+```{r OPTIMISE F2M, eval = TRUE}
 
 instance_T = ti(
     task = tsk_F2M,
@@ -998,7 +998,7 @@ ggsave("image/F2M_image.png",F2M_image)
 
 ### F2Mk
 
-```{r OPTIMISE F2Mk, eval = FALSE}
+```{r OPTIMISE F2Mk, eval = TRUE}
 
 instance_T = ti(
     task = tsk_F2Mk,
@@ -1025,7 +1025,7 @@ ggsave("image/F2Mk_image.png",F2Mk_image)
 
 ### Merge graphs
 
-```{r Merge optimisation graphs, eval = FALSE}
+```{r Merge optimisation graphs, eval = TRUE}
 PN_image / PNk_image
 UTI_image / UTIk_image
 PU_image / PUk_image
