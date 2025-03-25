@@ -1392,15 +1392,15 @@ H.A <- H.A |> # All Model 3 and Model 4
 Weights <- H.C |>
   full_join(H.S,by = join_by(ModelF, HospCode, MedSurg, AN))  |>
   mutate(Ratio = N.C/N.S) |>
-  mutate(Weight = 1/Ratio) |>
-  mutate(Check = N.C * Weight)
+  mutate(Weights = 1/Ratio) |>
+  mutate(Check = N.C * Weights)
 
 ##############################################################
 # Add the Weight variable to the Cost2Care.HIPE file
 #
 Cost2Care.HIPE <- Cost2Care.HIPE |>
   mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No'))  |>
-  right_join(Weights |> ungroup() |> select(MedSurg, AN, Weight),
+  right_join(Weights |> ungroup() |> select(MedSurg, AN, Weights),
              by = join_by(MedSurg, AN)) |>
   select(-AN)
 ```
