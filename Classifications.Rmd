@@ -414,9 +414,6 @@ tsk_PNk <- tsk_PNk$select(keep.PN)
     PNk <- autoplot(flt_Imp, title="Prediction for pneumoniak") +
       labs(title="Prediction for Pneumoniak")
 #    PNk
-```
-
-```{r}
 
 ###################################################
 #UTI
@@ -435,7 +432,7 @@ tsk_UTIk <- tsk_UTIk$select(keep.UTI)
     UTIk <- autoplot(flt_Imp, title="Prediction for UTIk") +
       labs(title="Prediction for UTIk")
 #    UTIk
-```
+
 ###################################################
 #PU
   flt_Imp$calculate(tsk_PU)
