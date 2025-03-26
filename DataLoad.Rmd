@@ -1403,6 +1403,13 @@ Cost2Care.HIPE <- Cost2Care.HIPE |>
   right_join(Weights |> ungroup() |> select(MedSurg, AN, Weights),
              by = join_by(MedSurg, AN)) |>
   select(-AN)
+
+##############################################################
+# Add the Weight variable to the HIPE file
+#
+HIPE <- HIPE |>
+  mutate(Weights = 1)
+
 ```
 
 ```{r Weights table}
