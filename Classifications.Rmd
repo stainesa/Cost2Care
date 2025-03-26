@@ -16,10 +16,6 @@ bibliography: references.bib
 csl: vancouver.csl
 ---
 
-# Predictions
-
-Prepares predictions for selected outcome variables for the study site file, using the study (chart review) outcomes, and the HIPE predictors.
-
 ```{r setup, include=FALSE}
 rm(list=ls())
 
@@ -84,6 +80,10 @@ lgr::get_logger("bbotk")$set_threshold("error")
 set.seed(979)
 rm(N)
 ```
+
+# Predictions
+
+Prepares predictions for selected outcome variables for the study site file, using the study (chart review) outcomes, and the HIPE predictors.
 
 # Load the merged data file
 This is the chart review file merged with the HIPE file provided by HPO, and the full 2022 HIPE file for discharges in people aged over 65, who spent at least three days in hospital.
@@ -208,20 +208,10 @@ CCH <- Cost2Care.HIPE %>%
          Complexity:Therapeutic.Interventions, # HIPE variables derived by me
          uti:any.f2m.hadx, # Hipe variables derived by HPO
          elem, fullelig, mdc, # HIPE variables
-         Weight # Sampling weights from chart review
-         )
-HIPE.Trimmed <- HIPE %>%
-    select(Source, Died, Destination, rawlos, LosC, # Outcomes from HIPE
-         MedSurg, AgeC, SeasonOfAdmission, # HIPE variables derived by me
-         ProcCount, DxCount, HadxCount, ScoreEl, # HIPE variables derived by me
-         Complexity:Therapeutic.Interventions, # HIPE variables derived by me
-         uti:any.f2m.hadx, # Hipe variables derived by HPO
-         elem, fullelig, mdc, # HIPE variables
-         Weight # Sampling weights from chart review set to NA
+         Weights # Sampling weights from chart review
          )
 
 saveRDS(CCH,'data/CCH.Rds')
-saveRDS(HIPE.Trimmed,'data/HIPE.Trimmed.Rds')
 ```
 
 ## Define the classification tasks
@@ -489,6 +479,19 @@ tsk_F2Mk <- tsk_F2Mk$select(keep.F2M)
     F2Mk <- autoplot(flt_Imp, title="Prediction for F2Mk") +
       labs(title="Prediction for F2Mk")
 #    F2Mk
+
+############
+# Save the tasks to disk
+saveRDS(tsk_PN, 'data/tsk.PN')
+saveRDS(tsk_PNk, 'data/tsk.PNk')
+saveRDS(tsk_UTI, 'data/tsk.UTI')
+saveRDS(tsk_UTIk, 'data/tsk.UTIk')
+saveRDS(tsk_PU, 'data/tsk.PU')
+saveRDS(tsk_PUk, 'data/tsk.PUk')
+saveRDS(tsk_DL, 'data/tsk.DL')
+saveRDS(tsk_DLk, 'data/tsk.DLk')
+saveRDS(tsk_F2M, 'data/tsk.F2M')
+saveRDS(tsk_F2Mk, 'data/tsk.F2Mk')
 
 ############
 # Graphs
