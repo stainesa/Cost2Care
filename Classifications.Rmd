@@ -224,8 +224,9 @@ tsk_PN <- as_task_classif(CCH %>%
                          target = "PN",
                          stratum = "PN",
                          positive = "Yes",
-                         weights = "Weights",
                          id = 'PN')
+  tsk_PN$col_roles$weight = "Weights"
+
   split_PN = mlr3::partition(tsk_PN)
   
     table(CCH$PN[split_PN$train])
@@ -236,8 +237,8 @@ tsk_PNk <- as_task_classif(CCH %>%
                          target = "PN",
                          stratum = "PN",
                          positive = "Yes",
-                         weights="Weights",
                          id = 'PNk')
+  tsk_PNk$col_roles$weight = "Weights"
   split_PNk = mlr3::partition(tsk_PNk)
   
     table(CCH$PN[split_PNk$train])
@@ -251,8 +252,9 @@ tsk_UTI <- as_task_classif(CCH %>%
                          target = "UTI",
                          stratum = "UTI",
                          positive = "Yes",
-                         weights="Weights",
                          id = 'UTI')
+  tsk_UTI$col_roles$weight = "Weights"
+
   split_UTI = mlr3::partition(tsk_UTI)
   
     table(CCH$UTI[split_UTI$train])
@@ -263,8 +265,9 @@ tsk_UTIk <- as_task_classif(CCH %>%
                          target = "UTI",
                          stratum = "UTI",
                          positive = "Yes",
-                         weights="Weights",
                          id = 'UTIk')
+  tsk_UTIk$col_roles$weight = "Weights"
+  
   split_UTIk = mlr3::partition(tsk_UTIk)
   
     table(CCH$UTI[split_UTIk$train])
@@ -277,8 +280,9 @@ tsk_PU <- as_task_classif(CCH %>%
                          target = "PU",
                          stratum = "PU",
                          positive = "Yes",
-                         weights="Weights",
                          id = 'PU')
+  tsk_PU$col_roles$weight = "Weights"
+
   split_PU = mlr3::partition(tsk_PU)
   
     table(CCH$PU[split_PU$train])
@@ -291,6 +295,8 @@ tsk_PUk <- as_task_classif(CCH %>%
                          positive = "Yes",
                          weights="Weights",
                          id = 'PUk')
+  tsk_PUk$col_roles$weight = "Weights"
+  
   split_PUk = mlr3::partition(tsk_PUk)
   
     table(CCH$PU[split_PUk$train])
@@ -303,8 +309,9 @@ tsk_DL <- as_task_classif(CCH %>%
                          target = "DL",
                          stratum = "DL",
                          positive = "Yes",
-                         weights="Weights",
                          id = 'DL')
+  tsk_DL$col_roles$weight = "Weights"
+  
   split_DL = mlr3::partition(tsk_DL)
   
     table(CCH$DL[split_DL$train])
@@ -315,8 +322,9 @@ tsk_DLk <- as_task_classif(CCH %>%
                          target = "DL",
                          stratum = "DL",
                          positive = "Yes",
-                         weights="Weights",
                          id = 'DLk')
+  tsk_DL$col_roles$weight = "Weights"
+
   split_DLk = mlr3::partition(tsk_DLk)
   
     table(CCH$DL[split_DLk$train])
@@ -329,8 +337,9 @@ tsk_F2M <- as_task_classif(CCH %>%
                          target = "F2M",
                          stratum = "F2M",
                          positive = "Yes",
-                         weights="Weights",
                          id = 'F2M')
+  tsk_F2M$col_roles$weight = "Weights"
+
   split_F2M = mlr3::partition(tsk_F2M)
   
     table(CCH$F2M[split_F2M$train])
@@ -341,8 +350,9 @@ tsk_F2Mk <- as_task_classif(CCH %>%
                          target = "F2M",
                          stratum = "F2M",
                          positive = "Yes",
-                         weights="Weights",
                          id = 'F2Mk')
+  tsk_F2M$col_roles$weight = "Weights"
+  
   split_F2Mk = mlr3::partition(tsk_F2Mk)
   
     table(CCH$F2M[split_F2Mk$train])
@@ -404,6 +414,9 @@ tsk_PNk <- tsk_PNk$select(keep.PN)
     PNk <- autoplot(flt_Imp, title="Prediction for pneumoniak") +
       labs(title="Prediction for Pneumoniak")
 #    PNk
+```
+
+```{r}
 
 ###################################################
 #UTI
@@ -422,7 +435,7 @@ tsk_UTIk <- tsk_UTIk$select(keep.UTI)
     UTIk <- autoplot(flt_Imp, title="Prediction for UTIk") +
       labs(title="Prediction for UTIk")
 #    UTIk
-
+```
 ###################################################
 #PU
   flt_Imp$calculate(tsk_PU)
