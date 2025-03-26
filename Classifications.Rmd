@@ -17,7 +17,7 @@ csl: vancouver.csl
 ---
 
 ```{r setup, include=FALSE}
-rm(list=ls())
+rm(list = ls())
 
 library(tidyverse)
 library(lubridate)
