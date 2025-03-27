@@ -1,5 +1,5 @@
 ---
-title: "rstanarm Logistic"
+title: "Bayes predictions"
 author: "Anthony Staines"
 date: "`r Sys.Date()`"
 output:
@@ -110,23 +110,6 @@ TruePlot <- ggplot(CCH |> arrange(PN),
 TruePlot
 ```
 
-Load the tasks to get at the chosen variables
-
-```{r Load tasks}
-tsk_PN   <- readRDS('data/tsk.PN')
-tsk_PNk  <- readRDS('data/tsk.PNk')
-tsk_UTI  <- readRDS('data/tsk.UTI')
-tsk_UTIk <- readRDS('data/tsk.UTIk')
-tsk_PU   <- readRDS('data/tsk.PU')
-tsk_PUk  <- readRDS('data/tsk.PUk')
-tsk_DL   <- readRDS('data/tsk.DL')
-tsk_DLk  <- readRDS('data/tsk.DLk')
-tsk_F2M  <- readRDS('data/tsk.F2M')
-tsk_F2Mk <- readRDS('data/tsk.F2Mk')
-
-tsk_F2Mk$feature_names
-CCH |> select(tsk_F2Mk$feature_names, Weights) |> names() # this is how we subset
-```
 
 Split CCH into training and test sets
 
@@ -155,6 +138,99 @@ pTestYes
 
 ```
 
+Load the tasks to get at the chosen variables
+
+```{r Load tasks}
+tsk_PN   <- readRDS('data/tsk.PN')
+tsk_PNk  <- readRDS('data/tsk.PNk')
+tsk_UTI  <- readRDS('data/tsk.UTI')
+tsk_UTIk <- readRDS('data/tsk.UTIk')
+tsk_PU   <- readRDS('data/tsk.PU')
+tsk_PUk  <- readRDS('data/tsk.PUk')
+tsk_DL   <- readRDS('data/tsk.DL')
+tsk_DLk  <- readRDS('data/tsk.DLk')
+tsk_F2M  <- readRDS('data/tsk.F2M')
+tsk_F2Mk <- readRDS('data/tsk.F2Mk')
+
+tsk_F2Mk$feature_names
+CCH |> select(c(PN,tsk_PNk$feature_names,Weights)) |> names() # this is how we subset
+```
+
+What's where?
+
+```{r}
+LIST = names(CCH)
+NAMES <- as_tibble(LIST) |>
+  rename(NAME = value) 
+
+PN <- as_tibble(tsk_PN$feature_names) |>
+      rename(PN = value)
+PNk <- as_tibble(tsk_PNk$feature_names) |>
+      rename(PNk = value)
+UTI <- as_tibble(tsk_UTI$feature_names) |>
+      rename(UTI = value)
+UTIk <- as_tibble(tsk_UTIk$feature_names) |>
+      rename(UTIk = value)
+PU <- as_tibble(tsk_PU$feature_names) |>
+      rename(PU = value)
+PUk <- as_tibble(tsk_PUk$feature_names) |>
+      rename(PUk = value)
+DL <- as_tibble(tsk_DL$feature_names) |>
+      rename(DL = value)
+DLk <- as_tibble(tsk_DLk$feature_names) |>
+      rename(DLk = value)
+F2M <- as_tibble(tsk_F2M$feature_names) |>
+      rename(F2M = value)
+F2Mk <- as_tibble(tsk_F2Mk$feature_names) |>
+      rename(F2Mk = value)
+
+
+NAMES <- NAMES |>
+  full_join(PN,
+    by = join_by(NAME == PN),
+    suffix = c('','.PN'),
+    keep = TRUE) |>
+  full_join(PNk,
+    by = join_by(NAME == PNk),
+    suffix = c('','.PNk'),
+    keep = TRUE) |>
+  full_join(UTI,
+    by = join_by(NAME == UTI),
+    suffix = c('','.UTI'),
+    keep = TRUE) |>
+  full_join(UTIk,
+    by = join_by(NAME == UTIk),
+    suffix = c('','.UTIk'),
+    keep = TRUE) |>
+  full_join(PU,
+    by = join_by(NAME == PU),
+    suffix = c('','.PU'),
+    keep = TRUE) |>
+  full_join(PUk,
+    by = join_by(NAME == PUk),
+    suffix = c('','.PUk'),
+    keep = TRUE) |>
+  full_join(DL,
+    by = join_by(NAME == DL),
+    suffix = c('','.DL'),
+    keep = TRUE) |>
+  full_join(DLk,
+    by = join_by(NAME == DLk),
+    suffix = c('','.DLk'),
+    keep = TRUE) |>
+  full_join(F2M,
+    by = join_by(NAME == F2M),
+    suffix = c('','.F2M'),
+    keep = TRUE) |>
+  full_join(F2Mk,
+    by = join_by(NAME == F2Mk),
+    suffix = c('','.F2Mk'),
+    keep = TRUE)
+
+
+```
+
+
 ## Variable selection
 
 These come from the ranger fits, and variables are listed in order of variable permutation importance.
@@ -165,9 +241,9 @@ These come from the ranger fits, and variables are listed in order of variable p
   t_prior <- student_t(df = 7, location = 0, scale = 2.5)
 
 fit.PNk <- stan_glm(PN ~ .,
-                 data = CCH |> select(c(tsk_PNk$feature_names, Weight)),
+                 data = CCH |> select(c(PN,tsk_PNk$feature_names, Weights)),
                  family = binomial(link = "logit"),
-                 weights = Weight,
+                 weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 fit.PNk
@@ -177,29 +253,29 @@ launch_shinystan(fit.PNk, ppd = TRUE) # Allows me to check fit etc.
 
 ```{r Review training predictions}
 
-get_variables(fit.PN)
+get_variables(fit.PNk)
 
 # Get a sample of posterior draws from a model as a tibble
-fit.PN.td <- fit.PN |>
+fit.PNk.td <- fit.PNk |>
   tidy_draws() |>
   mutate(Intercept = `(Intercept)`) |> # Rename Intercept from Stan's default
   select(.chain:.draw,Intercept,HadxCount:energy__) # Back to original order
 
 
-fit.PN.td |>
+fit.PNk.td |>
   head(10)
 
-Observations = nrow(CCH_TRAIN)
+Observations_trained = nrow(CCH_train)
 
-Confusions <- CCH_TRAIN |> 
-  add_predicted_draws(fit.PN) |>
+Confusions <- CCH_train |> 
+  add_predicted_draws(fit.PNk) |>
   ungroup() |>
   select(.draw, PN, .prediction) |>
   group_by(PN, .prediction, .draw) |>
   summarise( N = n()) |>
   arrange(.draw, PN, .prediction) |>
   select(.draw, PN, .prediction, N) |>
-  mutate(P = N/Observations) |>
+  mutate(P = N/Observations_trained) |>
   mutate(Type = case_when(
     PN == 'No'  & .prediction == 0 ~ 'TN',
     PN == 'No'  & .prediction == 1 ~ 'FP',
@@ -245,15 +321,17 @@ The predictions on the test data are pretty good, but lower than on the training
 
 ```{r Test data}
 
+Observations_test = nrow(CCH_test)
+
 Confusions <- CCH_test |> 
-  add_predicted_draws(object = fit.PN) |>
+  add_predicted_draws(object = fit.PNk) |>
   ungroup() |>
   select(.draw, PN, .prediction) |>
   group_by(PN, .prediction, .draw) |>
   summarise( N = n()) |>
   arrange(.draw, PN, .prediction) |>
   select(.draw, PN, .prediction, N) |>
-  mutate(P = N/322) |>
+  mutate(P = N/Observations_test) |>
   mutate(Type = case_when(
     PN == 'No'  & .prediction == 0 ~ 'TN',
     PN == 'No'  & .prediction == 1 ~ 'FP',
@@ -299,7 +377,7 @@ Confusions |>
 
 ```{r Collate predictions}
 CCH_linpred <- CCH_test |> 
-  add_linpred_draws(object = fit.PN) |>
+  add_linpred_draws(object = fit.PNk) |>
   ungroup() |> 
   select(rowid, .draw, PN, .linpred) |>
   arrange(rowid, .draw)
@@ -307,7 +385,7 @@ CCH_linpred <- CCH_test |>
 CCH_linpred |> group_by(.draw) |> summarise(N = n()) |> summary()
 
 CCH_t.linpred <- CCH_test |> 
-  add_linpred_draws(object = fit.PN, transform = TRUE, value = 't.linpred') |>
+  add_linpred_draws(object = fit.PNk, transform = TRUE, value = 't.linpred') |>
   ungroup() |> 
   select(rowid, .draw, PN, t.linpred) |>
   arrange(rowid, .draw)
@@ -315,7 +393,7 @@ CCH_t.linpred <- CCH_test |>
 CCH_t.linpred |> group_by(.draw) |> summarise(N = n()) |> summary()
 
 CCH_epred <- CCH_test |> 
-  add_epred_draws(object = fit.PN) |>
+  add_epred_draws(object = fit.PNk) |>
   ungroup() |>
   select(rowid, .draw, PN, .epred) |>
   arrange(rowid, .draw)
@@ -323,7 +401,7 @@ CCH_epred <- CCH_test |>
 CCH_epred |> group_by(.draw) |> summarise(N = n()) |> summary()
 
 CCH_pred <- CCH_test |> 
-  add_predicted_draws(object = fit.PN) |>
+  add_predicted_draws(object = fit.PNk) |>
   ungroup() |>
   select(rowid, .draw, PN, .prediction) |>
   arrange(rowid, .draw)
@@ -338,22 +416,23 @@ Predictions <- CCH_pred |>
 ggplot(Predictions |> filter(.draw <= 1000),
        aes(x= .epred, y = .prediction, colour = PN)) +
   geom_jitter()
+
 summarytools::ctable(Predictions$PN, Predictions$.prediction, prop = 't')
-#ggplot(Predictions, aes(x = .epred, y = t.linpred)) + geom_point() # All identical
+ggplot(Predictions, aes(x = .epred, y = t.linpred)) + geom_point() # All identical
 ```
 
 
 ```{r}
-pp_check(fit.PN)
-pp_check(fit.PN, plotfun = "boxplot", nreps = 10, notch = FALSE)
-pp_check(fit.PN, plotfun = "hist", nreps = 10)
+pp_check(fit.PNk)
+pp_check(fit.PNk, plotfun = "boxplot", nreps = 10, notch = FALSE)
+pp_check(fit.PNk, plotfun = "hist", nreps = 10)
 
-rstan::stan_plot(fit.PN, show_density=TRUE)
-rstan::stan_plot(fit.PN, pars = get_variables(fit.PN)[2:28], show_density=TRUE)
+rstan::stan_plot(fit.PNk, show_density=TRUE)
+rstan::stan_plot(fit.PNk, pars = get_variables(fit.PNk)[2:28], show_density=TRUE)
 
-plot(loo(fit.PN))
+plot(loo(fit.PNk))
 
-performance::model_performance(fit.PN)
+performance::model_performance(fit.PNk)
 ```
 
 # What matters?
@@ -362,20 +441,20 @@ This is not a classification problem. We are trying to estimate the prevalence, 
 
 
 ```{r}
-EPred.PN.h <- posterior_epred(fit.PN,
+EPred.PNk.h <- posterior_epred(fit.PNk,
                               newdata = HIPE) # Probabilities
 # 4000 rows of one column per record
 
-EPred.PN.ht <- as_tibble(t(EPred.PN.h))
+EPred.PNk.ht <- as_tibble(t(EPred.PNk.h))
 
 # 131478 rows of 4,000 draws in columns
 
-Median <- EPred.PN.h |>  summarise(across(everything(), median))
-Epred.PN <- Median |> pivot_longer(cols = everything(), names_to = 'Row', values_to = 'Median')
+Median <- EPred.PNk.ht |>  summarise(across(everything(), median))
+Epred.PNk <- Median |> pivot_longer(cols = everything(), names_to = 'Row', values_to = 'Median')
 
 summary(Epred.PN)
 
-ggplot(Epred.PN, aes(x = round(100*Median,0))) + geom_density()
+ggplot(Epred.PNk, aes(x = round(100*Median,2))) + geom_density()
 
 ```
  
