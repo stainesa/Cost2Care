@@ -125,20 +125,22 @@ Outcomes <- Cost2Care.HIPE |>
 
 skimr::skim(Outcomes)
 
+## Chart review data
+
 Proportions <- Outcomes |>
   select(PN:F2M, Died) |>
   mutate(across(PN:Died,
                 ~ fct_count(as_factor(.),
                             prop=TRUE)$p[[2]])) |> # Proportion of Yes for each adverse Outcome (the smaller proportion)
-  unique()
-
-## Chart review data
-
-Proportions
+  unique() 
 
 Proportions |>
-  mutate(across(everything(), ~(round(. * 100,1)))) # %
+  kable(caption = 'Proportion of people from chart review  experiencing each adverse outcome')
 
+
+Proportions |>
+  mutate(across(everything(), ~(round(. * 100,1)))) |>
+  kable(caption = 'Percentage of people from chart review  experiencing each adverse outcome')
 ```
 
 ```{r Outcome_recode, eval = FALSE}
@@ -222,27 +224,30 @@ saveRDS(CCH,'data/CCH.Rds')
 tsk_PN <- as_task_classif(CCH %>%
   select(-c(UTI, PU, DL, F2M, rawlos)), # Outcomes from review,
                          target = "PN",
-                         stratum = "PN",
                          positive = "Yes",
                          id = 'PN')
+  tsk_PN$col_roles$stratum = "PN"
   tsk_PN$col_roles$weight = "Weights"
+  tsk_PN$select(setdiff(tsk_PN$feature_names, "Weights"))
 
   split_PN = mlr3::partition(tsk_PN)
   
-    table(CCH$PN[split_PN$train])
-    table(CCH$PN[split_PN$test])
+    kable(table(CCH$PN[split_PN$train]), caption='PN_train')
+    kable(table(CCH$PN[split_PN$test]), caption='PN_test')
     
 tsk_PNk <- as_task_classif(CCH %>%
   select(-c(UTI, PU, DL, F2M, rawlos)), # Outcomes from review,
                          target = "PN",
-                         stratum = "PN",
                          positive = "Yes",
                          id = 'PNk')
+  tsk_PNk$col_roles$stratum = "PN"
   tsk_PNk$col_roles$weight = "Weights"
+  tsk_PNk$select(setdiff(tsk_PNk$feature_names, "Weights"))
+
   split_PNk = mlr3::partition(tsk_PNk)
   
-    table(CCH$PN[split_PNk$train])
-    table(CCH$PN[split_PNk$test])
+    kable(table(CCH$PN[split_PNk$train]), caption='PNk_train')
+    kable(table(CCH$PN[split_PNk$test]), caption='PNk_test')
     
   
 #################################################
@@ -250,113 +255,121 @@ tsk_PNk <- as_task_classif(CCH %>%
 tsk_UTI <- as_task_classif(CCH %>%
   select(-c(PN, PU, DL, F2M, rawlos)), # Outcomes from review,
                          target = "UTI",
-                         stratum = "UTI",
                          positive = "Yes",
                          id = 'UTI')
+  tsk_UTI$col_roles$stratum = "UTI"
   tsk_UTI$col_roles$weight = "Weights"
+  tsk_UTI$select(setdiff(tsk_UTI$feature_names, "Weights"))
 
   split_UTI = mlr3::partition(tsk_UTI)
   
-    table(CCH$UTI[split_UTI$train])
-    table(CCH$UTI[split_UTI$test])
+    kable(table(CCH$UTI[split_UTI$train]), caption='UTI_train')
+    kable(table(CCH$UTI[split_UTI$test]), caption='UTI_test')
 
 tsk_UTIk <- as_task_classif(CCH %>%
   select(-c(PN, PU, DL, F2M, rawlos)), # Outcomes from review,
                          target = "UTI",
-                         stratum = "UTI",
                          positive = "Yes",
                          id = 'UTIk')
+  tsk_UTIk$col_roles$stratum = "UTI"
   tsk_UTIk$col_roles$weight = "Weights"
+  tsk_UTIk$select(setdiff(tsk_UTIk$feature_names, "Weights"))
   
   split_UTIk = mlr3::partition(tsk_UTIk)
   
-    table(CCH$UTI[split_UTIk$train])
-    table(CCH$UTI[split_UTIk$test])
+    kable(table(CCH$UTI[split_UTIk$train]), caption='UTI_train')
+    kable(table(CCH$UTI[split_UTIk$test]), caption='UTIk_test')
 
 #################################################
 # PU
 tsk_PU <- as_task_classif(CCH %>%
   select(-c(PN, UTI, DL, F2M, rawlos)), # Outcomes from review,
                          target = "PU",
-                         stratum = "PU",
                          positive = "Yes",
                          id = 'PU')
+  tsk_PU$col_roles$stratum = "PU"
   tsk_PU$col_roles$weight = "Weights"
+  tsk_PU$select(setdiff(tsk_PU$feature_names, "Weights"))
 
   split_PU = mlr3::partition(tsk_PU)
   
-    table(CCH$PU[split_PU$train])
-    table(CCH$PU[split_PU$test])
+    kable(table(CCH$PU[split_PU$train]), caption='PU_train')
+    kable(table(CCH$PU[split_PU$test]), caption='PU_test')
 
 tsk_PUk <- as_task_classif(CCH %>%
   select(-c(PN, UTI, DL, F2M, rawlos)), # Outcomes from review,
                          target = "PU",
-                         stratum = "PU",
                          positive = "Yes",
                          weights="Weights",
                          id = 'PUk')
+  tsk_PUk$col_roles$stratum = "PU"
   tsk_PUk$col_roles$weight = "Weights"
+  tsk_PUk$select(setdiff(tsk_PUk$feature_names, "Weights"))
   
   split_PUk = mlr3::partition(tsk_PUk)
   
-    table(CCH$PU[split_PUk$train])
-    table(CCH$PU[split_PUk$test])
+    kable(table(CCH$PU[split_PUk$train]), caption='PUk_train')
+    kable(table(CCH$PU[split_PUk$test]), caption='PUk_test')
 
 #################################################
 # DL
 tsk_DL <- as_task_classif(CCH %>%
   select(-c(PN, UTI, PU, F2M, rawlos)), # Outcomes from review,
                          target = "DL",
-                         stratum = "DL",
                          positive = "Yes",
                          id = 'DL')
+  tsk_DL$col_roles$stratum = "DL"
   tsk_DL$col_roles$weight = "Weights"
+  tsk_DL$select(setdiff(tsk_DL$feature_names, "Weights"))
   
   split_DL = mlr3::partition(tsk_DL)
   
-    table(CCH$DL[split_DL$train])
-    table(CCH$DL[split_DL$test])
+    kable(table(CCH$DL[split_DL$train]), caption='DL_train')
+    kable(table(CCH$DL[split_DL$test]), caption='DL_test')
 
 tsk_DLk <- as_task_classif(CCH %>%
   select(-c(PN, UTI, PU, F2M, rawlos)), # Outcomes from review,
                          target = "DL",
-                         stratum = "DL",
                          positive = "Yes",
                          id = 'DLk')
-  tsk_DL$col_roles$weight = "Weights"
+  tsk_DLk$col_roles$stratum = "DL"
+  tsk_DLk$col_roles$weight = "Weights"
+  tsk_DLk$select(setdiff(tsk_DLk$feature_names, "Weights"))
 
   split_DLk = mlr3::partition(tsk_DLk)
   
-    table(CCH$DL[split_DLk$train])
-    table(CCH$DL[split_DLk$test])
+    kable(table(CCH$DL[split_DLk$train]), caption='DLk_train')
+    kable(table(CCH$DL[split_DLk$test]), caption='DLk_test')
 
 #################################################
 # F2M
 tsk_F2M <- as_task_classif(CCH %>%
   select(-c(PN, UTI, PU, DL, rawlos)), # Outcomes from review,
                          target = "F2M",
-                         stratum = "F2M",
                          positive = "Yes",
                          id = 'F2M')
+  tsk_F2M$col_roles$stratum = "F2M"
   tsk_F2M$col_roles$weight = "Weights"
+  tsk_F2M$select(setdiff(tsk_F2M$feature_names, "Weights"))
 
   split_F2M = mlr3::partition(tsk_F2M)
   
-    table(CCH$F2M[split_F2M$train])
-    table(CCH$F2M[split_F2M$test])
+    kable(table(CCH$F2M[split_F2M$train]), caption='F2M_train')
+    kable(table(CCH$F2M[split_F2M$test]), caption='F2M_test')
 
 tsk_F2Mk <- as_task_classif(CCH %>%
   select(-c(PN, UTI, PU, DL, rawlos)), # Outcomes from review,
                          target = "F2M",
-                         stratum = "F2M",
                          positive = "Yes",
                          id = 'F2Mk')
-  tsk_F2M$col_roles$weight = "Weights"
+  tsk_F2Mk$col_roles$stratum = "F2M"
+  tsk_F2Mk$col_roles$weight = "Weights"
+  tsk_F2Mk$select(setdiff(tsk_F2Mk$feature_names, "Weights"))
   
   split_F2Mk = mlr3::partition(tsk_F2Mk)
   
-    table(CCH$F2M[split_F2Mk$train])
-    table(CCH$F2M[split_F2Mk$test])
+    kable(table(CCH$F2M[split_F2Mk$train]), caption='F2Mk_train')
+    kable(table(CCH$F2M[split_F2Mk$test]), caption='F2Mk_test')
 
 ```  
 
@@ -375,7 +388,7 @@ lrn_C = lrn('classif.ranger',
 lrn_T = lrn('classif.ranger',
             predict_type = "prob",
             num.trees = 2000,
-            mtry = to_tune(3,20),
+            mtry = to_tune(3,19),
             importance = "permutation"
             )
 
@@ -594,8 +607,8 @@ autoplot(prediction_PN.f, type = 'roc')
 
 lrn_C$train(tsk_PN, row_ids = split_PN$train)
   prediction_PN.rng = lrn_C$predict(tsk_PN, split_PN$test)
-  prediction_PN.rng$score(measures)
-  prediction_PN.rng$confusion
+  #prediction_PN.rng$score(measures)
+  #prediction_PN.rng$confusion
 autoplot(prediction_PN.rng) + autoplot(prediction_PN.rng, type = 'roc')
 ```
 
@@ -607,8 +620,8 @@ autoplot(prediction_PN.rng) + autoplot(prediction_PN.rng, type = 'roc')
 
 lrn_C$train(tsk_PNk, row_ids = split_PNk$train)
   prediction_PNk.rng = lrn_C$predict(tsk_PNk, split_PNk$test)
-  prediction_PNk.rng$score(measures)
-  prediction_PNk.rng$confusion
+  #prediction_PNk.rng$score(measures)
+  #prediction_PNk.rng$confusion
 autoplot(prediction_PN.rng) + autoplot(prediction_PNk.rng, type = 'roc')
 ```
 
@@ -619,8 +632,8 @@ autoplot(prediction_PN.rng) + autoplot(prediction_PNk.rng, type = 'roc')
 # UTI
 lrn_C$train(tsk_UTI, row_ids = split_UTI$train)
   prediction_UTI.rng = lrn_C$predict(tsk_UTI, split_UTI$test)
-  prediction_UTI.rng$score(measures)
-  prediction_UTI.rng$confusion
+  #prediction_UTI.rng$score(measures)
+  #prediction_UTI.rng$confusion
 autoplot(prediction_UTI.rng) + autoplot(prediction_UTI.rng, type = 'roc')
 ```
 
@@ -632,8 +645,8 @@ autoplot(prediction_UTI.rng) + autoplot(prediction_UTI.rng, type = 'roc')
 
 lrn_C$train(tsk_UTIk, row_ids = split_UTIk$train)
   prediction_UTIk.rng = lrn_C$predict(tsk_UTIk, split_UTIk$test)
-  prediction_UTIk.rng$score(measures)
-  prediction_UTIk.rng$confusion
+  #prediction_UTIk.rng$score(measures)
+  #prediction_UTIk.rng$confusion
 autoplot(prediction_UTIk.rng) + autoplot(prediction_UTIk.rng, type = 'roc')
 ```
 
@@ -644,8 +657,8 @@ autoplot(prediction_UTIk.rng) + autoplot(prediction_UTIk.rng, type = 'roc')
 # PU
 lrn_C$train(tsk_PU, row_ids = split_PU$train)
   prediction_PU.rng = lrn_C$predict(tsk_PU, split_PU$test)
-  prediction_PU.rng$score(measures)
-  prediction_PU.rng$confusion
+  #prediction_PU.rng$score(measures)
+  #prediction_PU.rng$confusion
 autoplot(prediction_PU.rng, type = 'roc')
 ```
 
@@ -657,8 +670,8 @@ autoplot(prediction_PU.rng, type = 'roc')
 
 lrn_C$train(tsk_PUk, row_ids = split_PUk$train)
   prediction_PUk.rng = lrn_C$predict(tsk_PUk, split_PUk$test)
-  prediction_PUk.rng$score(measures)
-  prediction_PUk.rng$confusion
+  #prediction_PUk.rng$score(measures)
+  #prediction_PUk.rng$confusion
 autoplot(prediction_PUk.rng, type = 'roc')
 ```
 
@@ -669,8 +682,8 @@ autoplot(prediction_PUk.rng, type = 'roc')
 # DL
 lrn_C$train(tsk_DL, row_ids = split_DL$train)
   prediction_DL.rng = lrn_C$predict(tsk_DL, split_DL$test)
-  prediction_DL.rng$score(measures)
-  prediction_DL.rng$confusion
+  #prediction_DL.rng$score(measures)
+  #prediction_DL.rng$confusion
 autoplot(prediction_DL.rng, type = 'roc')
 ```
 
@@ -682,8 +695,8 @@ autoplot(prediction_DL.rng, type = 'roc')
 
 lrn_C$train(tsk_DLk, row_ids = split_DLk$train)
   prediction_DLk.rng = lrn_C$predict(tsk_DLk, split_DLk$test)
-  prediction_DLk.rng$score(measures)
-  prediction_DLk.rng$confusion
+  #prediction_DLk.rng$score(measures)
+  #prediction_DLk.rng$confusion
 autoplot(prediction_DLk.rng, type = 'roc')
 ```
 
@@ -694,8 +707,8 @@ autoplot(prediction_DLk.rng, type = 'roc')
 # F2M
 lrn_C$train(tsk_F2M, row_ids = split_F2M$train)
   prediction_F2M.rng = lrn_C$predict(tsk_F2M, split_F2M$test)
-  prediction_F2M.rng$score(measures)
-  prediction_F2M.rng$confusion
+  #prediction_F2M.rng$score(measures)
+  #prediction_F2M.rng$confusion
 autoplot(prediction_F2M.rng, type = 'roc')
 ```
 
@@ -707,8 +720,8 @@ autoplot(prediction_F2M.rng, type = 'roc')
 
 lrn_C$train(tsk_F2Mk, row_ids = split_F2Mk$train)
   prediction_F2Mk.rng = lrn_C$predict(tsk_F2Mk, split_F2Mk$test)
-  prediction_F2Mk.rng$score(measures)
-  prediction_F2Mk.rng$confusion
+  #prediction_F2Mk.rng$score(measures)
+  #prediction_F2Mk.rng$confusion
 autoplot(prediction_F2Mk.rng, type = 'roc',title='Failure to maintain - restricted predictor set') + labs(title='Failure to maintain - restricted predictor set')
 ```
 
@@ -716,16 +729,33 @@ autoplot(prediction_F2Mk.rng, type = 'roc',title='Failure to maintain - restrict
 ##############################################################
 # Measures
 # 
-prediction_PN.rng$score(measures)
-prediction_PNk.rng$score(measures) # Better
-prediction_UTI.rng$score(measures)
-prediction_UTIk.rng$score(measures) # Notably worse
-prediction_PU.rng$score(measures)
-prediction_PUk.rng$score(measures) # Notably better
-prediction_DL.rng$score(measures) # Better
-prediction_DLk.rng$score(measures) 
-prediction_F2M.rng$score(measures) # Better
-prediction_F2Mk.rng$score(measures)
+PN_measures <- prediction_PN.rng$score(measures)
+PNk_measures <- prediction_PNk.rng$score(measures) # Better
+UTI_measures <- prediction_UTI.rng$score(measures)
+UTIk_measures <- prediction_UTIk.rng$score(measures) # Notably worse
+PU_measures <- prediction_PU.rng$score(measures)
+PUk_measures <- prediction_PUk.rng$score(measures) # Notably better
+DL_measures <- prediction_DL.rng$score(measures) # Better
+DLk_measures <- prediction_DLk.rng$score(measures) 
+F2M_measures <- prediction_F2M.rng$score(measures) # Better
+F2Mk_measures <- prediction_F2Mk.rng$score(measures)
+
+## Turn into a tibble
+model_list <- c('PN', 'PNk', 'UTI', 'UTIk', 'PU', 'PUk',
+               'DL', 'DLk', 'F2M', 'F2Mk')
+
+MEASURES <- as_tibble(bind_rows(PN_measures, PNk_measures,
+                    UTI_measures, UTIk_measures,
+                    PU_measures, PUk_measures,
+                    DL_measures, DLk_measures,
+                    F2M_measures, F2Mk_measures)) |>
+  bind_cols(model_list) |>
+  rename(Model = `...5`) |>
+  select(Model,classif.auc:classif.acc) |>
+  mutate(across(where(is.numeric), ~round(.,2)))
+  
+
+kable(MEASURES, caption = 'Measures across all 10 models')
 ```
 
 ## Optimise mtry for ranger models
@@ -772,7 +802,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -799,7 +829,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -815,7 +845,6 @@ ggsave("image/PNk_image.png",PNk_image)
 
 ```
 
-
 ### UTI
 
 ```{r OPTIMISE UTI, eval = TRUE}
@@ -827,7 +856,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -856,7 +885,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -883,7 +912,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -910,7 +939,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -937,7 +966,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -964,7 +993,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -991,7 +1020,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -1018,7 +1047,7 @@ instance_T = ti(
     measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc')), #measures,
     terminator = trm("evals", n_evals=200) # For tuner "random_search"
 )
-instance_T
+#instance_T
 
 tuner = tnr("random_search")
 tuner
@@ -1049,12 +1078,12 @@ F2M_image / F2Mk_image
 # Set mtry
 # 
 
-mtry_PN   = 6
+mtry_PN   = 7
 mtry_PNk  = 4
 mtry_UTI  = 4
 mtry_UTIk = 3
 mtry_PU   =10
-mtry_PUk  = 8
+mtry_PUk  = 5
 mtry_DL   = 4
 mtry_DLk  = 3
 mtry_F2M  = 8
@@ -1063,12 +1092,12 @@ mtry_F2Mk = 6
 
 Looking at these we come up with the following suggestions for mtry
 
-* PN   6
+* PN   7
 * PNk  4
 * UTI  4
 * UTIk 3
 * PU  10
-* PUk  8
+* PUk  5
 * DL   4
 * DLk  3
 * F2M  8
@@ -1092,7 +1121,7 @@ lrn_T = lrn('classif.ranger',
             mtry = 3, # Assessed above
             importance = "permutation" # Most sensible choice
             )
-lrn_T
+#lrn_T
 
 setMtry <- function(lrn, mtry = 10) {
   lrn$param_set$values =
@@ -1102,7 +1131,7 @@ return(lrn)
 }
 
 lrn_T <- setMtry(lrn_T, 15)
-lrn_T
+#lrn_T
 ```
 
 # Run Models
@@ -1138,7 +1167,7 @@ rr_F2M.f   = resample(tsk_F2M, lrn_featureless, cv10, store_models = TRUE, store
     lrn_T <- setMtry(lrn_T, mtry_F2M)
 rr_F2M.rng = resample(tsk_F2M, lrn_T, cv10, store_models = TRUE, store_backends =TRUE)
 
-lrn_T
+#lrn_T
 ```
 
 ```{r Run all 5 keep models for the two learners}
@@ -1171,7 +1200,7 @@ rr_F2Mk.f   = resample(tsk_F2Mk, lrn_featureless, cv10, store_models = TRUE, sto
     lrn_T <- setMtry(lrn_T, mtry_F2Mk)
 rr_F2Mk.rng = resample(tsk_F2Mk, lrn_T, cv10, store_models = TRUE, store_backends =TRUE)
 
-lrn_T
+#lrn_T
 ```
 
 ### ROC curves
@@ -1256,25 +1285,41 @@ roc_F2M + roc_F2Mk  +
 
 ```{r Resampling measures}
 ## PN
-rr_PN.rng$aggregate(measures)
-rr_PNk.rng$aggregate(measures)
+rs_PN <- rr_PN.rng$aggregate(measures)
+rs_PNk <- rr_PNk.rng$aggregate(measures)
 
 ##UTI
-rr_UTI.rng$aggregate(measures)
-rr_UTIk.rng$aggregate(measures)
+rs_UTI <- rr_UTI.rng$aggregate(measures)
+rs_UTIk <- rr_UTIk.rng$aggregate(measures)
 
 ##PU
-rr_PU.rng$aggregate(measures)
-rr_PUk.rng$aggregate(measures)
+rs_PU <- rr_PU.rng$aggregate(measures)
+rs_PUk <- rr_PUk.rng$aggregate(measures)
 
 ## DL
-rr_DL.rng$aggregate(measures)
-rr_DLk.rng$aggregate(measures)
+rs_DL <- rr_DL.rng$aggregate(measures)
+rs_DLk <- rr_DLk.rng$aggregate(measures)
 
 ##F2M
-rr_F2M.rng$aggregate(measures)
-rr_F2Mk.rng$aggregate(measures)
+rs_F2M <- rr_F2M.rng$aggregate(measures)
+rs_F2Mk <- rr_F2Mk.rng$aggregate(measures)
 
+## Turn into a tibble
+model_list <- c('PN', 'PNk', 'UTI', 'UTIk', 'PU', 'PUk',
+               'DL', 'DLk', 'F2M', 'F2Mk')
+
+rs_MEASURES <- as_tibble(bind_rows(rs_PN, rs_PNk,
+                    rs_UTI, rs_UTIk,
+                    rs_PU, rs_PUk,
+                    rs_DL, rs_DLk,
+                    rs_F2M, rs_F2Mk)) |>
+  bind_cols(model_list) |>
+  rename(Model = `...5`) |>
+  select(Model,classif.auc:classif.acc) |>
+  mutate(across(where(is.numeric), ~round(.,2)))
+  
+
+kable(rs_MEASURES, caption = 'Resampling measures across all 10 models')
 ```
 
 ## Resampling predictions on test data and confusion matrices
@@ -1316,7 +1361,7 @@ pred_F2Mk <- rr_F2Mk.rng$prediction()
 ```{r Resampling prediction PN}
 ## PN
 Threshold <- SELECT_THRESHOLD(roc_PN$data)
-  Threshold
+#  Threshold
   pred_PN$set_threshold(Threshold$Threshold)
 
 autoplot(pred_PN) + labs(title = paste0('PN Threshold ', round(Threshold$Threshold,3)))
@@ -1327,7 +1372,7 @@ autoplot(pred_PN) + labs(title = paste0('PN Threshold ', round(Threshold$Thresho
 ```{r Resampling prediction PNk}
 ## PNk
 Threshold <- SELECT_THRESHOLD(roc_PNk$data)
-  Threshold
+#  Threshold
   pred_PNk$set_threshold(Threshold$Threshold)
 
 autoplot(pred_PNk) + labs(title = paste0('PNk Threshold ', round(Threshold$Threshold,3)))
@@ -1339,7 +1384,7 @@ autoplot(pred_PNk) + labs(title = paste0('PNk Threshold ', round(Threshold$Thres
 ```{r Resampling prediction UTI}
 ## UTI
 Threshold <- SELECT_THRESHOLD(roc_UTI$data)
-  Threshold
+#  Threshold
   pred_UTI$set_threshold(Threshold$Threshold)
 
 autoplot(pred_UTI) + labs(title = paste0('UTI Threshold ', round(Threshold$Threshold,3)))
@@ -1351,7 +1396,7 @@ autoplot(pred_UTI) + labs(title = paste0('UTI Threshold ', round(Threshold$Thres
 ```{r Resampling prediction UTIk}
 ## UTIk
 Threshold <- SELECT_THRESHOLD(roc_UTIk$data)
-  Threshold
+#  Threshold
   pred_UTIk$set_threshold(Threshold$Threshold)
 
 autoplot(pred_UTIk) + labs(title = paste0('UTIk Threshold ', round(Threshold$Threshold,3)))
@@ -1363,7 +1408,7 @@ autoplot(pred_UTIk) + labs(title = paste0('UTIk Threshold ', round(Threshold$Thr
 ```{r Resampling prediction PU}
 ## PU
 Threshold <- SELECT_THRESHOLD(roc_PU$data)
-  Threshold
+#  Threshold
   pred_PU$set_threshold(Threshold$Threshold)
 
 autoplot(pred_PU) + labs(title = paste0('PU Threshold ', round(Threshold$Threshold,3)))
@@ -1375,7 +1420,7 @@ autoplot(pred_PU) + labs(title = paste0('PU Threshold ', round(Threshold$Thresho
 ```{r Resampling prediction PUk}
 ## PUk
 Threshold <- SELECT_THRESHOLD(roc_PUk$data)
-  Threshold
+#  Threshold
   pred_PUk$set_threshold(Threshold$Threshold)
 
 autoplot(pred_PUk) + labs(title = paste0('PUk Threshold ', round(Threshold$Threshold,3)))
@@ -1387,7 +1432,7 @@ autoplot(pred_PUk) + labs(title = paste0('PUk Threshold ', round(Threshold$Thres
 ```{r Resampling prediction DL}
 ## DL
 Threshold <- SELECT_THRESHOLD(roc_DL$data)
-  Threshold
+#  Threshold
   pred_DL$set_threshold(Threshold$Threshold)
 
 autoplot(pred_DL) + labs(title = paste0('DL Threshold ', round(Threshold$Threshold,3)))
@@ -1399,7 +1444,7 @@ autoplot(pred_DL) + labs(title = paste0('DL Threshold ', round(Threshold$Thresho
 ```{r Resampling prediction DLk}
 ## DLk
 Threshold <- SELECT_THRESHOLD(roc_DLk$data)
-  Threshold
+#  Threshold
   pred_DLk$set_threshold(Threshold$Threshold)
 
 autoplot(pred_DLk) + labs(title = paste0('DLk Threshold ', round(Threshold$Threshold,3)))
@@ -1411,7 +1456,7 @@ autoplot(pred_DLk) + labs(title = paste0('DLk Threshold ', round(Threshold$Thres
 ```{r Resampling prediction F2M}
 ## F2M
 Threshold <- SELECT_THRESHOLD(roc_F2M$data)
-  Threshold
+#  Threshold
   pred_F2M$set_threshold(Threshold$Threshold)
 
 autoplot(pred_F2M) + labs(title = paste0('F2M Threshold ', round(Threshold$Threshold,3)))
@@ -1423,7 +1468,7 @@ autoplot(pred_F2M) + labs(title = paste0('F2M Threshold ', round(Threshold$Thres
 ```{r Resampling prediction F2Mk}
 ## F2Mk
 Threshold <- SELECT_THRESHOLD(roc_F2Mk$data)
-  Threshold
+#  Threshold
   pred_F2Mk$set_threshold(Threshold$Threshold)
 
 autoplot(pred_F2Mk) + labs(title = paste0('F2Mk Threshold ', round(Threshold$Threshold,3)))
@@ -1446,7 +1491,7 @@ PN_trained <- lrn_T$train(tsk_PN, row_ids = split_PN$train)
 ROC <- autoplot(PN_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   PN_pred$set_threshold(Threshold$Threshold)
 
   threshold_PN = Threshold$Threshold
@@ -1463,7 +1508,7 @@ PNk_trained <- lrn_T$train(tsk_PNk, row_ids = split_PNk$train)
 ROC <- autoplot(PNk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   PNk_pred$set_threshold(Threshold$Threshold)
 
   threshold_PNk = Threshold$Threshold
@@ -1480,7 +1525,7 @@ UTI_trained <- lrn_T$train(tsk_UTI, row_ids = split_UTI$train)
 ROC <- autoplot(UTI_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   UTI_pred$set_threshold(Threshold$Threshold)
 
 threshold_UTI = Threshold$Threshold
@@ -1497,7 +1542,7 @@ UTIk_trained <- lrn_T$train(tsk_UTIk, row_ids = split_UTIk$train)
 ROC <- autoplot(UTIk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   UTIk_pred$set_threshold(Threshold$Threshold)
 
 threshold_UTIk = Threshold$Threshold
@@ -1514,7 +1559,7 @@ PU_trained <- lrn_T$train(tsk_PU, row_ids = split_PU$train)
 ROC <- autoplot(PU_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   PU_pred$set_threshold(Threshold$Threshold)
 
 threshold_PU = Threshold$Threshold
@@ -1531,7 +1576,7 @@ PUk_trained <- lrn_T$train(tsk_PUk, row_ids = split_PUk$train)
 ROC <- autoplot(PUk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   PUk_pred$set_threshold(Threshold$Threshold)
 
 threshold_PUk = Threshold$Threshold
@@ -1548,7 +1593,7 @@ DL_trained <- lrn_T$train(tsk_DL, row_ids = split_DL$train)
 ROC <- autoplot(DL_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   DL_pred$set_threshold(Threshold$Threshold)
 
 threshold_DL = Threshold$Threshold
@@ -1565,7 +1610,7 @@ DLk_trained <- lrn_T$train(tsk_DLk, row_ids = split_DLk$train)
 ROC <- autoplot(DLk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   DLk_pred$set_threshold(Threshold$Threshold)
 
 threshold_DLk = Threshold$Threshold
@@ -1582,7 +1627,7 @@ F2M_trained <- lrn_T$train(tsk_F2M, row_ids = split_F2M$train)
 ROC <- autoplot(F2M_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   F2M_pred$set_threshold(Threshold$Threshold)
 
 threshold_F2M = Threshold$Threshold
@@ -1599,7 +1644,7 @@ F2Mk_trained <- lrn_T$train(tsk_F2Mk, row_ids = split_F2Mk$train)
 ROC <- autoplot(F2Mk_pred, type='roc')  
   ROC
   Threshold <- SELECT_THRESHOLD(ROC$data)
-  Threshold
+#  Threshold
   F2Mk_pred$set_threshold(Threshold$Threshold)
 
 threshold_F2Mk = Threshold$Threshold
@@ -1613,24 +1658,41 @@ F2Mk_pred.H <- F2Mk_trained$predict_newdata(HIPE)
 
 ```{r Training and prediction measures}
 ## PN
-PN_pred$score(measures)
-PNk_pred$score(measures)
+opt_PN <- PN_pred$score(measures)
+opt_PNk <- PNk_pred$score(measures)
 
 ##UTI
-UTI_pred$score(measures)
-UTIk_pred$score(measures)
+opt_UTI <- UTI_pred$score(measures)
+opt_UTIk <- UTIk_pred$score(measures)
 
 ##PU
-PU_pred$score(measures)
-PUk_pred$score(measures)
+opt_PU <- PU_pred$score(measures)
+opt_PUk <- PUk_pred$score(measures)
 
 ## DL
-DL_pred$score(measures)
-DLk_pred$score(measures)
+opt_DL <- DL_pred$score(measures)
+opt_DLk <- DLk_pred$score(measures)
 
 ##F2M
-F2M_pred$score(measures)
-F2Mk_pred$score(measures)
+opt_F2M <- F2M_pred$score(measures)
+opt_F2Mk <- F2Mk_pred$score(measures)
+
+## Turn into a tibble
+model_list <- c('PN', 'PNk', 'UTI', 'UTIk', 'PU', 'PUk',
+               'DL', 'DLk', 'F2M', 'F2Mk')
+
+opt_MEASURES <- as_tibble(bind_rows(opt_PN, opt_PNk,
+                    opt_UTI, opt_UTIk,
+                    opt_PU, opt_PUk,
+                    opt_DL, opt_DLk,
+                    opt_F2M, opt_F2Mk)) |>
+  bind_cols(model_list) |>
+  rename(Model = `...5`) |>
+  select(Model,classif.auc:classif.acc) |>
+  mutate(across(where(is.numeric), ~round(.,2)))
+  
+
+kable(opt_MEASURES, caption = 'Measures across all 10 optimised models')
 
 ```
 
@@ -1893,9 +1955,7 @@ autoplot(F2Mk_pred) +  autoplot(F2Mk_pred, type='roc') + autoplot(F2Mk_pred.H) +
 
 # Assess the predictions
 
-## Put the predictions together
-
-### Chart review
+## Chart review
 
 ```{r Accumulate chart review predictions}
 dt_PN  <- as_tibble(as.data.table(PN_pred))|>
@@ -1925,7 +1985,7 @@ dt_F2Mk <- as_tibble(as.data.table(F2Mk_pred))|>
 
 ```
 
-### HIPE
+## HIPE
 
 ```{r Accumulate HIPE predictions}
 CODES <- HIPE |>
@@ -2025,7 +2085,10 @@ We want these
 
 The only 'ground truth' we have is the review data.
 
-```{r Summary of HIPE predictions}
+```{r Summary of Chart Review and HIPE predictions}
+########################################
+# Chart review
+Test_Observations  = nrow(dt_PN)
 Test_predictions <- bind_rows(dt_PN, dt_PNk,
                               dt_UTI, dt_UTIk,
                               dt_PU, dt_PUk,
@@ -2033,24 +2096,13 @@ Test_predictions <- bind_rows(dt_PN, dt_PNk,
                               dt_F2M, dt_F2Mk,
                               ) |>
   rename(Prediction = response) |>
-  rename(Truth = truth)
+  rename(Truth = truth) |>
+  mutate(Model = ifelse(str_detect(Outcome, 'k'), 'Restricted', 'Full')) |>
+  mutate(Outcome_name = str_remove(Outcome,'k'))
 
-Test_predictions.H <- bind_rows(dt_PN.H, dt_PNk.H,
-                              dt_UTI.H, dt_UTIk.H,
-                              dt_PU.H, dt_PUk.H,
-                              dt_DL.H, dt_DLk.H,
-                              dt_F2M.H, dt_F2Mk.H,
-                              ) |>
-  rename(Prediction = V1)
-
-Test_predictions.H_nested <- Test_predictions.H |> group_by(Outcome) |> nest()
-
-Truth <- Test_predictions |>
-  group_by(Outcome) |>
-  count(Truth) %>% 
-  mutate(prop = n/sum(n)) %>%
-  mutate(pct = round(100*prop, 2)) %>%
-  rename(Result = Truth)
+TP.prob <- Test_predictions |>
+  group_by(Model, Outcome_name) |>
+  summarise(Prob = sum(prob.Yes)/Test_Observations)
 
 Prediction <- Test_predictions |>
   group_by(Outcome) |>
@@ -2059,7 +2111,14 @@ Prediction <- Test_predictions |>
   mutate(pct = round(100*prop, 2)) %>%
   rename(Result = Prediction)
 
-Chart_review <- Truth |>
+Truth <- Test_predictions |>
+  group_by(Outcome) |>
+  count(Truth) %>% 
+  mutate(prop = n/sum(n)) %>%
+  mutate(pct = round(100*prop, 2)) %>%
+  rename(Result = Truth)
+
+Chart_review <- Truth |> # Used in error bar graph
   full_join(Prediction,
             by = join_by(Outcome, Result),
             suffix = c('.True','.Predicted')) |>
@@ -2072,10 +2131,46 @@ Chart_review <- Truth |>
   ungroup() |>
   mutate(prop.lower = qbeta(0.95/2,
                             n+0.5,
-                            330-n+0.5)) |>
+                            Test_Observations-n+0.5)) |>
   mutate(prop.upper = qbeta(1-0.95/2,
                             n+0.5,
-                            330-n+0.5))
+                            Test_Observations-n+0.5))
+
+CR <- Chart_review |> # Used in density graph for vertical lines
+  filter(Type == 'True' & Result == 'Yes') |>
+  mutate(Model =
+     ifelse(str_detect(Outcome, 'k'),
+            'Restricted', 'Full')) |>
+   mutate(Outcome_name = str_remove(Outcome,'k'))
+
+RESULT_CR_test <- TP.prob |>  # Used for table of results
+  full_join(CR, by = join_by(Model, Outcome_name)) |>
+  mutate(Ratio = round(Prob/prop,2)) |>
+  mutate(Prob = 100 * round(Prob,4)) |>
+  select(Model, Outcome_name, Prob, pct, Ratio, everything())
+
+
+########################################
+# HIPE
+HIPE_Observations = nrow(dt_PN.H)
+Test_predictions.H <- bind_rows(dt_PN.H, dt_PNk.H,
+                              dt_UTI.H, dt_UTIk.H,
+                              dt_PU.H, dt_PUk.H,
+                              dt_DL.H, dt_DLk.H,
+                              dt_F2M.H, dt_F2Mk.H,
+                              ) |>
+  rename(Prediction = V1)
+
+Test_predictions.H <- Test_predictions.H |>
+  mutate(Model = ifelse(str_detect(Outcome, 'k'),
+                        'Restricted',
+                        'Full')) |>
+  mutate(Outcome_name = str_remove(Outcome,'k'))
+
+TP.prob.H <- Test_predictions.H |>
+  group_by(Model, Outcome_name) |>
+  summarise(Prob = sum(Yes)/HIPE_Observations) |>
+  mutate(HIPE_Predicted = 100*round(Prob,4))
 ```
 
 ## Prediction and observed results from the Test data
@@ -2112,28 +2207,7 @@ Most of the models do reasonably well on this test, but the models for UTI gross
 A different way of looking at the same model is to look at density of the estimated probabilities.
 
 ```{r Density chart of predictions}
-TP <- Test_predictions |>
-  mutate(Model = ifelse(str_detect(Outcome, 'k'), 'Restricted', 'Full')) |>
-  mutate(Outcome_name = str_remove(Outcome,'k'))
-
-TP.prob <- TP |>
-  group_by(Model, Outcome_name) |>
-  summarise(Prob = sum(prob.Yes)/330)
-
-CR <- Chart_review |>
-  filter(Type == 'True' & Result == 'Yes') |>
-  mutate(Model =
-     ifelse(str_detect(Outcome, 'k'),
-            'Restricted', 'Full')) |>
-   mutate(Outcome_name = str_remove(Outcome,'k'))
-
-RESULT_test <- TP.prob |>
-  full_join(CR, by = join_by(Model, Outcome_name)) |>
-  mutate(Ratio = 100 * round(Prob/prop,4)) |>
-  mutate(Prob = 100 * round(Prob,4)) |>
-  select(Model, Outcome_name, Prob, pct, Ratio, everything())
-
-ggplot(TP, aes(fill = Outcome_name)) +
+ggplot(Test_predictions, aes(fill = Outcome_name)) +
   geom_density(aes(x = prob.Yes)) +
   geom_vline(data = CR, #   TRUTH from chart review test
           aes(xintercept = prop),
@@ -2155,15 +2229,14 @@ ggplot(TP, aes(fill = Outcome_name)) +
 
 ```
 
-These predictions are better, perhaps because they do not depend on setting an arbitrary threshold for decision. In this setting, where essentially, we are modelling individual level risk, the most reasonable approach is to add these together for the population under study. Here that population is the 330 cases in the test dataset.
+These predictions are better, at population level, because they do not depend on setting an arbitrary threshold for decision. In this setting, where essentially, we are modelling individual level risk, the most reasonable approach is to add these together for the population under study. Here that population is the 330 cases in the test dataset.
 
-```{r Table of results}
-RESULT_test |>
+```{r Table of Chart Review results}
+RESULT_CR_test |>
   select(Model:Ratio) |>
   rename(Predicted = Prob) |>
   rename(Truth = pct) |>
-  kable()
-
+  kable(caption = 'Percentage rates of adverse outcomes int he chart review data, comparing The model predictions and the observed values')
 ```
 
 ## Prediction from the HIPE data
@@ -2175,29 +2248,20 @@ RESULT_test |>
 # 
 
 ########## Check means!
-mean(dt_PN.H$Yes)
-mean(dt_PNk.H$Yes)
-mean(dt_UTI.H$Yes)
-mean(dt_UTIk.H$Yes)
-mean(dt_PU.H$Yes)
-mean(dt_PUk.H$Yes)
-mean(dt_PU.H$Yes)
-mean(dt_PUk.H$Yes)
-mean(dt_DL.H$Yes)
-mean(dt_DLk.H$Yes)
-mean(dt_F2M.H$Yes)
-mean(dt_F2Mk.H$Yes)
+#mean(dt_PN.H$Yes)
+#mean(dt_PNk.H$Yes)
+#mean(dt_UTI.H$Yes)
+#mean(dt_UTIk.H$Yes)
+#mean(dt_PU.H$Yes)
+#mean(dt_PUk.H$Yes)
+#mean(dt_PU.H$Yes)
+#mean(dt_PUk.H$Yes)
+#mean(dt_DL.H$Yes)
+#mean(dt_DLk.H$Yes)
+#mean(dt_F2M.H$Yes)
+#mean(dt_F2Mk.H$Yes)
 ############# These are different as they should be
 
-Test_predictions.H <- Test_predictions.H |>
-  mutate(Model = ifelse(str_detect(Outcome, 'k'), 'Restricted', 'Full')) |>
-  mutate(Outcome_name = str_remove(Outcome,'k'))
-
-TP.prob.H <- Test_predictions.H |>
-group_by(Model, Outcome_name) |>
-  summarise(Prob = mean(Yes),
-            Prob.lower = Prob - 2*sd(Yes),
-            Prob.upper = Prob + 2*sd(Yes))
 
 ggplot(Test_predictions.H, aes(fill = Outcome_name)) +
   geom_density(aes(x = Yes)) +
@@ -2221,21 +2285,33 @@ ggplot(Test_predictions.H, aes(fill = Outcome_name)) +
 
 ```
 
+```{r HIPE results}
+RESULT_CR_test <- RESULT_CR_test |>
+  select(Model:Ratio) |>
+  rename(Predicted = Prob) |>
+  rename(Truth = pct)
+
+TP.prob.H2 <- TP.prob.H |>
+  full_join(RESULT_CR_test, by = join_by(Model, Outcome_name)) |>
+  rename(CR_Predicted = Predicted) |>
+  rename(CR_Truth = Truth) |>
+  select(-c(Ratio, Prob))
+  
+
+TP.prob.H2 |>
+  kable(caption = 'Predicted percentage of adverse outcomes in the HIPE review data')
+```
+
 The prediction on the HIPE data are shown. These are not so far from the observed results on the chart review data, though this is not a measure of the quality or accuracy of the predictions, rather it is more of a sanity check, an indication than the predictions are not completely wrong.
 
-the next step is to examine these at hospital level. There are 17 Model 3 hospitals and 9 Model 4 hospitals in these data. Model 3 hospitals primarily provide routine acute general hospital services. Model 4 hospitals both serve the function of Model 3 hospitals, and, usually several, regional or national speciality services. The number of discharges included from model 3 hospitals ranges from 1779 to 4965, and those in Model 4 centres from 5906 to 8868
-
-```{r Hospital discharge table}
-ctable(HIPE$HospCode, HIPE$ModelF,  weights = rep(1,length(HIPE$ModelF)), prop = 'n', totals = FALSE)
-
-```
+The next step is to examine these at hospital level. There are 17 Model 3 hospitals and 9 Model 4 hospitals in these data. Model 3 hospitals primarily provide routine acute general hospital services. Model 4 hospitals both serve the function of Model 3 hospitals, and, usually several, regional or national speciality services. The number of discharges included from model 3 hospitals ranges from 1,779 to 4,965, and those in Model 4 centres from 5,906 to 8,868
 
 There are 5 types of adverse event, with 2 models per event (full and restricted), for 2 Models of hospital, in a total of 17 Model 3 hospitals, and 9 Model 4 hospitals.
 
 ```{r Calculate mean risks and more}
 TP.H <- Test_predictions.H |>
   group_by(Outcome_name, Model, ModelCode, HospCode) |>
-  summarise(Prob = mean(Yes)) #|>
+  summarise(Prob = mean(Yes))
 
 TP.Mean <- TP.H |> # Hospital level mean
   group_by(Outcome_name, Model) |>
@@ -2273,7 +2349,7 @@ ggplot(TP.H,
 
 ```
 
-A more informative graph, when it comes to looking at differences between hospitals, is a graph of the differences from the overall mean. A graph against the unweighted hospital level mean is very similar.
+A more informative graph, when it comes to looking at differences between hospitals, is a graph of the differences from the overall mean. A graph against the unweighted hospital level means is very similar.
 
 ```{r Plot of differences by hospital}
 ggplot(TP.H,
