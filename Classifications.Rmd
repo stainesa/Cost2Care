@@ -1078,16 +1078,16 @@ F2M_image / F2Mk_image
 # Set mtry
 # 
 
-mtry_PN   = 7
-mtry_PNk  = 4
-mtry_UTI  = 4
-mtry_UTIk = 3
-mtry_PU   =10
-mtry_PUk  = 5
-mtry_DL   = 4
-mtry_DLk  = 3
-mtry_F2M  = 8
-mtry_F2Mk = 6
+mtry_PN   =  7
+mtry_PNk  =  4
+mtry_UTI  =  4
+mtry_UTIk =  3
+mtry_PU   = 10
+mtry_PUk  =  5
+mtry_DL   =  4
+mtry_DLk  =  3
+mtry_F2M  =  8
+mtry_F2Mk =  6
 ```
 
 Looking at these we come up with the following suggestions for mtry
