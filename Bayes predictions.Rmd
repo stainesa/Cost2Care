@@ -351,65 +351,75 @@ We use a common mildly informative prior.
 We fit the models (this takes some little time, as there are 10)
 
 ```{r Rstanarm model fits}
-fit.PN <- stan_glm(PN ~ .,
+# ancillary function
+make_formula <- function(df.TSK) {
+  names <- names(df.TSK)
+  N = length(df.TSK)
+  Formula = paste( names[3], ' ~ ',
+                   paste(c(names[4:N]),
+                         collapse = ' + '))
+  return(Formula)
+}
+
+fit.PN <- stan_glm(make_formula(df.PN),
                  data = df.PN,
                  family = binomial(link = "logit"),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.PNk <- stan_glm(PN ~ .,
+fit.PNk <- stan_glm(make_formula(df.PNk),
                  data = df.PNk,
                  family = binomial(link = "logit"),
                  weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 
-fit.UTI <- stan_glm(UTI ~ .,
+fit.UTI <- stan_glm(make_formula(df.UTI),
                  data = df.UTI,
                  family = binomial(link = "logit"),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.UTIk <- stan_glm(UTI ~ .,
+fit.UTIk <- stan_glm(make_formula(df.UTIk),
                  data = df.UTIk,
                  family = binomial(link = "logit"),
                  weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 
-fit.PU <- stan_glm(PU ~ .,
+fit.PU <- stan_glm(make_formula(df.PU),
                  data = df.PU,
                  family = binomial(link = "logit"),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.PUk <- stan_glm(PU ~ .,
+fit.PUk <- stan_glm(make_formula(df.PUk),
                  data = df.PUk,
                  family = binomial(link = "logit"),
                  weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 
-fit.DL <- stan_glm(DL ~ .,
+fit.DL <- stan_glm(make_formula(df.DL),
                  data = df.DL,
                  family = binomial(link = "logit"),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.DLk <- stan_glm(DL ~ .,
+fit.DLk <- stan_glm(make_formula(df.DLk),
                  data = df.DLk,
                  family = binomial(link = "logit"),
                  weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 
-fit.F2M <- stan_glm(F2M ~ .,
+fit.F2M <- stan_glm(make_formula(df.F2M),
                  data = df.F2M,
                  family = binomial(link = "logit"),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.F2Mk <- stan_glm(F2M ~ .,
+fit.F2Mk <- stan_glm(make_formula(df.F2Mk),
                  data = df.F2Mk,
                  family = binomial(link = "logit"),
                  weights = CCH$Weights,
@@ -421,6 +431,8 @@ fit.F2Mk <- stan_glm(F2M ~ .,
 We do live interactive testing of model fit
 
 ```{r Rstanarm model checks in shinystan}
+conflicted::conflicts_prefer(shiny::observe)
+
 launch_shinystan(fit.PN, ppd = TRUE) # Allows me to check fit etc.
 launch_shinystan(fit.PNk, ppd = TRUE) # Allows me to check fit etc.
 
