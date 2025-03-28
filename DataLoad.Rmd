@@ -287,6 +287,21 @@ HIPE_FILE <- HIPE_FILE %>%
         'Maternity' ~ 'M'
     ))
 
+###################################
+# Missing vales in HIPE file
+# There are a set of variables in the HIPE file :
+#  uti, delirium, pressure.ulcer, pneumonia, uti.hadx, delirium.hadx, pressure.ulcer.hadx, pneumonia.hadx, any.F2M, any.F2M.hadx
+#  
+#  These cause problems in regression because
+#  they are largely missing, with a few 1's.
+#  We need to convert them into
+#  non-missing variables 0 and 1.
+# Fix hadx variables in HIPE}
+
+HIPE_FILE <- HIPE_FILE |>
+  mutate(across(uti:any.f2m.hadx,
+                ~ ifelse(is.na(.),0,1)))
+
 ############# Hospital codes ################
 # Make short per hospital codes
 CODES <- HIPE_FILE %>%
@@ -400,7 +415,7 @@ HIPE_FILE <- HIPE_FILE %>%
 ```
 
 
-### Apply key funtion to HIPE data
+### Apply key function to HIPE data
 
 There are two HIPE data files.
 
