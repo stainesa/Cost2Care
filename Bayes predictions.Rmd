@@ -18,7 +18,7 @@ csl: vancouver.csl
 
 ```{r setup, include=FALSE}
 
-#rm(list = ls())
+rm(list = ls())
 
 library(rstanarm)
 
@@ -138,7 +138,10 @@ pTestYes
 
 ```
 
-Load the tasks to get at the chosen variables
+
+## Load tasks
+We're fitting a series of models where we've already done the variable selection with a bunch of random forest models.
+Here we load the tasks to get at the chosen variables, and pull the variables out. Neither the weighting variable, Weights, nor the adverse outcome (PN, UTI, ...) is a feature in the tasks.
 
 ```{r Load tasks}
 tsk_PN   <- readRDS('data/tsk.PN')
@@ -151,12 +154,35 @@ tsk_DL   <- readRDS('data/tsk.DL')
 tsk_DLk  <- readRDS('data/tsk.DLk')
 tsk_F2M  <- readRDS('data/tsk.F2M')
 tsk_F2Mk <- readRDS('data/tsk.F2Mk')
-
-tsk_F2Mk$feature_names
-CCH |> select(c(PN,tsk_PNk$feature_names,Weights)) |> names() # this is how we subset
 ```
 
-What's where?
+### What do the tasks contain?
+
+```{r process tasks}
+# What information have we got on each task?
+# 
+tsk_F2Mk$feature_names # List of names of variables
+weights <- tsk_F2M$weights # Dataframe of row.id and weight
+tsk_F2M$target_names # One character variable
+
+#Check alignment of weights
+CCH |>
+  select(Weights, rowid) |>
+  full_join(weights, by = join_by(rowid == row_id)) |>
+  mutate(NotEqual = ifelse(Weights == weight,0,1)) |>
+  filter(NotEqual == 1) # 0 entries
+# alignment is correct, weights are identical.
+
+
+CCH |>
+  select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names)) |>
+  names() # this is how we subset for each task
+
+```
+
+### What's where?
+
+This checks that all the features used are in the datframe CCH, and that there are no extra features we didn't know about.
 
 ```{r}
 LIST = names(CCH)
@@ -231,19 +257,30 @@ NAMES <- NAMES |>
 ```
 
 
-## Variable selection
+### Variable selection
 
-These come from the ranger fits, and variables are listed in order of variable permutation importance.
+These come from the ranger fits.
 
+
+# Bayesian fit
+
+We use a common mildly informative prior.
+
+```{r t_prior}
+  t_prior <- student_t(df = 7, location = 0, scale = 2.5)
+```
 
 ```{r Rstanarm model}
-  
-  t_prior <- student_t(df = 7, location = 0, scale = 2.5)
-
-fit.PNk <- stan_glm(PN ~ .,
-                 data = CCH |> select(c(PN,tsk_PNk$feature_names, Weights)),
+fit.PN <- stan_glm(PN ~ .,
+                 data = CCH |> select(c(PN,tsk_PN$feature_names)),
                  family = binomial(link = "logit"),
-                 weights = Weights,
+                 weights = CCH$Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+fit.PNk <- stan_glm(PN ~ .,
+                 data = CCH |> select(c(PN,tsk_PNk$feature_names)),
+                 family = binomial(link = "logit"),
+                 weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 fit.PNk
