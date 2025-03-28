@@ -110,13 +110,12 @@ TruePlot <- ggplot(CCH |> arrange(PN),
 TruePlot
 ```
 
-
 Split CCH into training and test sets
 
 ```{r Train test split model}
 #Split CCH into training and test sets
 #
-set.seed(123)
+set.seed(18237497)
 splits      <- initial_split(CCH, strata = PN)
 
 CCH_train <- training(splits)
@@ -137,7 +136,6 @@ pTestNo
 pTestYes
 
 ```
-
 
 ## Load tasks
 We're fitting a series of models where we've already done the variable selection with a bunch of random forest models.
@@ -256,11 +254,91 @@ NAMES <- NAMES |>
 
 ```
 
+## Check variability
+
+Some of the variables are mostly 0 or mostly 1. It can happen that in the training, or test set, these are all 1 or zero. These need to be omitted.
+
+```{r check variability}
+CCH_variability = 
+
+CCH_train |>
+  mutate(across(everything(), ~ length(unique(.)))) |>
+  distinct() |>
+  pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Count') |>
+filter(Count == 1)
+
+CCH_test |>
+  mutate(across(everything(), ~ length(unique(.)))) |>
+  distinct() |>
+  pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Count') |>
+filter(Count == 1)
+
+# Two variables 
+#  CCH$Client.Support.Interventions
+#  CCH$Procedures.On.Ear.And.Mastoid.Process
+# have no occurrences in the Chart Review data set
+# Two more
+#  CCH$Procedures.On.Endocrine.System and
+#  CCH$Radiation.Oncology.Procedures
+# have only one, and hence cannot be considered!
+```
 
 ### Variable selection
 
 These come from the ranger fits.
 
+```{r Variable selection}
+df.PN <- CCH |>
+  select(c('rowid', 'Weights', tsk_PN$target_names, tsk_PN$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.PNk <- CCH |>
+  select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names))
+
+df.UTI <- CCH |>
+  select(c('rowid', 'Weights', tsk_UTI$target_names, tsk_UTI$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.UTIk <- CCH |>
+  select(c('rowid', 'Weights', tsk_UTIk$target_names, tsk_UTIk$feature_names))
+
+df.PU <- CCH |>
+  select(c('rowid', 'Weights', tsk_PU$target_names, tsk_PU$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.PUk <- CCH |>
+  select(c('rowid', 'Weights', tsk_PUk$target_names, tsk_PUk$feature_names))
+
+df.DL <- CCH |>
+  select(c('rowid', 'Weights', tsk_DL$target_names, tsk_DL$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.DLk <- CCH |>
+  select(c('rowid', 'Weights', tsk_DLk$target_names, tsk_DLk$feature_names))
+
+df.F2M <- CCH |>
+  select(c('rowid', 'Weights', tsk_F2M$target_names, tsk_F2M$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.F2Mk <- CCH |>
+  select(c('rowid', 'Weights', tsk_F2Mk$target_names, tsk_F2Mk$feature_names))
+
+```
 
 # Bayesian fit
 
@@ -270,21 +348,94 @@ We use a common mildly informative prior.
   t_prior <- student_t(df = 7, location = 0, scale = 2.5)
 ```
 
-```{r Rstanarm model}
+We fit the models (this takes some little time, as there are 10)
+
+```{r Rstanarm model fits}
 fit.PN <- stan_glm(PN ~ .,
-                 data = CCH |> select(c(PN,tsk_PN$feature_names)),
+                 data = df.PN,
                  family = binomial(link = "logit"),
-                 weights = CCH$Weights,
+                 weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 fit.PNk <- stan_glm(PN ~ .,
-                 data = CCH |> select(c(PN,tsk_PNk$feature_names)),
+                 data = df.PNk,
                  family = binomial(link = "logit"),
                  weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.PNk
+
+fit.UTI <- stan_glm(UTI ~ .,
+                 data = df.UTI,
+                 family = binomial(link = "logit"),
+                 weights = Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+fit.UTIk <- stan_glm(UTI ~ .,
+                 data = df.UTIk,
+                 family = binomial(link = "logit"),
+                 weights = CCH$Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+
+fit.PU <- stan_glm(PU ~ .,
+                 data = df.PU,
+                 family = binomial(link = "logit"),
+                 weights = Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+fit.PUk <- stan_glm(PU ~ .,
+                 data = df.PUk,
+                 family = binomial(link = "logit"),
+                 weights = CCH$Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+
+fit.DL <- stan_glm(DL ~ .,
+                 data = df.DL,
+                 family = binomial(link = "logit"),
+                 weights = Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+fit.DLk <- stan_glm(DL ~ .,
+                 data = df.DLk,
+                 family = binomial(link = "logit"),
+                 weights = CCH$Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+
+fit.F2M <- stan_glm(F2M ~ .,
+                 data = df.F2M,
+                 family = binomial(link = "logit"),
+                 weights = Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+fit.F2Mk <- stan_glm(F2M ~ .,
+                 data = df.F2Mk,
+                 family = binomial(link = "logit"),
+                 weights = CCH$Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+
+```
+
+We do live interactive testing of model fit
+
+```{r Rstanarm model checks in shinystan}
+launch_shinystan(fit.PN, ppd = TRUE) # Allows me to check fit etc.
 launch_shinystan(fit.PNk, ppd = TRUE) # Allows me to check fit etc.
+
+launch_shinystan(fit.UTI, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.UTIk, ppd = TRUE) # Allows me to check fit etc.
+
+launch_shinystan(fit.PU, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.PUk, ppd = TRUE) # Allows me to check fit etc.
+
+launch_shinystan(fit.DL, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.DLk, ppd = TRUE) # Allows me to check fit etc.
+
+launch_shinystan(fit.F2M, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.F2Mk, ppd = TRUE) # Allows me to check fit etc.
+
 ```
 
 
