@@ -324,10 +324,9 @@ HIPE_FILE <- HIPE_FILE %>%
 # 
 HIPE_FILE <- HIPE_FILE %>%
     mutate(Source = case_match(source,
-                            1 ~ "Home",
+                            c(1,8,9) ~ "Home",
                             2 ~ "Care",
-                            3 ~ "Transfer",
-                            c(0,4,5,6,7,8,9) ~ "Other")) %>%
+                            c(0,3,4,5,6,7) ~ "Transfer")) %>%
     mutate(Died = case_match(discode,
                             c(6,7) ~ "Dead",
                             c(0,1,2,3,4,5,
