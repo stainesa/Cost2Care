@@ -145,7 +145,7 @@ Proportions |>
 
 ```{r Outcome_recode, eval = FALSE}
 #Keep this cos it's clever
-#Outcome_recode <- function(DF, COND) {
+Outcome_recode <- function(DF, COND) {
 
   ASSOC  <- paste0({{COND}},'_Associated')
   ABBREV <- paste0({{COND}},'_A')
