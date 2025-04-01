@@ -22,6 +22,8 @@ csl: vancouver.csl
 
 ```{r setup, include=FALSE}
 library(rstanarm)
+library(tidybayes)
+library(posterior)
 
 library(tidyverse)
 library(bayesplot)
@@ -154,7 +156,7 @@ CCH |>
 
 ### What's where?
 
-This checks that all the features used are in the datframe CCH, and that there are no extra features we didn't know about.
+This checks that all the features used are in the dataframe CCH, and that there are no extra features we didn't know about.
 
 ```{r What is where?}
 LIST = names(CCH)
@@ -457,21 +459,6 @@ df.test.F2Mk <- list_F2Mk[[3]] |>
 
 ```
 
-
-```{r}
-table(df.train.PN$Source)
-table(df.train.PNk$Source)
-table(df.train.UTI$Source)
-table(df.train.UTIk$Source)
-table(df.train.PU$Source)
-table(df.train.PUk$Source)
-table(df.train.DL$Source)
-table(df.train.DLk$Source)
-table(df.train.F2M$Source)
-table(df.train.F2Mk$Source)
-
-
-```
 # Bayesian fit
 
 We use a common mildly informative prior.
@@ -732,7 +719,7 @@ Summary.CHART <- CCH |>
                names_to = 'Outcome',
                values_to = 'Observed') |>
   group_by(Outcome) |>
-  summarise(across(Observed, list(mean = mean, median = median, sd = sd))) # 5 values
+  summarise(across(Observed, list(mean = mean, median = median, sd = stats::sd))) # 5 values
 
 kable(Summary.CHART, caption = 'Summary of observed outcomes for  chart review')
 
@@ -751,7 +738,7 @@ rm(SCR)
 Summary.TRAIN <- TRAIN_Predicted |>
   select(Outcome, .prediction) |>
   group_by(Outcome) |>
-  summarise(across(.prediction, list(mean = mean, median = median, sd = sd))) # 10 values
+  summarise(across(.prediction, list(mean = mean, median = median, sd = stats::sd))) # 10 values
 
 kable(Summary.TRAIN, caption = 'Summary of modelled predictions from TRAINING data for chart review HIPE')
 
@@ -760,7 +747,7 @@ kable(Summary.TRAIN, caption = 'Summary of modelled predictions from TRAINING da
 Summary.TEST <- TEST_Predicted |>
   select(Outcome, .prediction) |>
   group_by(Outcome) |>
-  summarise(across(.prediction, list(mean = mean, median = median, sd = sd))) # 10 values
+  summarise(across(.prediction, list(mean = mean, median = median, sd = stats::sd))) # 10 values
 
 kable(Summary.TEST, caption = 'Summary of modelled predictions from TEST data for chart review HIPE')
 
@@ -769,9 +756,8 @@ kable(Summary.TEST, caption = 'Summary of modelled predictions from TEST data fo
 * A plot of the distribution of the predictions, compared with the observed data
 
 
-```{r Plot of predictions}
-
-ggplot(TRAIN_Predicted,
+```{r Plot of predictions - training, fig.cap= 'Distribution of predicted individual risk estimates for adverse outcomes in the TRAINING data. The mean predicted risk for each outcome is a vertical line, the same colour as that outcome. The observed risk is shown as a green vertical line.', fig.dpi=1200, fig.height=7, fig.width=7}
+G_TRAIN_Predicted = ggplot(TRAIN_Predicted,
        aes(y = Result, x = .prediction, colour = Outcome)) +
   geom_violin() +
   geom_vline(data = Summary.TRAIN,
@@ -780,9 +766,14 @@ ggplot(TRAIN_Predicted,
              aes(xintercept = Observed_mean), colour = 'green') +
   theme_minimal() +
   guides(colour = 'none') +
-  facet_wrap( ~Outcome ) 
-  
-ggplot(TEST_Predicted,
+  facet_wrap( ~Outcome )
+G_TRAIN_Predicted
+ggsave('image/G_TRAIN_Predicted.pdf', G_TRAIN_Predicted, units = 'cm', height = 10, width = 10)
+rm(G_TRAIN_Predicted)
+```
+
+```{r Plot of predictions - TEST, fig.cap= 'Distribution of predicted individual risk estimates for adverse outcomes in the TEST data. The mean predicted risk for each outcome is a vertical line, the same colour as that outcome. The observed risk is shown as a green vertical line.', fig.dpi=1200, fig.height=7, fig.width=7}
+G_TEST_Predicted = ggplot(TEST_Predicted,
        aes(y = Result, x = .prediction, colour = Outcome)) +
   geom_violin() +
   geom_vline(data = Summary.TEST,
@@ -792,10 +783,35 @@ ggplot(TEST_Predicted,
   theme_minimal() +
   guides(colour = 'none') +
   facet_wrap( ~Outcome ) 
-  
+G_TEST_Predicted
+ggsave('image/G_TEST_Predicted.pdf', G_TEST_Predicted, units = 'cm', height = 10, width = 10)
+rm(G_TEST_Predicted)
 ```
 
-```{r, eval = FALSE}
+
+```{r Clean up}
+
+
+
+```
+```{r Matrix summaries, eval = FALSE}
+HIPE <- HIPE |>
+  rowid_to_column()
+# We have to this because otherwise we run out of memory rather quickly.
+# 
+# 
+Outcome = 'PNk'
+HIPE.PNk <- HIPE |>
+  select(c('rowid', 'Weights', tsk_PNk$feature_names))
+HIPE.PNk <- HIPE.PNk |>
+  add_epred_draws(object = fit.PNk) # Probabilities
+# 4000 rows of one column per record
+
+
+# 131478 rows of 4,000 draws in columns
+```
+
+```{r, eval = FALSE} 
 summarytools::ctable(Predictions$PN, Predictions$.prediction, prop = 't')
 ggplot(Predictions, aes(x = .epred, y = t.linpred)) + geom_point() # All identical
 ```
@@ -817,7 +833,6 @@ performance::model_performance(fit.PNk)
 # What matters?
 
 This is not a classification problem. We are trying to estimate the prevalence, that is the probability that a random person discharged will have developed hospital acquired pneumonia. In terms of our models, this is just the transformed linear predictor, or the .epred.
-
 
 ```{r, eval = FALSE}
 EPred.PNk.h <- posterior_epred(fit.PNk,
