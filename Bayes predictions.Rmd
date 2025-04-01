@@ -16,11 +16,10 @@ bibliography: references.bib
 csl: vancouver.csl
 ---
 
-```{r Clean environment, include = FALSE}
-  rm(list = ls())
-```
-
 ```{r setup, include=FALSE}
+
+rm(list = ls())
+
 library(rstanarm)
 
 library(tidyverse)
@@ -111,6 +110,33 @@ TruePlot <- ggplot(CCH |> arrange(PN),
 TruePlot
 ```
 
+Split CCH into training and test sets
+
+```{r Train test split model}
+#Split CCH into training and test sets
+#
+set.seed(18237497)
+splits      <- initial_split(CCH, strata = PN)
+
+CCH_train <- training(splits)
+CCH_test  <- testing(splits)
+
+t.train <- table(CCH_train$PN)
+t.train
+  pTrainYes <-  t.train[[1]]/(t.train[[1]] + t.train[[2]])
+  pTrainNo <-  t.train[[2]]/(t.train[[1]] + t.train[[2]])
+pTrainNo
+pTrainYes
+
+t.test <- table(CCH_test$PN)
+t.test
+  pTestYes <-  t.test[[1]]/(t.test[[1]] + t.test[[2]])
+  pTestNo <-  t.test[[2]]/(t.test[[1]] + t.test[[2]])
+pTestNo
+pTestYes
+
+```
+
 ## Load tasks
 We're fitting a series of models where we've already done the variable selection with a bunch of random forest models.
 Here we load the tasks to get at the chosen variables, and pull the variables out. Neither the weighting variable, Weights, nor the adverse outcome (PN, UTI, ...) is a feature in the tasks.
@@ -156,7 +182,7 @@ CCH |>
 
 This checks that all the features used are in the datframe CCH, and that there are no extra features we didn't know about.
 
-```{r What is where?}
+```{r}
 LIST = names(CCH)
 NAMES <- as_tibble(LIST) |>
   rename(NAME = value) 
@@ -233,19 +259,19 @@ NAMES <- NAMES |>
 Some of the variables are mostly 0 or mostly 1. It can happen that in the training, or test set, these are all 1 or zero. These need to be omitted.
 
 ```{r check variability}
-CCH_variability <- CCH |>
+CCH_variability = 
+
+CCH_train |>
   mutate(across(everything(), ~ length(unique(.)))) |>
   distinct() |>
   pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Count') |>
 filter(Count == 1)
 
-CCH |>
-  select(Anaesthesia:Therapeutic.Interventions) |>
- mutate(across(everything(), ~sum(.))) |>
+CCH_test |>
+  mutate(across(everything(), ~ length(unique(.)))) |>
   distinct() |>
-  glimpse()
-
-
+  pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Count') |>
+filter(Count == 1)
 
 # Two variables 
 #  CCH$Client.Support.Interventions
@@ -254,224 +280,66 @@ CCH |>
 # Two more
 #  CCH$Procedures.On.Endocrine.System and
 #  CCH$Radiation.Oncology.Procedures
-# have only one, and hence cannot be considered
-# Dental.Services has only 3, which is really too small to be any use, so we lose it too.
+# have only one, and hence cannot be considered!
 ```
 
-## Training and test datasets
+### Variable selection
 
-Split CCH into training and test sets per task
-
-```{r Train test split model}
-#Split CCH into training and test sets
-#
-set.seed(4763765)
-
-# Ancillary function to make the necesary pieces
-make_training <- function(df, TASK) {
-  name <- TASK$target_names
-  NAME <- {{name}}
-  NAMEs <- ensym(NAME)
-  
-  splits <- initial_split(df,
-                prop = 700/1000,
-                strata = name)
-  
-  train <- training(splits)
-  test  <- testing(splits)
-  
-    counts <- train |>
-      select(!!NAMEs) |> group_by(!!NAMEs) |>
-      summarise(N = n()) |>
-      mutate(Type = 'Train') |>
-      bind_rows(test |>
-        select(!!NAMEs) |> group_by(!!NAMEs) |>
-        summarise(N = n()) |>
-        mutate(Type = 'Test')) 
-
-    totals <- counts |>
-      group_by(Type) |>
-      summarise(Sum = sum(N))
-
-    probs <- counts |>
-      full_join(totals, by = join_by(Type)) |>
-      mutate(Prob = N/Sum)
-
-    
-    tsk_name = deparse(substitute(TASK))
-    names_for_list <- c(paste(tsk_name, 'splits', sep = '_'),
-                        paste(tsk_name, 'train', sep = '_'),
-                        paste(tsk_name, 'test', sep = '_'),
-                        paste(tsk_name, 'probs', sep = '_'))
-
-    LIST = list(splits, train, test, probs)
-    names(LIST) <- names_for_list
-
-  return(LIST)
-}
-
-# Named list with 4 elements
-# XX_splits Split from which test and train are derived
-# XX_train Training data set
-# XX_test  Test data set
-# XX_probs Counts, totals, and probabilities by test and train
-
-list_PN  <- make_training(CCH, tsk_PN)
-list_PNk <- make_training(CCH, tsk_PNk)
-
-list_UTI  <- make_training(CCH, tsk_UTI)
-list_UTIk <- make_training(CCH, tsk_UTIk)
-
-list_PU  <- make_training(CCH, tsk_PU)
-list_PUk <- make_training(CCH, tsk_PUk)
-
-list_DL  <- make_training(CCH, tsk_DL)
-list_DLk <- make_training(CCH, tsk_DLk)
-
-list_F2M  <- make_training(CCH, tsk_F2M)
-list_F2Mk <- make_training(CCH, tsk_F2Mk)
-
-```
-
-## Variable selection
-
-These come from the ranger fits for each task
+These come from the ranger fits.
 
 ```{r Variable selection}
-#list_XX[[2]] is the training data as a tibble.
-
-df.train.PN <- list_PN[[2]] |>
+df.PN <- CCH |>
   select(c('rowid', 'Weights', tsk_PN$target_names, tsk_PN$feature_names)) |>
   select(-c(Client.Support.Interventions,
-            Dental.Services,
             Procedures.On.Ear.And.Mastoid.Process,
             Procedures.On.Endocrine.System,
             Radiation.Oncology.Procedures))
 
-df.train.PNk <- list_PNk[[2]] |>
+df.PNk <- CCH |>
   select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names))
 
-df.train.UTI <- list_UTI[[2]] |>
+df.UTI <- CCH |>
   select(c('rowid', 'Weights', tsk_UTI$target_names, tsk_UTI$feature_names)) |>
   select(-c(Client.Support.Interventions,
-            Dental.Services,
             Procedures.On.Ear.And.Mastoid.Process,
             Procedures.On.Endocrine.System,
             Radiation.Oncology.Procedures))
 
-df.train.UTIk <- list_UTIk[[2]] |>
+df.UTIk <- CCH |>
   select(c('rowid', 'Weights', tsk_UTIk$target_names, tsk_UTIk$feature_names))
 
-df.train.PU <- list_PU[[2]] |>
+df.PU <- CCH |>
   select(c('rowid', 'Weights', tsk_PU$target_names, tsk_PU$feature_names)) |>
   select(-c(Client.Support.Interventions,
-            Dental.Services,
             Procedures.On.Ear.And.Mastoid.Process,
             Procedures.On.Endocrine.System,
             Radiation.Oncology.Procedures))
 
-df.train.PUk <- list_PUk[[2]] |>
-  select(c('rowid', 'Weights', tsk_PUk$target_names, tsk_PUk$feature_names)) |>
-  select(-c(Dental.Services))
+df.PUk <- CCH |>
+  select(c('rowid', 'Weights', tsk_PUk$target_names, tsk_PUk$feature_names))
 
-df.train.DL <- list_DL[[2]] |>
+df.DL <- CCH |>
   select(c('rowid', 'Weights', tsk_DL$target_names, tsk_DL$feature_names)) |>
   select(-c(Client.Support.Interventions,
-            Dental.Services,
             Procedures.On.Ear.And.Mastoid.Process,
             Procedures.On.Endocrine.System,
             Radiation.Oncology.Procedures))
 
-df.train.DLk <- list_DLk[[2]] |>
+df.DLk <- CCH |>
   select(c('rowid', 'Weights', tsk_DLk$target_names, tsk_DLk$feature_names))
 
-df.train.F2M <- list_F2M[[2]] |>
+df.F2M <- CCH |>
   select(c('rowid', 'Weights', tsk_F2M$target_names, tsk_F2M$feature_names)) |>
   select(-c(Client.Support.Interventions,
-            Dental.Services,
             Procedures.On.Ear.And.Mastoid.Process,
             Procedures.On.Endocrine.System,
             Radiation.Oncology.Procedures))
 
-df.train.F2Mk <- list_F2Mk[[2]] |>
-  select(c('rowid', 'Weights', tsk_F2Mk$target_names, tsk_F2Mk$feature_names))
-#
-###################################################
-#list_XX[[3]] is the test data as a tibble.
-
-df.test.PN <- list_PN[[3]] |>
-  select(c('rowid', 'Weights', tsk_PN$target_names, tsk_PN$feature_names)) |>
-  select(-c(Client.Support.Interventions,
-            Dental.Services,
-            Procedures.On.Ear.And.Mastoid.Process,
-            Procedures.On.Endocrine.System,
-            Radiation.Oncology.Procedures))
-
-df.test.PNk <- list_PNk[[3]] |>
-  select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names))
-
-df.test.UTI <- list_UTI[[3]] |>
-  select(c('rowid', 'Weights', tsk_UTI$target_names, tsk_UTI$feature_names)) |>
-  select(-c(Client.Support.Interventions,
-            Dental.Services,
-            Procedures.On.Ear.And.Mastoid.Process,
-            Procedures.On.Endocrine.System,
-            Radiation.Oncology.Procedures))
-
-df.test.UTIk <- list_UTIk[[3]] |>
-  select(c('rowid', 'Weights', tsk_UTIk$target_names, tsk_UTIk$feature_names))
-
-df.test.PU <- list_PU[[3]] |>
-  select(c('rowid', 'Weights', tsk_PU$target_names, tsk_PU$feature_names)) |>
-  select(-c(Client.Support.Interventions,
-            Dental.Services,
-            Procedures.On.Ear.And.Mastoid.Process,
-            Procedures.On.Endocrine.System,
-            Radiation.Oncology.Procedures))
-
-df.test.PUk <- list_PUk[[3]] |>
-  select(c('rowid', 'Weights', tsk_PUk$target_names, tsk_PUk$feature_names)) |>
-  select(-c(Dental.Services))
-
-df.test.DL <- list_DL[[3]] |>
-  select(c('rowid', 'Weights', tsk_DL$target_names, tsk_DL$feature_names)) |>
-  select(-c(Client.Support.Interventions,
-            Dental.Services,
-            Procedures.On.Ear.And.Mastoid.Process,
-            Procedures.On.Endocrine.System,
-            Radiation.Oncology.Procedures))
-
-df.test.DLk <- list_DLk[[3]] |>
-  select(c('rowid', 'Weights', tsk_DLk$target_names, tsk_DLk$feature_names))
-
-df.test.F2M <- list_F2M[[3]] |>
-  select(c('rowid', 'Weights', tsk_F2M$target_names, tsk_F2M$feature_names)) |>
-  select(-c(Client.Support.Interventions,
-            Dental.Services,
-            Procedures.On.Ear.And.Mastoid.Process,
-            Procedures.On.Endocrine.System,
-            Radiation.Oncology.Procedures))
-
-df.test.F2Mk <- list_F2Mk[[3]] |>
+df.F2Mk <- CCH |>
   select(c('rowid', 'Weights', tsk_F2Mk$target_names, tsk_F2Mk$feature_names))
 
 ```
 
-
-```{r}
-table(df.train.PN$Source)
-table(df.train.PNk$Source)
-table(df.train.UTI$Source)
-table(df.train.UTIk$Source)
-table(df.train.PU$Source)
-table(df.train.PUk$Source)
-table(df.train.DL$Source)
-table(df.train.DLk$Source)
-table(df.train.F2M$Source)
-table(df.train.F2Mk$Source)
-
-
-```
 # Bayesian fit
 
 We use a common mildly informative prior.
@@ -493,68 +361,68 @@ make_formula <- function(df.TSK) {
   return(Formula)
 }
 
-fit.PN <- stan_glm(make_formula(df.train.PN),
-                 data = df.train.PN,
+fit.PN <- stan_glm(make_formula(df.PN),
+                 data = df.PN,
                  family = binomial(link = "logit"),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.PNk <- stan_glm(make_formula(df.train.PNk),
-                 data = df.train.PNk,
+fit.PNk <- stan_glm(make_formula(df.PNk),
+                 data = df.PNk,
                  family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-
-fit.UTI <- stan_glm(make_formula(df.train.UTI),
-                 data = df.train.UTI,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-fit.UTIk <- stan_glm(make_formula(df.train.UTIk),
-                 data = df.train.UTIk,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
+                 weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 
-fit.PU <- stan_glm(make_formula(df.train.PU),
-                 data = df.train.PU,
+fit.UTI <- stan_glm(make_formula(df.UTI),
+                 data = df.UTI,
                  family = binomial(link = "logit"),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.PUk <- stan_glm(make_formula(df.train.PUk),
-                 data = df.train.PUk,
+fit.UTIk <- stan_glm(make_formula(df.UTIk),
+                 data = df.UTIk,
                  family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-
-fit.DL <- stan_glm(make_formula(df.train.DL),
-                 data = df.train.DL,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-fit.DLk <- stan_glm(make_formula(df.train.DLk),
-                 data = df.train.DLk,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
+                 weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 
-fit.F2M <- stan_glm(make_formula(df.train.F2M),
-                 data = df.train.F2M,
+fit.PU <- stan_glm(make_formula(df.PU),
+                 data = df.PU,
                  family = binomial(link = "logit"),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
-fit.F2Mk <- stan_glm(make_formula(df.train.F2Mk),
-                 data = df.train.F2Mk,
+fit.PUk <- stan_glm(make_formula(df.PUk),
+                 data = df.PUk,
+                 family = binomial(link = "logit"),
+                 weights = CCH$Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+
+fit.DL <- stan_glm(make_formula(df.DL),
+                 data = df.DL,
                  family = binomial(link = "logit"),
                  weights = Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+fit.DLk <- stan_glm(make_formula(df.DLk),
+                 data = df.DLk,
+                 family = binomial(link = "logit"),
+                 weights = CCH$Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+
+fit.F2M <- stan_glm(make_formula(df.F2M),
+                 data = df.F2M,
+                 family = binomial(link = "logit"),
+                 weights = Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 4, seed = 12345)
+fit.F2Mk <- stan_glm(make_formula(df.F2Mk),
+                 data = df.F2Mk,
+                 family = binomial(link = "logit"),
+                 weights = CCH$Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
 
@@ -562,7 +430,7 @@ fit.F2Mk <- stan_glm(make_formula(df.train.F2Mk),
 
 We do live interactive testing of model fit
 
-```{r Rstanarm model checks in shinystan, eval = FALSE}
+```{r Rstanarm model checks in shinystan}
 conflicted::conflicts_prefer(shiny::observe)
 
 launch_shinystan(fit.PN, ppd = TRUE) # Allows me to check fit etc.
@@ -582,147 +450,170 @@ launch_shinystan(fit.F2Mk, ppd = TRUE) # Allows me to check fit etc.
 
 ```
 
-# Predictions
 
-We use the epred predictions, which are the linear predictions, transformed by the invlogit function, and so directly represent probabilities.
-
-```{r Collect predictions - training data}
-
-TRAIN_Predicted <- bind_rows(
-
-  epred_draws(fit.PN, df.train.PN, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'PN'),
-  epred_draws(fit.PNk, df.train.PNk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'PNk'),
-  
-  epred_draws(fit.UTI, df.train.UTI, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'UTI'),
-  epred_draws(fit.UTIk, df.train.UTIk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'UTIk'),
-  
-    epred_draws(fit.PU, df.train.PU, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'PU'),
-  epred_draws(fit.PUk, df.train.PUk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'PUk'),
-  
-    epred_draws(fit.DL, df.train.DL, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'DL'),
-  epred_draws(fit.DLk, df.train.DLk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'DLk'),
-  
-    epred_draws(fit.F2M, df.train.F2M, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'F2M'),
-  epred_draws(fit.F2Mk, df.train.F2Mk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'F2Mk'),
-  
-  )
-nrow(TRAIN_Predicted)/nrow(df.train.PNk)
+```{r Collect predictions}
+TEST <- epred_draws(fit.DL, CCH_train, value = '.prediction') |>
+  ungroup() |>
+  select(rowid, DL, .row, .draw, .prediction)
 ```
 
-```{r Collect predictions - test data}
+```{r Confusion matrices for test and trained}
 
-TEST_Predicted <- bind_rows(
+Observations_trained = nrow(CCH_train)
+Observations_test = nrow(CCH_test)
 
-  epred_draws(fit.PN, df.test.PN, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'PN'),
-  epred_draws(fit.PNk, df.test.PNk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'PNk'),
-  
-  epred_draws(fit.UTI, df.test.UTI, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'UTI'),
-  epred_draws(fit.UTIk, df.test.UTIk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'UTIk'),
-  
-    epred_draws(fit.PU, df.test.PU, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'PU'),
-  epred_draws(fit.PUk, df.test.PUk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'PUk'),
-  
-    epred_draws(fit.DL, df.test.DL, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'DL'),
-  epred_draws(fit.DLk, df.test.DLk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'DLk'),
-  
-    epred_draws(fit.F2M, df.test.F2M, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'F2M'),
-  epred_draws(fit.F2Mk, df.test.F2Mk, value = '.prediction') |>
-    ungroup() |>
-    select(1:3, .row, .draw, .prediction) |>
-      rename(Result = 3) |>
-    mutate(Outcome = 'F2Mk'),
-  
-  )
-nrow(TEST_Predicted)/nrow(df.test.PNk)
+Confusions_train <- CCH_train |> 
+  add_predicted_draws(fit.PNk) |>
+  ungroup() |>
+  select(.draw, PN, .prediction) |>
+  group_by(PN, .prediction, .draw) |>
+  summarise( N = n()) |>
+  arrange(.draw, PN, .prediction) |>
+  select(.draw, PN, .prediction, N) |>
+  mutate(P = N/Observations_trained) |>
+  mutate(Type = case_when(
+    PN == 'No'  & .prediction == 0 ~ 'TN',
+    PN == 'No'  & .prediction == 1 ~ 'FP',
+    PN == 'Yes' & .prediction == 0 ~ 'FN',
+    PN == 'Yes' & .prediction == 1 ~ 'TP',  )) |>
+  mutate(Prediction = case_when(
+    .prediction == 0 ~ 'N',
+    .prediction == 1 ~ 'P',  )) |>
+  ungroup()
+
+ggplot(Confusions_train,
+       aes(x = Type, y = P)) +
+  geom_boxplot()
+
+ggplot(Confusions,
+       aes(x = Type, y = N)) +
+  geom_boxplot()
+
+# 4,000 confusion matrices!
+
+  Confusions_train |> filter(Type == 'TN') |> summary()
+  Confusions_train |> filter(Type == 'FN') |> summary()
+  Confusions_train |> filter(Type == 'FP') |> summary()
+  Confusions_train |> filter(Type == 'TP') |> summary()
+
+  Confusions_train |>
+    group_by(Prediction, .draw) |>
+    summarise(P = sum(P)) |>
+    arrange(.draw, Prediction) |>
+    ggplot(aes(y = Prediction,
+               x = P,
+               colour = Prediction, fill = Prediction)) +
+  geom_violin() +
+    geom_vline(xintercept = c(pTrainNo, pTrainYes),
+               colour = c('blue', 'blue'),
+               linewidth = 1.2) +
+  guides(colour = 'none') +
+  labs(title = "Predictions for *training data* from chart review",
+       subtitle = "Observed training data probability shown as vertical lines",
+       x = 'Estimated probability',
+       y = 'Pneumonia') +
+    theme_minimal() +
+    scale_fill_viridis_d(option = 'G') +
+    scale_colour_viridis_d(option = 'G')
 
 ```
 
-## Interpret predictions
+The predictions on the test data are pretty good, but lower than on the training data.
 
-We have 4000 estimates for each of 10 models of the predicted value of the probability of the outcome (Pn, UTI, ... F2M), derived from the models we have fitted. For the Chart review data we also have the ground truth, in a variable 'Result'. Clearly we won't have this for the HIPE data.
 
-We want three things (for each model)
+```{r Test data}
 
-* A plot of the distirbution of the predictions
+Observations_test = nrow(CCH_test)
+
+Confusions <- CCH_test |> 
+  add_predicted_draws(object = fit.PNk) |>
+  ungroup() |>
+  select(.draw, PN, .prediction) |>
+  group_by(PN, .prediction, .draw) |>
+  summarise( N = n()) |>
+  arrange(.draw, PN, .prediction) |>
+  select(.draw, PN, .prediction, N) |>
+  mutate(P = N/Observations_test) |>
+  mutate(Type = case_when(
+    PN == 'No'  & .prediction == 0 ~ 'TN',
+    PN == 'No'  & .prediction == 1 ~ 'FP',
+    PN == 'Yes' & .prediction == 0 ~ 'FN',
+    PN == 'Yes' & .prediction == 1 ~ 'TP',  )) |>
+  mutate(Prediction = case_when(
+    .prediction == 0 ~ 'No',
+    .prediction == 1 ~ 'Yes',  )) |>
+  ungroup() |>
+  select(-c(PN, .prediction))
+
+Confusions |> group_by(.draw) |> summarise(N = n()) |> filter((N !=4)) # 1277
+
+  ggplot(Confusions, aes(x = Type, y = P)) + geom_boxplot()
+  ggplot(Confusions, aes(x = Type, y = N)) + geom_boxplot()
+
+# 4,000 confusion matrices on test data!
+
+  Confusions |> filter(Type == 'TN') |> summary(P)
+  Confusions |> filter(Type == 'FN') |> summary(P)
+  Confusions |> filter(Type == 'FP') |> summary(P)
+  Confusions |> filter(Type == 'TP') |> summary(P)
+
+Confusions |>
+    group_by(Prediction, .draw) |>
+    summarise(P = sum(P)) |>
+    arrange(.draw, Prediction) |>
+    ggplot(aes(y = Prediction,
+               x = P,
+               colour = Prediction, fill = Prediction)) +
+  geom_violin() +
+    geom_vline(xintercept = c(pTestNo, pTestYes), colour = c('blue', 'blue'), linewidth = 1.2) +
+  guides(colour = 'none') +
+  labs(title = "Predictions for test data from chart review",
+       subtitle = "Test data probability shown as vertical lines",
+       x = 'Estimated probability',
+       y = 'Pneumonia') +
+    theme_minimal() +
+    scale_fill_viridis_d(option = 'G') +
+    scale_colour_viridis_d(option = 'G')
+
+```
 
 ```{r Collate predictions}
+CCH_linpred <- CCH_test |> 
+  add_linpred_draws(object = fit.PNk) |>
+  ungroup() |> 
+  select(rowid, .draw, PN, .linpred) |>
+  arrange(rowid, .draw)
 
+CCH_linpred |> group_by(.draw) |> summarise(N = n()) |> summary()
+
+CCH_t.linpred <- CCH_test |> 
+  add_linpred_draws(object = fit.PNk, transform = TRUE, value = 't.linpred') |>
+  ungroup() |> 
+  select(rowid, .draw, PN, t.linpred) |>
+  arrange(rowid, .draw)
+
+CCH_t.linpred |> group_by(.draw) |> summarise(N = n()) |> summary()
+
+CCH_epred <- CCH_test |> 
+  add_epred_draws(object = fit.PNk) |>
+  ungroup() |>
+  select(rowid, .draw, PN, .epred) |>
+  arrange(rowid, .draw)
+
+CCH_epred |> group_by(.draw) |> summarise(N = n()) |> summary()
+
+CCH_pred <- CCH_test |> 
+  add_predicted_draws(object = fit.PNk) |>
+  ungroup() |>
+  select(rowid, .draw, PN, .prediction) |>
+  arrange(rowid, .draw)
+
+CCH_pred |> group_by(.draw) |> summarise(N = n()) |> summary()
+
+Predictions <- CCH_pred |>
+  left_join(CCH_epred,by = join_by(rowid, .draw, PN)) |>
+  left_join(CCH_linpred,by = join_by(rowid, .draw, PN)) |>
+  left_join(CCH_t.linpred,by = join_by(rowid, .draw, PN)) 
 
 ggplot(Predictions |> filter(.draw <= 1000),
        aes(x= .epred, y = .prediction, colour = PN)) +
