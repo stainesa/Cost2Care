@@ -895,7 +895,8 @@ HIPE.PN <- HIPE.PN |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'PN')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.PN)
 
@@ -918,7 +919,8 @@ HIPE.PNk <- HIPE.PNk |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'PNk')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.PNk)
 
@@ -934,14 +936,14 @@ EP <- posterior_epred(object = fit.UTI,
     names(EP.MAD) <- NULL
   EP.Quantiles <- colQuantiles(EP,
                       probs = probs)
-  rm(EP)
 
 HIPE.UTI <- HIPE.UTI |>
   bind_cols(EP.Quantiles) |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'UTI')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.UTI)
 
@@ -957,14 +959,14 @@ EP <- posterior_epred(object = fit.UTIk,
     names(EP.MAD) <- NULL
   EP.Quantiles <- colQuantiles(EP,
                       probs = probs)
-  rm(EP)
 
 HIPE.UTIk <- HIPE.UTIk |>
   bind_cols(EP.Quantiles) |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'UTIk')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.UTIk)
 
@@ -980,14 +982,14 @@ EP <- posterior_epred(object = fit.PU,
     names(EP.MAD) <- NULL
   EP.Quantiles <- colQuantiles(EP,
                       probs = probs)
-  rm(EP)
 
 HIPE.PU <- HIPE.PU |>
   bind_cols(EP.Quantiles) |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'PU')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.PU)
 
@@ -1003,14 +1005,14 @@ EP <- posterior_epred(object = fit.PUk,
     names(EP.MAD) <- NULL
   EP.Quantiles <- colQuantiles(EP,
                       probs = probs)
-  rm(EP)
 
 HIPE.PUk <- HIPE.PUk |>
   bind_cols(EP.Quantiles) |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'PUk')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.PUk)
 
@@ -1032,7 +1034,8 @@ HIPE.DL <- HIPE.DL |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'DL')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.DL)
 
@@ -1048,14 +1051,14 @@ EP <- posterior_epred(object = fit.DLk,
     names(EP.MAD) <- NULL
   EP.Quantiles <- colQuantiles(EP,
                       probs = probs)
-  rm(EP)
 
 HIPE.DLk <- HIPE.DLk |>
   bind_cols(EP.Quantiles) |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'DLk')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.DLk)
 
@@ -1077,7 +1080,8 @@ HIPE.F2M <- HIPE.F2M |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'F2M')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.F2M)
 
@@ -1087,7 +1091,7 @@ rm(EP, EP.MAD, EP.Quantiles, fit.F2M)
 fit.F2Mk   <- readRDS('data/fit.F2Mk')
 HIPE.F2Mk  <- readRDS('data/HIPE.F2Mk')
 EP <- posterior_epred(object = fit.F2Mk,
-                newdata = HIPE.F2M)
+                newdata = HIPE.F2Mk)
 
   EP.MAD <- colMads(EP)
     names(EP.MAD) <- NULL
@@ -1099,10 +1103,86 @@ HIPE.F2Mk <- HIPE.F2Mk |>
   bind_cols(MAD = EP.MAD) |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
-  rename(Q90 = '90%')
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'F2Mk')
 
 rm(EP, EP.MAD, EP.Quantiles, fit.F2Mk)
 
+```
+
+```{r Merge HIPE predictions}
+HIPE.Predicted <- HIPE.PN |>
+  select(c(rowid,Q10:Outcome)) |>
+  bind_rows(HIPE.PNk |>
+  select(c(rowid,Q10:Outcome))) |>
+  bind_rows(HIPE.UTI |>
+  select(c(rowid,Q10:Outcome))) |>
+  bind_rows(HIPE.UTIk |>
+  select(c(rowid,Q10:Outcome))) |>
+  bind_rows(HIPE.PU |>
+  select(c(rowid,Q10:Outcome))) |>
+  bind_rows(HIPE.PUk |>
+  select(c(rowid,Q10:Outcome))) |>
+  bind_rows(HIPE.DL |>
+  select(c(rowid,Q10:Outcome))) |>
+  bind_rows(HIPE.DLk |>
+  select(c(rowid,Q10:Outcome))) |>
+  bind_rows(HIPE.F2M |>
+  select(c(rowid,Q10:Outcome))) |>
+  bind_rows(HIPE.F2Mk |>
+  select(c(rowid,Q10:Outcome)))
+```
+
+```{r Graph HIPE prediction}
+##############################################
+# Reload and process the original data
+CCH <- readRDS('data/CCH.Rds')
+# STAN does not like character variables, so we turn them into factors (No =  0, and  Yes = 1, more or less.
+
+CCH <- CCH |>
+  mutate(across(where(is.character), ~as_factor(.)))  |>
+  rowid_to_column(var = 'rowid')
+
+#########################################
+# summary of chart review
+Summary.CHART <- CCH |>
+  select(PN:F2M) |>
+  mutate(across(everything(),
+                ~ ifelse( . == 'Yes', 1, 0))) |>
+  pivot_longer(cols = everything(),
+               names_to = 'Outcome',
+               values_to = 'Observed') |>
+  group_by(Outcome) |>
+  summarise(across(Observed, list(mean = mean, median = median, sd = stats::sd))) # 5 values
+#########################################
+# Add (identical) rows for the restricted models
+SCR <- Summary.CHART |>
+  mutate(Outcome = str_replace(Outcome, '$', 'k')) # Add 'k' on to outcome names to indicate restricted models
+
+Summary.CHART <- Summary.CHART |>
+  bind_rows(SCR) |>
+  arrange(Outcome) # 10 Values
+rm(SCR)
+
+#########################################
+# Summary of test predictions
+Summary.HIPE <- HIPE.Predicted |>
+  select(Outcome, Q50) |>
+  group_by(Outcome) |>
+  summarise(across(Q50, list(mean = mean, median = median, sd = stats::sd))) # 10 values
+
+
+ggplot(HIPE.Predicted,
+       aes(y = 0, x = Q50, colour = Outcome)) +
+  geom_violin() +
+  geom_vline(data = Summary.HIPE,
+             mapping = aes(xintercept = Q50_mean,
+                           colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') +
+  facet_wrap( ~Outcome )
 ```
 
 ```{r, eval = FALSE} 
