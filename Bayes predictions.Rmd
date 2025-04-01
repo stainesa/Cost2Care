@@ -77,6 +77,7 @@ knitr::opts_chunk$set(echo = FALSE,
                       cache = TRUE, cache.lazy = FALSE, 
                       warning = NA, message = NA, fig.pos = 'H',
                       cache.extra = knitr::rand_seed)
+rm(N)
 ```
 
 # Logistic models for adverse outcomes in HIPE
@@ -152,6 +153,7 @@ CCH |>
   select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names)) |>
   names() # this is how we subset for each task
 
+rm(weights)
 ```
 
 ### What's where?
@@ -227,7 +229,9 @@ NAMES <- NAMES |>
     suffix = c('','.F2Mk'),
     keep = TRUE)
 
-
+rm(LIST)
+rm(NAMES)
+rm(PN,PNk, UTI, UTIk, PU, PUk, DL, DLk, F2M, F2Mk)
 ```
 
 ## Check variability
@@ -235,7 +239,7 @@ NAMES <- NAMES |>
 Some of the variables are mostly 0 or mostly 1. It can happen that in the training, or test set, these are all 1 or zero. These need to be omitted.
 
 ```{r check variability}
-CCH_variability <- CCH |>
+CCH |>
   mutate(across(everything(), ~ length(unique(.)))) |>
   distinct() |>
   pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Count') |>
@@ -247,8 +251,6 @@ CCH |>
   distinct() |>
   glimpse()
 
-
-
 # Two variables 
 #  CCH$Client.Support.Interventions
 #  CCH$Procedures.On.Ear.And.Mastoid.Process
@@ -257,7 +259,8 @@ CCH |>
 #  CCH$Procedures.On.Endocrine.System and
 #  CCH$Radiation.Oncology.Procedures
 # have only one, and hence cannot be considered
-# Dental.Services has only 3, which is really too small to be any use, so we lose it too.
+#  CCH$Dental.Services has only 3, which is really
+#  too small to be any use, so we lose it too.
 ```
 
 ## Training and test datasets
@@ -298,7 +301,6 @@ make_training <- function(df, TASK) {
     probs <- counts |>
       full_join(totals, by = join_by(Type)) |>
       mutate(Prob = N/Sum)
-
     
     tsk_name = deparse(substitute(TASK))
     names_for_list <- c(paste(tsk_name, 'splits', sep = '_'),
@@ -459,6 +461,58 @@ df.test.F2Mk <- list_F2Mk[[3]] |>
 
 ```
 
+
+```{r Make dataframes for HIPE models}
+HIPE <- HIPE |>
+  rowid_to_column()
+
+# We have to this because otherwise we run out of memory rather quickly.
+
+## Outcomes 
+HIPE.PN <- HIPE |>
+  select(c('rowid', 'Weights', tsk_PN$feature_names))
+HIPE.PNk <- HIPE |>
+  select(c('rowid', 'Weights', tsk_PNk$feature_names))
+
+HIPE.UTI <- HIPE |>
+  select(c('rowid', 'Weights', tsk_UTI$feature_names))
+HIPE.UTIk <- HIPE |>
+  select(c('rowid', 'Weights', tsk_UTIk$feature_names))
+
+HIPE.PU <- HIPE |>
+  select(c('rowid', 'Weights', tsk_PU$feature_names))
+HIPE.PUk <- HIPE |>
+  select(c('rowid', 'Weights', tsk_PUk$feature_names))
+
+HIPE.DL <- HIPE |>
+  select(c('rowid', 'Weights', tsk_DL$feature_names))
+HIPE.DLk <- HIPE |>
+  select(c('rowid', 'Weights', tsk_DLk$feature_names))
+
+HIPE.F2M <- HIPE |>
+  select(c('rowid', 'Weights', tsk_F2M$feature_names))
+HIPE.F2Mk <- HIPE |>
+  select(c('rowid', 'Weights', tsk_F2Mk$feature_names))
+
+
+saveRDS(HIPE.PN, file = "data/HIPE.PN")
+saveRDS(HIPE.PNk, file = "data/HIPE.PNk")
+
+saveRDS(HIPE.UTI, file = "data/HIPE.UTI")
+saveRDS(HIPE.UTIk, file = "data/HIPE.UTIk")
+
+saveRDS(HIPE.PU, file = "data/HIPE.PU")
+saveRDS(HIPE.PUk, file = "data/HIPE.PUk")
+
+saveRDS(HIPE.DL, file = "data/HIPE.DL")
+saveRDS(HIPE.DLk, file = "data/HIPE.DLk")
+
+saveRDS(HIPE.F2M, file = "data/HIPE.F2M")
+saveRDS(HIPE.F2Mk, file = "data/HIPE.F2Mk")
+
+rm( list = ls()[str_detect(ls(),'HIPE.')])
+```
+
 # Bayesian fit
 
 We use a common mildly informative prior.
@@ -544,6 +598,21 @@ fit.F2Mk <- stan_glm(make_formula(df.train.F2Mk),
                  weights = Weights,
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 4, seed = 12345)
+
+saveRDS(fit.PN, file = 'data/fit.PN')
+saveRDS(fit.PNk, file = 'data/fit.PNk')
+
+saveRDS(fit.UTI, file = 'data/fit.UTI')
+saveRDS(fit.UTIk, file = 'data/fit.UTIk')
+
+saveRDS(fit.PU, file = 'data/fit.PU')
+saveRDS(fit.PUk, file = 'data/fit.PUk')
+
+saveRDS(fit.DL, file = 'data/fit.DL')
+saveRDS(fit.DLk, file = 'data/fit.DLk')
+
+saveRDS(fit.F2M, file = 'data/fit.F2M')
+saveRDS(fit.F2Mk, file = 'data/fit.F2Mk')
 
 ```
 
@@ -794,23 +863,246 @@ rm(G_TEST_Predicted)
 
 
 ```{r Clean up}
-fghgfh
+rm( list = ls()[str_detect(ls(),'Summary')])
+rm( list = ls()[str_detect(ls(),'df.train.')])
+rm( list = ls()[str_detect(ls(),'df.test.')])
+rm( list = ls()[str_detect(ls(),'list_')])
+rm( list = ls()[str_detect(ls(),'_Predicted')])
+rm( list = ls())
+gc(reset = TRUE, full = TRUE)
 ```
-```{r Matrix summaries, eval = FALSE}
-HIPE <- HIPE |>
-  rowid_to_column()
-# We have to this because otherwise we run out of memory rather quickly.
-# 
-# 
-Outcome = 'PNk'
-HIPE.PNk <- HIPE |>
-  select(c('rowid', 'Weights', tsk_PNk$feature_names))
+
+
+```{r Prepare HIPE predictions}
+library(matrixStats)
+#
+probs <- c(0.10, 0.5, 0.90)
+#
+# PN
+#
+fit.PN   <- readRDS('data/fit.PN')
+HIPE.PN  <- readRDS('data/HIPE.PN')
+EP <- posterior_epred(object = fit.PN,
+                newdata = HIPE.PN)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+
+HIPE.PN <- HIPE.PN |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.PN)
+
+#
+# PNk
+#
+fit.PNk   <- readRDS('data/fit.PNk')
+HIPE.PNk  <- readRDS('data/HIPE.PNk')
+EP <- posterior_epred(object = fit.PNk,
+                newdata = HIPE.PNk)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+  rm(EP)
+
 HIPE.PNk <- HIPE.PNk |>
-  add_epred_draws(object = fit.PNk) # Probabilities
-# 4000 rows of one column per record
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
 
+rm(EP, EP.MAD, EP.Quantiles, fit.PNk)
 
-# 131478 rows of 4,000 draws in columns
+#
+# UTI
+#
+fit.UTI   <- readRDS('data/fit.UTI')
+HIPE.UTI  <- readRDS('data/HIPE.UTI')
+EP <- posterior_epred(object = fit.UTI,
+                newdata = HIPE.UTI)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+  rm(EP)
+
+HIPE.UTI <- HIPE.UTI |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.UTI)
+
+#
+# UTIk
+#
+fit.UTIk   <- readRDS('data/fit.UTIk')
+HIPE.UTIk  <- readRDS('data/HIPE.UTIk')
+EP <- posterior_epred(object = fit.UTIk,
+                newdata = HIPE.UTIk)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+  rm(EP)
+
+HIPE.UTIk <- HIPE.UTIk |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.UTIk)
+
+#
+# PU
+#
+fit.PU   <- readRDS('data/fit.PU')
+HIPE.PU  <- readRDS('data/HIPE.PU')
+EP <- posterior_epred(object = fit.PU,
+                newdata = HIPE.PU)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+  rm(EP)
+
+HIPE.PU <- HIPE.PU |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.PU)
+
+#
+# PUk
+#
+fit.PUk   <- readRDS('data/fit.PUk')
+HIPE.PUk  <- readRDS('data/HIPE.PUk')
+EP <- posterior_epred(object = fit.PUk,
+                newdata = HIPE.PUk)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+  rm(EP)
+
+HIPE.PUk <- HIPE.PUk |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.PUk)
+
+#
+# DL
+#
+fit.DL   <- readRDS('data/fit.DL')
+HIPE.DL  <- readRDS('data/HIPE.DL')
+EP <- posterior_epred(object = fit.DL,
+                newdata = HIPE.DL)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+
+HIPE.DL <- HIPE.DL |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.DL)
+
+#
+# DLk
+#
+fit.DLk   <- readRDS('data/fit.DLk')
+HIPE.DLk  <- readRDS('data/HIPE.DLk')
+EP <- posterior_epred(object = fit.DLk,
+                newdata = HIPE.DLk)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+  rm(EP)
+
+HIPE.DLk <- HIPE.DLk |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.DLk)
+
+#
+# F2M
+#
+fit.F2M   <- readRDS('data/fit.F2M')
+HIPE.F2M  <- readRDS('data/HIPE.F2M')
+EP <- posterior_epred(object = fit.F2M,
+                newdata = HIPE.F2M)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+
+HIPE.F2M <- HIPE.F2M |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.F2M)
+
+#
+# F2Mk
+#
+fit.F2Mk   <- readRDS('data/fit.F2Mk')
+HIPE.F2Mk  <- readRDS('data/HIPE.F2Mk')
+EP <- posterior_epred(object = fit.F2Mk,
+                newdata = HIPE.F2M)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+
+HIPE.F2Mk <- HIPE.F2Mk |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%')
+
+rm(EP, EP.MAD, EP.Quantiles, fit.F2Mk)
+
 ```
 
 ```{r, eval = FALSE} 
