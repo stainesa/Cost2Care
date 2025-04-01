@@ -715,25 +715,93 @@ nrow(TEST_Predicted)/nrow(df.test.PNk)
 
 ## Interpret predictions
 
-We have 4000 estimates for each of 10 models of the predicted value of the probability of the outcome (Pn, UTI, ... F2M), derived from the models we have fitted. For the Chart review data we also have the ground truth, in a variable 'Result'. Clearly we won't have this for the HIPE data.
+We have 4000 estimates for each of 10 models of the predicted value of the probability of the outcome (Pn, UTI, ... F2M), derived from the models we have fitted, both for the training datasets, and, more relevantly, for the test datasets. For the Chart review data we also have the ground truth, in a variable 'Observed'. Clearly we won't have this for the HIPE data.
 
 We want three things (for each model)
 
-* A plot of the distribution of the predictions
+* Summary tables of the predicted and observed data
 
-```{r Collate predictions}
+```{r Summary tables  of observed, and of predictions test and train}
+#########################################
+# summary of chart review
+Summary.CHART <- CCH |>
+  select(PN:F2M) |>
+  mutate(across(everything(),
+                ~ ifelse( . == 'Yes', 1, 0))) |>
+  pivot_longer(cols = everything(),
+               names_to = 'Outcome',
+               values_to = 'Observed') |>
+  group_by(Outcome) |>
+  summarise(across(Observed, list(mean = mean, median = median, sd = sd))) # 5 values
+
+kable(Summary.CHART, caption = 'Summary of observed outcomes for  chart review')
+
+#########################################
+# Add (identical) rows for the restricted models
+SCR <- Summary.CHART |>
+  mutate(Outcome = str_replace(Outcome, '$', 'k')) # Add 'k' on to outcome names to indicate restricted models
+
+Summary.CHART <- Summary.CHART |>
+  bind_rows(SCR) |>
+  arrange(Outcome) # 10 Values
+rm(SCR)
+
+#########################################
+# Summary of training predictions
+Summary.TRAIN <- TRAIN_Predicted |>
+  select(Outcome, .prediction) |>
+  group_by(Outcome) |>
+  summarise(across(.prediction, list(mean = mean, median = median, sd = sd))) # 10 values
+
+kable(Summary.TRAIN, caption = 'Summary of modelled predictions from TRAINING data for chart review HIPE')
+
+#########################################
+# Summary of test predictions
+Summary.TEST <- TEST_Predicted |>
+  select(Outcome, .prediction) |>
+  group_by(Outcome) |>
+  summarise(across(.prediction, list(mean = mean, median = median, sd = sd))) # 10 values
+
+kable(Summary.TEST, caption = 'Summary of modelled predictions from TEST data for chart review HIPE')
+
+```
+
+* A plot of the distribution of the predictions, compared with the observed data
 
 
-ggplot(Predictions |> filter(.draw <= 1000),
-       aes(x= .epred, y = .prediction, colour = PN)) +
-  geom_jitter()
+```{r Plot of predictions}
 
+ggplot(TRAIN_Predicted,
+       aes(y = Result, x = .prediction, colour = Outcome)) +
+  geom_violin() +
+  geom_vline(data = Summary.TRAIN,
+             mapping = aes(xintercept = .prediction_mean, colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') +
+  facet_wrap( ~Outcome ) 
+  
+ggplot(TEST_Predicted,
+       aes(y = Result, x = .prediction, colour = Outcome)) +
+  geom_violin() +
+  geom_vline(data = Summary.TEST,
+             mapping = aes(xintercept = .prediction_mean, colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') +
+  facet_wrap( ~Outcome ) 
+  
+```
+
+```{r, eval = FALSE}
 summarytools::ctable(Predictions$PN, Predictions$.prediction, prop = 't')
 ggplot(Predictions, aes(x = .epred, y = t.linpred)) + geom_point() # All identical
 ```
 
 
-```{r}
+```{r, eval = FALSE}
 pp_check(fit.PNk)
 pp_check(fit.PNk, plotfun = "boxplot", nreps = 10, notch = FALSE)
 pp_check(fit.PNk, plotfun = "hist", nreps = 10)
