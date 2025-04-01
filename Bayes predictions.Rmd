@@ -1171,6 +1171,7 @@ Summary.HIPE <- HIPE.Predicted |>
   group_by(Outcome) |>
   summarise(across(Q50, list(mean = mean, median = median, sd = stats::sd))) # 10 values
 
+kable(Summary.HIPE, caption = 'Summary of modelled predictions from TEST data for chart review HIPE')
 
 ggplot(HIPE.Predicted,
        aes(y = 0, x = Q50, colour = Outcome)) +
