@@ -103,14 +103,14 @@ glimpse(HIPE)
 
 table(CCH$PN) # 79 positive out of 1,000
 
-TruePlot <- ggplot(CCH |> arrange(PN),
+ggplot(CCH |> arrange(PN),
        aes(y = PN, x = rowid, colour = PN)) +
   geom_jitter() +
   guides(colour = 'none') +
   labs(title = "Observed data from chart review",
        x = '',
        y = 'Pneumonia')
-TruePlot
+
 ```
 
 ## Load tasks
