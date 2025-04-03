@@ -54,10 +54,7 @@ library(sjtable2df)
 library(broom)
 library(broom.mixed)
 
-library(stargazer)
-
-library(gt)
-library(gtsummary)
+library(matrixStats)
 
 tidymodels_prefer(quiet = TRUE)
 st_options(ctable.round.digits = 2)
@@ -84,7 +81,7 @@ rm(N)
 
 The idea here is to fit a completely different model - a logistic model fitted using rstanarm (or STAN, if I feel confident enough), using the variables selected by the random forest classifiers in MLR3, and see where we get to.
 
-# data
+# Data
 
 ```{r Load existing data}
 HIPE <- readRDS('data/HIPE.Rds')
@@ -103,14 +100,23 @@ HIPE <- HIPE |>
 glimpse(HIPE)
 
 table(CCH$PN) # 79 positive out of 1,000
+```
 
-ggplot(CCH |> arrange(PN),
-       aes(y = PN, x = rowid, colour = PN)) +
+```{r Sample plot of event occurrence}
+CCH |>
+  select(rowid,PN:F2M) |>
+  pivot_longer(cols = c(PN:F2M),
+               names_to = 'Outcome',
+               values_to = 'Result') |>
+  ggplot(
+    aes(y = Result, x = rowid, colour = Outcome)) +
   geom_jitter() +
   guides(colour = 'none') +
   labs(title = "Observed data from chart review",
        x = '',
-       y = 'Pneumonia')
+       y = 'Result') +
+  theme_minimal() +
+  facet_wrap(~ Outcome)
 
 ```
 
@@ -642,6 +648,8 @@ launch_shinystan(fit.F2Mk, ppd = TRUE) # Allows me to check fit etc.
 
 We use the epred predictions, which are the linear predictions, transformed by the invlogit function, and so directly represent probabilities.
 
+## Training data predictions
+
 ```{r Collect predictions - training data}
 
 TRAIN_Predicted <- bind_rows(
@@ -704,6 +712,8 @@ TRAIN_Predicted <- bind_rows(
   )
 nrow(TRAIN_Predicted)/nrow(df.train.PNk)
 ```
+
+## Test data predictions
 
 ```{r Collect predictions - test data}
 
@@ -822,8 +832,9 @@ kable(Summary.TEST, caption = 'Summary of modelled predictions from TEST data fo
 
 ```
 
-* A plot of the distribution of the predictions, compared with the observed data
+### TRAINING and TEST data plots
 
+* A plot of the distribution of the predictions, compared with the observed data
 
 ```{r Plot of predictions - training, fig.cap= 'Distribution of predicted individual risk estimates for adverse outcomes in the TRAINING data. The mean predicted risk for each outcome is a vertical line, the same colour as that outcome. The observed risk is shown as a green vertical line.', fig.dpi=1200, fig.height=7, fig.width=7}
 G_TRAIN_Predicted = ggplot(TRAIN_Predicted,
@@ -872,11 +883,72 @@ rm( list = ls())
 gc(reset = TRUE, full = TRUE)
 ```
 
+### HIPE predictions
 
 ```{r Prepare HIPE predictions}
-library(matrixStats)
 #
 probs <- c(0.10, 0.5, 0.90)
+
+#
+# Ancillary function to make and save the predictions
+#
+make_Predictions<- function (name, probs = c(0.10, 0.5, 0.90)) {
+  fit = paste0('fit.',name)
+  HIPE = paste0('HIPE.',name)
+
+fit   <- readRDS(paste0('data/fit.',name))
+HIPE  <- readRDS(paste0('data/HIPE.',name))
+
+EP <- posterior_epred(object = fit,
+                newdata = HIPE)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+
+HIPE <- HIPE |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%') |>
+  mutate(Outcome = name) |>
+  bind_cols(as.data.frame(t(EP)))
+
+saveRDS(HIPE, paste0('data/Predictions_',name,'.Rds'))
+
+return(glimpse(HIPE))
+}
+
+PN <- make_Predictions('PN')
+
+#
+# PN
+#
+fit.PN   <- readRDS(paste0('data/fit.PN'))
+HIPE.PN  <- readRDS('data/HIPE.PN')
+EP <- posterior_epred(object = fit.PN,
+                newdata = HIPE.PN)
+
+  EP.MAD <- colMads(EP)
+    names(EP.MAD) <- NULL
+  EP.Quantiles <- colQuantiles(EP,
+                      probs = probs)
+
+HIPE.PN <- HIPE.PN |>
+  bind_cols(EP.Quantiles) |>
+  bind_cols(MAD = EP.MAD) |>
+  rename(Q10 = '10%') |>
+  rename(Q50 = '50%') |>
+  rename(Q90 = '90%') |>
+  mutate(Outcome = 'PN') |>
+  bind_cols(as.data.frame(t(EP)))
+
+rm(EP, EP.MAD, EP.Quantiles, fit.PN)
+  
+}
+
 #
 # PN
 #
@@ -896,7 +968,8 @@ HIPE.PN <- HIPE.PN |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'PN')
+  mutate(Outcome = 'PN') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.PN)
 
@@ -912,7 +985,6 @@ EP <- posterior_epred(object = fit.PNk,
     names(EP.MAD) <- NULL
   EP.Quantiles <- colQuantiles(EP,
                       probs = probs)
-  rm(EP)
 
 HIPE.PNk <- HIPE.PNk |>
   bind_cols(EP.Quantiles) |>
@@ -920,7 +992,8 @@ HIPE.PNk <- HIPE.PNk |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'PNk')
+  mutate(Outcome = 'PNk') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.PNk)
 
@@ -943,7 +1016,8 @@ HIPE.UTI <- HIPE.UTI |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'UTI')
+  mutate(Outcome = 'UTI') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.UTI)
 
@@ -966,7 +1040,8 @@ HIPE.UTIk <- HIPE.UTIk |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'UTIk')
+  mutate(Outcome = 'UTIk') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.UTIk)
 
@@ -989,7 +1064,8 @@ HIPE.PU <- HIPE.PU |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'PU')
+  mutate(Outcome = 'PU') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.PU)
 
@@ -1012,7 +1088,8 @@ HIPE.PUk <- HIPE.PUk |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'PUk')
+  mutate(Outcome = 'PUk') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.PUk)
 
@@ -1035,7 +1112,8 @@ HIPE.DL <- HIPE.DL |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'DL')
+  mutate(Outcome = 'DL') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.DL)
 
@@ -1058,7 +1136,8 @@ HIPE.DLk <- HIPE.DLk |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'DLk')
+  mutate(Outcome = 'DLk') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.DLk)
 
@@ -1081,7 +1160,8 @@ HIPE.F2M <- HIPE.F2M |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'F2M')
+  mutate(Outcome = 'F2M') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.F2M)
 
@@ -1104,7 +1184,8 @@ HIPE.F2Mk <- HIPE.F2Mk |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = 'F2Mk')
+  mutate(Outcome = 'F2Mk') |>
+  bind_cols(as.data.frame(t(EP)))
 
 rm(EP, EP.MAD, EP.Quantiles, fit.F2Mk)
 
@@ -1190,7 +1271,6 @@ ggplot(HIPE.Predicted,
 summarytools::ctable(Predictions$PN, Predictions$.prediction, prop = 't')
 ggplot(Predictions, aes(x = .epred, y = t.linpred)) + geom_point() # All identical
 ```
-
 
 ```{r, eval = FALSE}
 pp_check(fit.PNk)
