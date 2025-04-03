@@ -2179,7 +2179,7 @@ For each outcome separate test and training datasets were selected, stratified b
 
 The underlying random forest model is a classifier, but it generates two predictions, for each record. The first is the probability of that record being in the positive class, which here corresponds to one of the five adverse outcomes. The second is an estimate of whether that record is classified into the positive class or not.
 
-This decision, in turn, depends on the choice of a threshold, a cutoff of probability above which the record is classified as positive and below which it is classified as negative. The default cutoff is 0.5, but this has been adjusted to the cutoff from the ROC curve, which minimise the difference between the sensitivity and the specificity (1. Jiménez-Valverde A, Lobo JM. Threshold criteria for conversion of probability of species presence to either–or presence–absence. Acta Oecologica. 2007 May 1;31(3):361–9). These thresholds, derived as part of the analysis above, are used in the class prediction here.
+This decision, in turn, depends on the choice of a threshold, a cutoff of probability above which the record is classified as positive and below which it is classified as negative. The default cutoff is 0.5, but this has been adjusted to the cutoff from the ROC curve, which minimises the difference between the sensitivity and the specificity (1. Jiménez-Valverde A, Lobo JM. Threshold criteria for conversion of probability of species presence to either–or presence–absence. Acta Oecologica. 2007 May 1;31(3):361–9). This is a better threshold for our purposes. These thresholds, derived as part of the analysis above, are used in the class prediction here.
 
 ```{r Chart of predictions and truths}
 ggplot(Chart_review,
