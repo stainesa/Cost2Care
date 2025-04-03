@@ -1206,26 +1206,29 @@ rm(EP, EP.MAD, EP.Quantiles, fit.F2Mk)
 ```
 
 ```{r Merge HIPE predictions}
-HIPE.Predicted <- HIPE.PN |>
-  select(c(rowid,Q10:Outcome)) |>
-  bind_rows(HIPE.PNk |>
-  select(c(rowid,Q10:Outcome))) |>
-  bind_rows(HIPE.UTI |>
-  select(c(rowid,Q10:Outcome))) |>
-  bind_rows(HIPE.UTIk |>
-  select(c(rowid,Q10:Outcome))) |>
-  bind_rows(HIPE.PU |>
-  select(c(rowid,Q10:Outcome))) |>
-  bind_rows(HIPE.PUk |>
-  select(c(rowid,Q10:Outcome))) |>
-  bind_rows(HIPE.DL |>
-  select(c(rowid,Q10:Outcome))) |>
-  bind_rows(HIPE.DLk |>
-  select(c(rowid,Q10:Outcome))) |>
-  bind_rows(HIPE.F2M |>
-  select(c(rowid,Q10:Outcome))) |>
-  bind_rows(HIPE.F2Mk |>
-  select(c(rowid,Q10:Outcome)))
+rm(list = ls())
+gc(reset = TRUE, full = TRUE)
+
+HIPE.Predicted <- readRDS(file = 'data/Predictions_PN.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000)) |>
+  bind_rows(readRDS(file = 'data/Predictions_PNk.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  bind_rows(readRDS(file = 'data/Predictions_UTI.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000))) #|>
+  bind_rows(readRDS(file = 'data/Predictions_UTIk.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  bind_rows(readRDS(file = 'data/Predictions_PU.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  bind_rows(readRDS(file = 'data/Predictions_PUk.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  bind_rows(readRDS(file = 'data/Predictions_DL.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  bind_rows(readRDS(file = 'data/Predictions_DLk.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  bind_rows(readRDS(file = 'data/Predictions_F2M.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  bind_rows(readRDS(file = 'data/Predictions_F2Mk.Rds') |>
+  select(c(rowid,Q10:Outcome, V1:V4000)))
 ```
 
 ```{r Graph HIPE prediction}
