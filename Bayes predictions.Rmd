@@ -921,11 +921,21 @@ saveRDS(HIPE, paste0('data/Predictions_',name,'.Rds'))
 return(str(HIPE))
 }
 
-PN <- make_Predictions('PN')
-PNk <- make_Predictions('PNk')
+str_PN <- make_Predictions('PN')
+str_PNk <- make_Predictions('PNk')
 
-PN <- make_Predictions('PN')
-PN <- make_Predictions('PN')
+str_UTI <- make_Predictions('UTI')
+str_UTIk <- make_Predictions('UTIk')
+
+str_PU <- make_Predictions('PU')
+str_PUk <- make_Predictions('PUk')
+
+str_DL <- make_Predictions('DL')
+str_DLk <- make_Predictions('DLk')
+
+str_F2M <- make_Predictions('F2M')
+str_F2Mk <- make_Predictions('F2Mk')
+
 
 #
 # PN
