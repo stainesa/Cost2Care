@@ -781,7 +781,7 @@ nrow(TEST_Predicted)/nrow(df.test.PNk)
 
 ## Interpret predictions
 
-We have 4000 estimates for each of 10 models of the predicted value of the probability of the outcome (Pn, UTI, ... F2M), derived from the models we have fitted, both for the training datasets, and, more relevantly, for the test datasets. For the Chart review data we also have the ground truth, in a variable 'Observed'. Clearly we won't have this for the HIPE data.
+We have 4000 estimates for each of 10 models of the predicted value of the probability of the outcome (PN, UTI, ... F2M), derived from the models we have fitted, both for the training datasets, and, more relevantly, for the test datasets. For the Chart review data we also have the ground truth, in a variable 'Observed'. Clearly we won't have this for the HIPE data.
 
 We want three things (for each model)
 
@@ -832,6 +832,8 @@ kable(Summary.TEST, caption = 'Summary of modelled predictions from TEST data fo
 
 ```
 
+This tells us a number of things. The events under consideration are relatively uncommon, with prevalences mostly under 10$% in the chart review. The predictions on the training data are pretty good, which is to be expected. The predictions on the test data are also pretty good, which suggests that the modelling has worked reasonably well, and the it is possible to estimate the prevalence of these hospital acquired complications from features derived directly from routine data.
+
 ### TRAINING and TEST data plots
 
 * A plot of the distribution of the predictions, compared with the observed data
@@ -846,7 +848,10 @@ G_TRAIN_Predicted = ggplot(TRAIN_Predicted,
              aes(xintercept = Observed_mean), colour = 'green') +
   theme_minimal() +
   guides(colour = 'none') +
-  facet_wrap( ~Outcome )
+  labs(title = 'Predictions on TRAINING data',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
+  facet_wrap( ~Outcome ) 
 G_TRAIN_Predicted
 
 ggsave('image/G_TRAIN_Predicted.pdf', G_TRAIN_Predicted, units = 'cm', height = 20, width = 20)
@@ -863,8 +868,11 @@ G_TEST_Predicted = ggplot(TEST_Predicted,
   geom_vline(data = Summary.CHART,
              aes(xintercept = Observed_mean), colour = 'green') +
   theme_minimal() +
-  guides(colour = 'none') +
-  facet_wrap( ~Outcome ) 
+  guides(colour = 'none') + 
+  labs(title = 'Predictions on TRAINING data',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
+  facet_wrap( ~Outcome )
 G_TEST_Predicted
 
 ggsave('image/G_TEST_Predicted.pdf', G_TEST_Predicted, units = 'cm', height = 20, width = 20)
@@ -1209,37 +1217,55 @@ rm(EP, EP.MAD, EP.Quantiles, fit.F2Mk)
 rm(list = ls())
 gc(reset = TRUE, full = TRUE)
 
-HIPE.Predicted <- readRDS(file = 'data/Predictions_PN.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000)) |>
+    Vnames = paste0('V', 1:4000)
+        Vsample <- sample(Vnames, size=1000, replace = FALSE)
+    rm(Vnames)
+if(file_test('-f', 'data/HIPE.Predicted.Rds')) {
+  cat('HIPE.Predicted exists, and is ',
+      format(file.size('data/HIPE.Predicted.Rds'), scientific = TRUE),
+      ' in size.')
+  
+  } else {
+
+  HIPE.Predicted <-
+    readRDS(file = 'data/Predictions_PN.Rds') |>
+  select(c(rowid,Q10:Outcome, Vsample)) |>
   bind_rows(readRDS(file = 'data/Predictions_PNk.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  select(c(rowid,Q10:Outcome, Vsample))) |>
   bind_rows(readRDS(file = 'data/Predictions_UTI.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000))) #|>
+  select(c(rowid,Q10:Outcome, Vsample))) |>
   bind_rows(readRDS(file = 'data/Predictions_UTIk.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  select(c(rowid,Q10:Outcome, Vsample))) |>
   bind_rows(readRDS(file = 'data/Predictions_PU.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  select(c(rowid,Q10:Outcome, Vsample))) |>
   bind_rows(readRDS(file = 'data/Predictions_PUk.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  select(c(rowid,Q10:Outcome, Vsample))) |>
   bind_rows(readRDS(file = 'data/Predictions_DL.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  select(c(rowid,Q10:Outcome, Vsample))) |>
   bind_rows(readRDS(file = 'data/Predictions_DLk.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  select(c(rowid,Q10:Outcome, Vsample))) |>
   bind_rows(readRDS(file = 'data/Predictions_F2M.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000))) |>
+  select(c(rowid,Q10:Outcome, Vsample))) |>
   bind_rows(readRDS(file = 'data/Predictions_F2Mk.Rds') |>
-  select(c(rowid,Q10:Outcome, V1:V4000)))
+  select(c(rowid,Q10:Outcome, Vsample)))
+
+    saveRDS(HIPE.Predicted, file = 'data/HIPE.Predicted.Rds')
+    rm(HIPE.Predicted)
+  }
+rm(list = ls())
 ```
 
 ```{r Graph HIPE prediction}
 ##############################################
 # Reload and process the original data
 CCH <- readRDS('data/CCH.Rds')
-# STAN does not like character variables, so we turn them into factors (No =  0, and  Yes = 1, more or less.
-
 CCH <- CCH |>
   mutate(across(where(is.character), ~as_factor(.)))  |>
   rowid_to_column(var = 'rowid')
+
+HIPE <- readRDS('data/HIPE.Rds')
+HIPE <- HIPE |>
+  mutate(across(where(is.character), ~as_factor(.)))
 
 #########################################
 # summary of chart review
@@ -1261,6 +1287,9 @@ Summary.CHART <- Summary.CHART |>
   bind_rows(SCR) |>
   arrange(Outcome) # 10 Values
 rm(SCR)
+#########################################
+# reload HIPE predictions data
+HIPE.Predicted <- readRDS('data/HIPE.Predicted.Rds')
 
 #########################################
 # Summary of test predictions
@@ -1269,18 +1298,23 @@ Summary.HIPE <- HIPE.Predicted |>
   group_by(Outcome) |>
   summarise(across(Q50, list(mean = mean, median = median, sd = stats::sd))) # 10 values
 
-kable(Summary.HIPE, caption = 'Summary of modelled predictions from TEST data for chart review HIPE')
+kable(Summary.HIPE, caption = 'Summary of modelled predictions for full HIPE')
+```
 
+```{r Plot of all hospitals}
 ggplot(HIPE.Predicted,
-       aes(y = 0, x = Q50, colour = Outcome)) +
-  geom_violin() +
+       aes(x = Q50, colour = Outcome)) +
+  geom_density() +
   geom_vline(data = Summary.HIPE,
              mapping = aes(xintercept = Q50_mean,
                            colour = Outcome)) +
   geom_vline(data = Summary.CHART,
              aes(xintercept = Observed_mean), colour = 'green') +
   theme_minimal() +
-  guides(colour = 'none') +
+  guides(colour = 'none') + 
+  labs(title = 'Predictions on HIPE data',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
   facet_wrap( ~Outcome )
 ```
 
@@ -1288,6 +1322,70 @@ ggplot(HIPE.Predicted,
 summarytools::ctable(Predictions$PN, Predictions$.prediction, prop = 't')
 ggplot(Predictions, aes(x = .epred, y = t.linpred)) + geom_point() # All identical
 ```
+
+```{r HIPE breakdown}
+#######################################
+# Link HIPE.Predicted to relevant variables
+# from HIPE
+
+HIPE.Predicted <- HIPE.Predicted |>
+  full_join(HIPE |>  rowid_to_column('rowid') |> select(rowid, HospCode, ModelF), by = join_by(rowid))
+
+
+#########################################
+# Summary of test predictions
+Summary.HIPE.Model <- HIPE.Predicted |>
+  select(ModelF, Outcome, Q50) |>
+  group_by(ModelF, Outcome) |>
+  summarise(across(Q50, list(mean = mean, median = median, sd = stats::sd)))  |> # 20 values
+  ungroup() |>
+  select(Outcome, ModelF, Q50_mean, Q50_median, Q50_sd ) |>
+  arrange(Outcome, ModelF)
+
+kable(Summary.HIPE.Model, caption = 'Summary of modelled predictions for full HIPE')
+```
+
+This shows us that the predicted complication rates for Model 3 hospitals, as a group, are lower than those for Model 4 hospitals as a group. The next two graphs explore this further.
+
+```{r}
+ggplot(HIPE.Predicted,
+       aes(x = Q50, colour = Outcome)) +
+  geom_density(data = HIPE.Predicted |> filter(ModelF == 'Model 3'), linewidth = 2) +
+  geom_vline(data = Summary.HIPE.Model |>
+               filter(ModelF == 'Model 3'),
+             mapping = aes(xintercept = Q50_mean,
+                           colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') + 
+  labs(title = 'Predictions on HIPE data',
+       subtitle = 'Model 3 hospitals only',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
+  facet_wrap( ~Outcome )
+
+ggplot(HIPE.Predicted,
+       aes(x = Q50, colour = Outcome)) +
+  geom_density(data = HIPE.Predicted |> filter(ModelF == 'Model 4'), linewidth = 2) +
+  geom_vline(data = Summary.HIPE.Model |>
+               filter(ModelF == 'Model 4'),
+             mapping = aes(xintercept = Q50_mean,
+                           colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') + 
+  labs(title = 'Predictions on HIPE data',
+       subtitle = 'Model 4 hospitals only',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
+  facet_wrap( ~Outcome )
+
+```
+
+Each graph compares the results from the chart review with the predicted results from the model for Model 3 and Model 4 hospitals, respectively. The predictions for Model 4 hospitals, except those for UTI, are closer to the Chart review ground truth than those for Model 3 centres. As the hospital used in the Chart review study was a Model 4 hospital, this is not surprising. Given the observed area under the ROC curve, just over 0.6, for the UTI model, our view is that it is not reliable.
+
 
 ```{r, eval = FALSE}
 pp_check(fit.PNk)
