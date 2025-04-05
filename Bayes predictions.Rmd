@@ -236,13 +236,14 @@ NAMES <- NAMES |>
     keep = TRUE)
 
 rm(LIST)
-rm(NAMES)
 rm(PN,PNk, UTI, UTIk, PU, PUk, DL, DLk, F2M, F2Mk)
+rm(NAMES)
+
 ```
 
 ## Check variability
 
-Some of the variables are mostly 0 or mostly 1. It can happen that in the training, or test set, these are all 1 or zero. These need to be omitted.
+Some of the variables are almost all 0 or 1. It can happen that in the training, or test set, these are all 1 or zero, which generates an error message, and prevents fitting. These variable are not contributory, and need to be omitted.
 
 ```{r check variability}
 CCH |>
@@ -264,21 +265,21 @@ CCH |>
 # Two more
 #  CCH$Procedures.On.Endocrine.System and
 #  CCH$Radiation.Oncology.Procedures
-# have only one, and hence cannot be considered
+# have only one, and hence cannot be considered further
 #  CCH$Dental.Services has only 3, which is really
-#  too small to be any use, so we lose it too.
+# too small to be any use, so we lose it too.
 ```
 
 ## Training and test datasets
 
-Split CCH into training and test sets per task
+Split CCH into training and test sets per task.
 
 ```{r Train test split model}
 #Split CCH into training and test sets
 #
 set.seed(4763765)
 
-# Ancillary function to make the necesary pieces
+# Ancillary function to make the necessary pieces
 make_training <- function(df, TASK) {
   name <- TASK$target_names
   NAME <- {{name}}
@@ -347,7 +348,7 @@ list_F2Mk <- make_training(CCH, tsk_F2Mk)
 
 These come from the ranger fits for each task
 
-```{r Variable selection}
+```{r Variable selection for the two sets of models}
 #list_XX[[2]] is the training data as a tibble.
 
 df.train.PN <- list_PN[[2]] |>
@@ -468,7 +469,7 @@ df.test.F2Mk <- list_F2Mk[[3]] |>
 ```
 
 
-```{r Make dataframes for HIPE models}
+```{r Make dataframes for HIPE applied to the 10 models}
 HIPE <- HIPE |>
   rowid_to_column()
 
@@ -516,7 +517,7 @@ saveRDS(HIPE.DLk, file = "data/HIPE.DLk")
 saveRDS(HIPE.F2M, file = "data/HIPE.F2M")
 saveRDS(HIPE.F2Mk, file = "data/HIPE.F2Mk")
 
-rm( list = ls()[str_detect(ls(),'HIPE.')])
+#rm( list = ls()[str_detect(ls(),'HIPE.')])
 ```
 
 # Bayesian fit
@@ -530,80 +531,48 @@ We use a common mildly informative prior.
 We fit the models (this takes some little time, as there are 10)
 
 ```{r Rstanarm model fits}
-# ancillary function
+# ancillary functions
+# 
+# Create the formula needed for stan_glm
+# 
 make_formula <- function(df.TSK) {
   names <- names(df.TSK)
   N = length(df.TSK)
   Formula = paste( names[3], ' ~ ',
                    paste(c(names[4:N]),
-                         collapse = ' + '))
+                         collapse = ' + ')) # This is the formula needed for the fit
   return(Formula)
 }
+#
+# Fit the desired model
+#
+fit.task <- function(df.train){
+  fit <- stan_glm(make_formula(df.train),
+                 data = df.train,
+                 family = binomial(link = "logit"),
+                 weights = Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 6, seed = 12345,
+                 chains = 6,
+                 iter = 4000, warmup = 2000,
+                 refresh = 0 ) # Quietly!
+return(fit)
+}
+fit.PN <- fit.task(df.train.PN)
+fit.PNk <- fit.task(df.train.PNk)
 
-fit.PN <- stan_glm(make_formula(df.train.PN),
-                 data = df.train.PN,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-fit.PNk <- stan_glm(make_formula(df.train.PNk),
-                 data = df.train.PNk,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
+fit.UTI <- fit.task(df.train.UTI)
+fit.UTIk <- fit.task(df.train.UTIk)
 
-fit.UTI <- stan_glm(make_formula(df.train.UTI),
-                 data = df.train.UTI,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-fit.UTIk <- stan_glm(make_formula(df.train.UTIk),
-                 data = df.train.UTIk,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
+fit.PU <- fit.task(df.train.PU)
+fit.PUk <- fit.task(df.train.PUk)
 
-fit.PU <- stan_glm(make_formula(df.train.PU),
-                 data = df.train.PU,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-fit.PUk <- stan_glm(make_formula(df.train.PUk),
-                 data = df.train.PUk,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
+fit.DL <- fit.task(df.train.DL)
+fit.DLk <- fit.task(df.train.DLk)
 
-fit.DL <- stan_glm(make_formula(df.train.DL),
-                 data = df.train.DL,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-fit.DLk <- stan_glm(make_formula(df.train.DLk),
-                 data = df.train.DLk,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
+fit.F2M <- fit.task(df.train.F2M)
+fit.F2Mk <- fit.task(df.train.F2Mk)
 
-fit.F2M <- stan_glm(make_formula(df.train.F2M),
-                 data = df.train.F2M,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
-fit.F2Mk <- stan_glm(make_formula(df.train.F2Mk),
-                 data = df.train.F2Mk,
-                 family = binomial(link = "logit"),
-                 weights = Weights,
-                 prior = t_prior, prior_intercept = t_prior,
-                 cores = 4, seed = 12345)
 
 saveRDS(fit.PN, file = 'data/fit.PN')
 saveRDS(fit.PNk, file = 'data/fit.PNk')
