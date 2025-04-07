@@ -544,9 +544,14 @@ make_formula <- function(df.TSK) {
   return(Formula)
 }
 #
-# Fit the desired model
+# Fit and save the desired model
 #
 fit.task <- function(df.train){
+  model_name <- deparse(substitute(df.train))
+  model_name <- str_split_i(model_name,
+                            pattern = '\\.', # Cut on .
+                            i = -1) # Last element
+
   fit <- stan_glm(make_formula(df.train),
                  data = df.train,
                  family = binomial(link = "logit"),
@@ -554,8 +559,11 @@ fit.task <- function(df.train){
                  prior = t_prior, prior_intercept = t_prior,
                  cores = 6, seed = 12345,
                  chains = 6,
-                 iter = 4000, warmup = 2000,
+                 iter = 6000, warmup = 2000,
                  refresh = 0 ) # Quietly!
+
+  saveRDS(fit, file = paste0('data/fit.', model_name))
+
 return(fit)
 }
 fit.PN <- fit.task(df.train.PN)
@@ -1182,7 +1190,7 @@ rm(EP, EP.MAD, EP.Quantiles, fit.F2Mk)
 
 ```
 
-```{r Merge HIPE predictions}
+```{r Merge HIPE predictions, eval = FALSE}
 rm(list = ls())
 gc(reset = TRUE, full = TRUE)
 
