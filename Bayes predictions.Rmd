@@ -95,22 +95,22 @@ The idea here is to fit a completely different model - a logistic model fitted u
 ```{r Load existing data}
 HIPE <- readRDS('data/HIPE.Rds')
 CCH <- readRDS('data/CCH.Rds')
-glimpse(CCH)
+#glimpse(CCH)
 
 # STAN does not like character variables, so we turn them into factors (No =  0, and  Yes = 1, more or less.
 
 CCH <- CCH |>
   mutate(across(where(is.character), ~as_factor(.)))  |>
   rowid_to_column(var = 'rowid')
-glimpse(CCH)
+#glimpse(CCH)
 
 HIPE <- HIPE |>
   mutate(across(where(is.character), ~as_factor(.))) |>
   rowid_to_column('rowid') # Add a rowid variable
 
-glimpse(HIPE)
+#glimpse(HIPE)
 
-table(CCH$PN) # 79 positive out of 1,000
+#table(CCH$PN) # 79 positive out of 1,000
 ```
 
 ```{r Plots of actual event occurrence}
@@ -682,7 +682,22 @@ dw_DL   <- make_dwPlot_fit(fit.DL)
 dw_DLk  <- make_dwPlot_fit(fit.DLk)
 
 dw_F2M  <- make_dwPlot_fit(fit.F2M)
-dw_F2mk <- make_dwPlot_fit(fit.F2Mk)
+dw_F2Mk <- make_dwPlot_fit(fit.F2Mk)
+
+dw_PN
+dw_PNk
+
+dw_UTI
+dw_UTIk
+
+dw_PU
+dw_PUk
+
+dw_DL
+dw_DLk
+
+dw_F2M
+dw_F2Mk
 
 rm( list = ls()[str_detect(ls(),'dw_.')])
 ```
@@ -1013,12 +1028,12 @@ HIPE <- HIPE |>
   rename(Q10 = '10%') |>
   rename(Q50 = '50%') |>
   rename(Q90 = '90%') |>
-  mutate(Outcome = name) |>
-  bind_cols(as.data.frame(t(EP)))
+  mutate(Outcome = name)
 
 saveRDS(HIPE, paste0('data/Predictions_',name,'.Rds'))
+saveRDS(EP, paste0('data/Predictions_EP_',name,'.Rds'))
 
-return(str(HIPE))
+return(NULL)
 }
 
 str_PN <- make_Predictions('PN')
@@ -1039,9 +1054,10 @@ str_F2Mk <- make_Predictions('F2Mk')
 rm(probs)
 rm( list = ls()[str_detect(ls(),'str_')])
 rm( list = ls()[str_detect(ls(),'fit.')])
+rm(t.prior)
 ```
 
-```{r Merge HIPE predictions, eval = FALSE}
+```{r Merge HIPE predictions, eval = TRUE}
 gc(reset = TRUE, full = TRUE)
 
 if(file_test('-f', 'data/HIPE.Predicted.Rds')) {
@@ -1076,7 +1092,7 @@ if(file_test('-f', 'data/HIPE.Predicted.Rds')) {
   select(c(rowid,Q10:Outcome)))
 
     saveRDS(HIPE.Predicted, file = 'data/HIPE.Predicted.Rds')
-    rm(HIPE.Predicted)
+ #   rm(HIPE.Predicted)
   }
 
 ```
@@ -1085,7 +1101,7 @@ if(file_test('-f', 'data/HIPE.Predicted.Rds')) {
 #########################################
 # Summary of HIPE predictions
 #
-HIPE.Predicted |>
+Summary.HIPE <- HIPE.Predicted |>
     select(Outcome, Q50) |>
         group_by(Outcome) |>
         summarise(across(Q50,
@@ -1172,16 +1188,12 @@ Summary.Model.HIPE <- bind_rows(
 kable(Summary.Model.HIPE, caption = 'Summary of modelled predictions for full HIPE')
 
 rm( list = ls()[str_detect(ls(),'HIPE_')])
-rm(HIPE.Codes)
 ```
 
 We see a striking difference between the Model 3 and the Model 4 hospitals, with higher predicted adverse event rates in the Model 4 hospitals. Given the casemix they see, this is not surprising. The chart review was done in one Model 4 hospital, and accordingly has higher observed adverse event rates than the overall predicted rates.
 
 
 ```{r}
-
-HIPE.Codes <- HIPE |>
-    select(rowid, ModelF, HospCode) 
 HIPE.Predicted <- HIPE.Predicted |>
         full_join(HIPE.Codes, by = join_by(rowid))
 
