@@ -43,6 +43,7 @@ library(summarytools)
 
 library(patchwork)
 library(dotwhisker)
+library(ggdist)
 
 library(ranger)
 library(mlr3verse)
@@ -668,21 +669,22 @@ ggsave(filename =
 return(Graph)
 }
 
-make_dwPlot_fit(fit.PN)
-make_dwPlot_fit(fit.PNk)
+dw_PN   <- make_dwPlot_fit(fit.PN)
+dw_PNk  <- make_dwPlot_fit(fit.PNk)
 
-make_dwPlot_fit(fit.UTI)
-make_dwPlot_fit(fit.UTIk)
+dw_UTI  <- make_dwPlot_fit(fit.UTI)
+dw_UTIk <- make_dwPlot_fit(fit.UTIk)
 
-make_dwPlot_fit(fit.PU)
-make_dwPlot_fit(fit.PUk)
+dw_PU   <- make_dwPlot_fit(fit.PU)
+dw_PUk  <- make_dwPlot_fit(fit.PUk)
 
-make_dwPlot_fit(fit.DL)
-make_dwPlot_fit(fit.DLk)
+dw_DL   <- make_dwPlot_fit(fit.DL)
+dw_DLk  <- make_dwPlot_fit(fit.DLk)
 
-make_dwPlot_fit(fit.F2M)
-make_dwPlot_fit(fit.F2Mk)
+dw_F2M  <- make_dwPlot_fit(fit.F2M)
+dw_F2mk <- make_dwPlot_fit(fit.F2Mk)
 
+rm( list = ls()[str_detect(ls(),'dw_.')])
 ```
 
 We do live interactive testing of model fit, which proves satisfactory, suggesting good mixing of all chains, no issues with divergence, and no other striking anomalies.
@@ -784,6 +786,8 @@ TRAIN_Predicted <- bind_rows(
   
   )
 nrow(TRAIN_Predicted)/nrow(df.train.PNk)
+
+rm( list = ls()[str_detect(ls(),'df.train.')])
 ```
 
 ## Test data predictions
@@ -860,6 +864,7 @@ TEST_Predicted <- bind_rows(
   )
 nrow(TEST_Predicted)/nrow(df.test.PNk)
 
+rm( list = ls()[str_detect(ls(),'df.test.')])
 ```
 
 ## Interpret predictions
@@ -917,7 +922,9 @@ kable(Summary.TEST, caption = 'Summary of modelled predictions from TEST data fo
 
 ```
 
-This tells us a number of things. The events under consideration are relatively uncommon, with prevalences mostly under 10$% in the chart review. The predictions on the training data are pretty good, which is to be expected. The predictions on the test data are also pretty good, which suggests that the modelling has worked reasonably well, and the it is possible to estimate the prevalence of these hospital acquired complications from features derived directly from routine data.
+This tells us a number of things. The events under consideration are relatively uncommon, with prevalences mostly under 10$% in the chart review. The predictions on the training data are pretty good, which is to be expected.
+
+The predictions on the test data are also pretty good, which suggests that the modelling has worked reasonably well, and that it is possible to estimate the prevalence of these hospital acquired complications from features derived directly from routine data.
 
 ### TRAINING and TEST data plots
 
@@ -954,7 +961,7 @@ G_TEST_Predicted = ggplot(TEST_Predicted,
              aes(xintercept = Observed_mean), colour = 'green') +
   theme_minimal() +
   guides(colour = 'none') + 
-  labs(title = 'Predictions on TRAINING data',
+  labs(title = 'Predictions on TEST data',
        x = 'Prediction') +
     coord_cartesian(xlim = c(0,0.3)) +
   facet_wrap( ~Outcome )
@@ -966,18 +973,21 @@ rm(G_TEST_Predicted)
 ```
 
 
-```{r Clean up, eval = FALSE}
+```{r Clean up by running gc again}
+
+rm(TEST_Predicted, TRAIN_Predicted)
+rm( list = ls()[str_detect(ls(),'fit.')])
+
 gc(reset = TRUE, full = TRUE)
 ```
 
 ### HIPE predictions
 
-We draw 2000 predictions of epred (which is the probability of having an adverse event) for each of the 10 models.
+We draw 2,000 predictions of epred (which is the probability of having an adverse event) for each of the 10 models.
 
 ```{r Prepare HIPE predictions}
 #
 probs <- c(0.10, 0.5, 0.90)
-
 #
 # Ancillary function to make and save the predictions
 #
@@ -1026,101 +1036,112 @@ str_DLk <- make_Predictions('DLk')
 str_F2M <- make_Predictions('F2M')
 str_F2Mk <- make_Predictions('F2Mk')
 
-rm(probs,
-   str_PN, str_PNk, str_UTI, str_UTIk,
-   str_PU, str_PUk, str_DL, str_DLk,
-   str_F2M, str_F2Mk)
+rm(probs)
+rm( list = ls()[str_detect(ls(),'str_')])
+rm( list = ls()[str_detect(ls(),'fit.')])
 ```
 
 ```{r Merge HIPE predictions, eval = FALSE}
-rm(list = ls())
 gc(reset = TRUE, full = TRUE)
 
-    Vnames = paste0('V', 1:4000)
-        Vsample <- sample(Vnames, size=1000, replace = FALSE)
-    rm(Vnames)
 if(file_test('-f', 'data/HIPE.Predicted.Rds')) {
+
   cat('HIPE.Predicted exists, and is ',
       format(file.size('data/HIPE.Predicted.Rds'), scientific = TRUE),
       ' in size.')
+    HIPE.Predicted <- readRDS('data/HIPE.Predicted.Rds')
   
   } else {
 
-#  HIPE.Predicted <-
- XX <-   readRDS(file = 'data/Predictions_PN.Rds')# |>
-  select(c(rowid,Q10:Outcome, Vsample)) |>
+  HIPE.Predicted <-
+  readRDS(file = 'data/Predictions_PN.Rds') |>
+  select(c(rowid,Q10:Outcome)) |>
   bind_rows(readRDS(file = 'data/Predictions_PNk.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample))) |>
+  select(c(rowid,Q10:Outcome))) |>
   bind_rows(readRDS(file = 'data/Predictions_UTI.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample))) |>
+  select(c(rowid,Q10:Outcome))) |>
   bind_rows(readRDS(file = 'data/Predictions_UTIk.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample))) |>
+  select(c(rowid,Q10:Outcome))) |>
   bind_rows(readRDS(file = 'data/Predictions_PU.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample))) |>
+  select(c(rowid,Q10:Outcome))) |>
   bind_rows(readRDS(file = 'data/Predictions_PUk.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample))) |>
+  select(c(rowid,Q10:Outcome))) |>
   bind_rows(readRDS(file = 'data/Predictions_DL.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample))) |>
+  select(c(rowid,Q10:Outcome))) |>
   bind_rows(readRDS(file = 'data/Predictions_DLk.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample))) |>
+  select(c(rowid,Q10:Outcome))) |>
   bind_rows(readRDS(file = 'data/Predictions_F2M.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample))) |>
+  select(c(rowid,Q10:Outcome))) |>
   bind_rows(readRDS(file = 'data/Predictions_F2Mk.Rds') |>
-  select(c(rowid,Q10:Outcome, Vsample)))
+  select(c(rowid,Q10:Outcome)))
 
     saveRDS(HIPE.Predicted, file = 'data/HIPE.Predicted.Rds')
     rm(HIPE.Predicted)
   }
-rm(list = ls())
+
 ```
 
-```{r Graph HIPE prediction}
-##############################################
-# Reload and process the original data
-CCH <- readRDS('data/CCH.Rds')
-CCH <- CCH |>
-  mutate(across(where(is.character), ~as_factor(.)))  |>
-  rowid_to_column(var = 'rowid')
-
-HIPE <- readRDS('data/HIPE.Rds')
-HIPE <- HIPE |>
-  mutate(across(where(is.character), ~as_factor(.)))
-
+```{r Summarise HIPE predictions overall}
 #########################################
-# summary of chart review
-Summary.CHART <- CCH |>
-  select(PN:F2M) |>
-  mutate(across(everything(),
-                ~ ifelse( . == 'Yes', 1, 0))) |>
-  pivot_longer(cols = everything(),
-               names_to = 'Outcome',
-               values_to = 'Observed') |>
-  group_by(Outcome) |>
-  summarise(across(Observed, list(mean = mean, median = median, sd = stats::sd))) # 5 values
-#########################################
-# Add (identical) rows for the restricted models
-SCR <- Summary.CHART |>
-  mutate(Outcome = str_replace(Outcome, '$', 'k')) # Add 'k' on to outcome names to indicate restricted models
-
-Summary.CHART <- Summary.CHART |>
-  bind_rows(SCR) |>
-  arrange(Outcome) # 10 Values
-rm(SCR)
-```
-
-```{r Summarise HIPE predictions}
-#########################################
-# reload HIPE predictions data
+# Summary of HIPE predictions
 #
-make_summary_row <- function(name) {
-    filename = paste0('data/Predictions_', name, '.Rds')
-    ROW <-  readRDS(filename) |>
-        select(Outcome, Q50) |>
+HIPE.Predicted |>
+    select(Outcome, Q50) |>
         group_by(Outcome) |>
         summarise(across(Q50,
         list(mean = mean, median = median,
              sd = stats::sd)))
-return(ROW)
+kable(Summary.HIPE, caption = 'Summary of modelled predictions for full HIPE')
+
+```
+
+```{r Plot of all hospitals}
+
+Graph <- ggplot(HIPE.Predicted,
+       aes(x = Q50, fill = Outcome, colour = Outcome )) +
+  stat_halfeye(colour = 'darkblue',
+               normalize = 'panels') +
+  geom_vline(data = Summary.HIPE,
+             aes(xintercept = Q50_mean),
+                 colour = 'red') +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean),
+             colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') + 
+  guides(fill = 'none') + 
+  labs(x = 'Predicted probability', y = 'Density') +
+    coord_cartesian(xlim = c(0,0.3)) +
+    facet_wrap(~ Outcome)
+Graph
+ggsave(filename = 'HIPE_density_predictions.pdf', Graph, dpi = 1200, height= 7, width = 10)
+
+rm( list = ls()[str_detect(ls(),'pg_')])
+rm(Graph)
+```
+
+```{r, eval = FALSE} 
+summarytools::ctable(Predictions$PN, Predictions$.prediction, prop = 't')
+ggplot(Predictions, aes(x = .epred, y = t.linpred)) + geom_point() # All identical
+```
+
+```{r HIPE breakdown}
+#########################################
+# HIPE predictions data
+#
+HIPE.Codes <- HIPE |>
+    select(rowid, ModelF, HospCode)
+
+make_summary_row <- function(name, CODES = HIPE.Codes) {
+    filename = paste0('data/Predictions_', name, '.Rds')
+    ROWs <-  readRDS(filename) |>
+        full_join(CODES, by = join_by(rowid)) |>
+        select(ModelF, Outcome, Q50) |>
+        group_by(ModelF, Outcome) |>
+        summarise(across(Q50,
+        list(mean = mean, median = median,
+             sd = stats::sd)))
+return(ROWs)
 }
 
 HIPE_PN <- make_summary_row('PN')
@@ -1141,71 +1162,35 @@ HIPE_F2Mk <- make_summary_row('F2Mk')
 
 #########################################
 # Summary of test predictions
-Summary.HIPE <- bind_rows(
+Summary.Model.HIPE <- bind_rows(
     HIPE_PN, HIPE_PNk,
     HIPE_UTI, HIPE_UTIk,
     HIPE_PU, HIPE_PUk,
     HIPE_DL, HIPE_DLk,
     HIPE_F2M, HIPE_F2Mk)
     
-kable(Summary.HIPE, caption = 'Summary of modelled predictions for full HIPE')
+kable(Summary.Model.HIPE, caption = 'Summary of modelled predictions for full HIPE')
 
-rm(HIPE_PN, HIPE_PNk, HIPE_UTI, HIPE_UTIk,
-   HIPE_PU, HIPE_PUk, HIPE_DL, HIPE_DLk,
-    HIPE_F2M, HIPE_F2Mk)
+rm( list = ls()[str_detect(ls(),'HIPE_')])
+rm(HIPE.Codes)
 ```
 
-```{r Plot of all hospitals}
-ggplot(HIPE.Predicted,
-       aes(x = Q50, colour = Outcome)) +
-  geom_density() +
-  geom_vline(data = Summary.HIPE,
-             mapping = aes(xintercept = Q50_mean,
-                           colour = Outcome)) +
-  geom_vline(data = Summary.CHART,
-             aes(xintercept = Observed_mean), colour = 'green') +
-  theme_minimal() +
-  guides(colour = 'none') + 
-  labs(title = 'Predictions on HIPE data',
-       x = 'Prediction') +
-    coord_cartesian(xlim = c(0,0.3)) +
-  facet_wrap( ~Outcome )
-```
+We see a striking difference between the Model 3 and the Model 4 hospitals, with higher predicted adverse event rates in the Model 4 hospitals. Given the casemix they see, this is not surprising. The chart review was done n one Model 4 hospital, and accordingly has higher observed adverse event rates than the overall rates.
 
-```{r, eval = FALSE} 
-summarytools::ctable(Predictions$PN, Predictions$.prediction, prop = 't')
-ggplot(Predictions, aes(x = .epred, y = t.linpred)) + geom_point() # All identical
-```
-
-```{r HIPE breakdown}
-#######################################
-# Link HIPE.Predicted to relevant variables
-# from HIPE
-
-HIPE.Predicted <- HIPE.Predicted |>
-  full_join(HIPE |>  rowid_to_column('rowid') |> select(rowid, HospCode, ModelF), by = join_by(rowid))
-
-
-#########################################
-# Summary of test predictions
-Summary.HIPE.Model <- HIPE.Predicted |>
-  select(ModelF, Outcome, Q50) |>
-  group_by(ModelF, Outcome) |>
-  summarise(across(Q50, list(mean = mean, median = median, sd = stats::sd)))  |> # 20 values
-  ungroup() |>
-  select(Outcome, ModelF, Q50_mean, Q50_median, Q50_sd ) |>
-  arrange(Outcome, ModelF)
-
-kable(Summary.HIPE.Model, caption = 'Summary of modelled predictions for full HIPE')
-```
-
-This shows us that the predicted complication rates for Model 3 hospitals, as a group, are lower than those for Model 4 hospitals as a group. The next two graphs explore this further.
 
 ```{r}
+
+HIPE.Codes <- HIPE |>
+    select(rowid, ModelF, HospCode) 
+HIPE.Predicted <- HIPE.Predicted |>
+        full_join(HIPE.Codes, by = join_by(rowid))
+
 ggplot(HIPE.Predicted,
-       aes(x = Q50, colour = Outcome)) +
-  geom_density(data = HIPE.Predicted |> filter(ModelF == 'Model 3'), linewidth = 2) +
-  geom_vline(data = Summary.HIPE.Model |>
+       aes(x = Q50, fill = Outcome, colour = Outcome)) +
+    stat_halfeye(colour = 'darkblue',
+               normalize = 'panels') +
+#  geom_density(data = HIPE.Predicted |> filter(ModelF == 'Model 3'), linewidth = 2) +
+  geom_vline(data = Summary.Model.HIPE |>
                filter(ModelF == 'Model 3'),
              mapping = aes(xintercept = Q50_mean,
                            colour = Outcome)) +
@@ -1213,16 +1198,18 @@ ggplot(HIPE.Predicted,
              aes(xintercept = Observed_mean), colour = 'green') +
   theme_minimal() +
   guides(colour = 'none') + 
-  labs(title = 'Predictions on HIPE data',
-       subtitle = 'Model 3 hospitals only',
-       x = 'Prediction') +
+  guides(fill = 'none') + 
+  labs(title = 'Predictions on HIPE data - Model 3 hospitals only',
+       x = 'Prediction', y = 'Density') +
     coord_cartesian(xlim = c(0,0.3)) +
   facet_wrap( ~Outcome )
 
 ggplot(HIPE.Predicted,
-       aes(x = Q50, colour = Outcome)) +
-  geom_density(data = HIPE.Predicted |> filter(ModelF == 'Model 4'), linewidth = 2) +
-  geom_vline(data = Summary.HIPE.Model |>
+       aes(x = Q50, fill = Outcome, colour = Outcome)) +
+    stat_halfeye(colour = 'darkblue',
+               normalize = 'panels') +
+#  geom_density(data = HIPE.Predicted |> filter(ModelF == 'Model 4'), linewidth = 2) +
+  geom_vline(data = Summary.Model.HIPE |>
                filter(ModelF == 'Model 4'),
              mapping = aes(xintercept = Q50_mean,
                            colour = Outcome)) +
@@ -1230,9 +1217,9 @@ ggplot(HIPE.Predicted,
              aes(xintercept = Observed_mean), colour = 'green') +
   theme_minimal() +
   guides(colour = 'none') + 
-  labs(title = 'Predictions on HIPE data',
-       subtitle = 'Model 4 hospitals only',
-       x = 'Prediction') +
+  guides(fill = 'none') + 
+  labs(title = 'Predictions on HIPE data - Model 4 hospitals only',
+       x = 'Prediction', y = 'Density') +
     coord_cartesian(xlim = c(0,0.3)) +
   facet_wrap( ~Outcome )
 
