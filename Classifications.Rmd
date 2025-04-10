@@ -15,10 +15,11 @@ editor_options:
 bibliography: references.bib
 csl: vancouver.csl
 ---
+```{r clean up environment}
+rm(list = ls())
+```
 
 ```{r setup, include=FALSE}
-rm(list = ls())
-
 library(tidyverse)
 library(lubridate)
 library(tibble)
