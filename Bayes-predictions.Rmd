@@ -95,22 +95,22 @@ The idea here is to fit a completely different model - a logistic model fitted u
 ```{r Load existing data}
 HIPE <- readRDS('data/HIPE.Rds')
 CCH <- readRDS('data/CCH.Rds')
-glimpse(CCH)
+#glimpse(CCH)
 
 # STAN does not like character variables, so we turn them into factors (No =  0, and  Yes = 1, more or less.
 
 CCH <- CCH |>
   mutate(across(where(is.character), ~as_factor(.)))  |>
   rowid_to_column(var = 'rowid')
-glimpse(CCH)
+#glimpse(CCH)
 
 HIPE <- HIPE |>
   mutate(across(where(is.character), ~as_factor(.))) |>
   rowid_to_column('rowid') # Add a rowid variable
 
-glimpse(HIPE)
+#glimpse(HIPE)
 
-table(CCH$PN) # 79 positive out of 1,000
+#table(CCH$PN) # 79 positive out of 1,000
 ```
 
 ```{r Plots of actual event occurrence}
@@ -167,9 +167,9 @@ CCH |>
   filter(NotEqual == 1) # 0 entries
 # alignment is correct, weights are identical.
 
-CCH |>
-  select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names)) |>
-  names() # this is how we subset for each task
+#CCH |>
+#  select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names)) |>
+#  names() # this is how we subset for each task
 
 rm(weights)
 ```
@@ -260,17 +260,17 @@ rm(NAMES)
 Some of the variables are almost all 0 or 1. It can happen that in the training, or test set, these are all 1 or zero, which generates an error message, and prevents fitting. These variable are not contributory, and need to be omitted.
 
 ```{r check variability}
-CCH |>
-  mutate(across(everything(), ~ length(unique(.)))) |>
-  distinct() |>
-  pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Count') |>
-filter(Count == 1)
+#CCH |>
+#  mutate(across(everything(), ~ length(unique(.)))) |>
+#  distinct() |>
+#  pivot_longer(cols = everything(), names_to = 'Name', values_to = 'Count') |>
+#filter(Count < 5)
 
-CCH |>
-  select(Anaesthesia:Therapeutic.Interventions) |>
- mutate(across(everything(), ~sum(.))) |>
-  distinct() |>
-  glimpse()
+#CCH |>
+#  select(Anaesthesia:Therapeutic.Interventions) |>
+# mutate(across(everything(), ~sum(.))) |>
+#  distinct() |>
+#  glimpse()
 
 # Two variables 
 #  CCH$Client.Support.Interventions
@@ -532,7 +532,7 @@ rm( list = ls()[str_detect(ls(),'HIPE.')])
 rm( list = ls()[str_detect(ls(),'tsk_')])
 rm( list = ls()[str_detect(ls(),'list_')])
 
-gc(reset = TRUE, full = TRUE)
+invisible(gc(reset = TRUE, full = TRUE))
 
 ```
 
@@ -785,7 +785,8 @@ TRAIN_Predicted <- bind_rows(
     mutate(Outcome = 'F2Mk'),
   
   )
-nrow(TRAIN_Predicted)/nrow(df.train.PNk)
+
+#nrow(TRAIN_Predicted)/nrow(df.train.PNk)
 
 rm( list = ls()[str_detect(ls(),'df.train.')])
 ```
@@ -862,7 +863,8 @@ TEST_Predicted <- bind_rows(
     mutate(Outcome = 'F2Mk'),
   
   )
-nrow(TEST_Predicted)/nrow(df.test.PNk)
+
+#nrow(TEST_Predicted)/nrow(df.test.PNk)
 
 rm( list = ls()[str_detect(ls(),'df.test.')])
 ```
@@ -978,7 +980,7 @@ rm(G_TEST_Predicted)
 rm(TEST_Predicted, TRAIN_Predicted)
 rm( list = ls()[str_detect(ls(),'fit.')])
 
-gc(reset = TRUE, full = TRUE)
+invisible(gc(reset = TRUE, full = TRUE))
 ```
 
 ### HIPE predictions
@@ -1018,7 +1020,7 @@ HIPE <- HIPE |>
 
 saveRDS(HIPE, paste0('data/Predictions_',name,'.Rds'))
 
-return(str(HIPE))
+return(NULL)
 }
 
 str_PN <- make_Predictions('PN')
@@ -1041,8 +1043,8 @@ rm( list = ls()[str_detect(ls(),'str_')])
 rm( list = ls()[str_detect(ls(),'fit.')])
 ```
 
-```{r Merge HIPE predictions, eval = FALSE}
-gc(reset = TRUE, full = TRUE)
+```{r Merge HIPE predictions}
+invisible(gc(reset = TRUE, full = TRUE))
 
 if(file_test('-f', 'data/HIPE.Predicted.Rds')) {
 
@@ -1085,7 +1087,7 @@ if(file_test('-f', 'data/HIPE.Predicted.Rds')) {
 #########################################
 # Summary of HIPE predictions
 #
-HIPE.Predicted |>
+Summary.HIPE <- HIPE.Predicted |>
     select(Outcome, Q50) |>
         group_by(Outcome) |>
         summarise(across(Q50,
@@ -1226,7 +1228,6 @@ ggplot(HIPE.Predicted,
 ```
 
 Each graph compares the results from the chart review with the predicted results from the model for Model 3 and Model 4 hospitals, respectively. The predictions for Model 4 hospitals, except those for UTI, are closer to the Chart review ground truth than those for Model 3 centres. As the hospital used in the Chart review study was a Model 4 hospital, this is not surprising. Given the observed area under the ROC curve, just over 0.6, for the UTI model, our view is that it is not reliable.
-
 
 ```{r, eval = FALSE}
 pp_check(fit.PNk)
