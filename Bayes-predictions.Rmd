@@ -480,55 +480,88 @@ df.test.F2M <- list_F2M[[3]] |>
 df.test.F2Mk <- list_F2Mk[[3]] |>
   select(c('rowid', 'Weights', tsk_F2Mk$target_names, tsk_F2Mk$feature_names))
 
+#########################################
+# Save test and train files
+# 
+saveRDS(df.train.PN, file = "data/df.train.PN")
+saveRDS(df.train.PNk, file = "data/df.train.PNk")
+
+saveRDS(df.train.UTI, file = "data/df.train.UTI")
+saveRDS(df.train.UTIk, file = "data/df.train.UTIk")
+
+saveRDS(df.train.PU, file = "data/df.train.PU")
+saveRDS(df.train.PUk, file = "data/df.train.PUk")
+
+saveRDS(df.train.DL, file = "data/df.train.DL")
+saveRDS(df.train.DLk, file = "data/df.train.DLk")
+
+saveRDS(df.train.F2M, file = "data/df.train.F2M")
+saveRDS(df.train.F2Mk, file = "data/df.train.F2Mk")
+
+saveRDS(df.test.PN, file = "data/df.test.PN")
+saveRDS(df.test.PNk, file = "data/df.test.PNk")
+
+saveRDS(df.test.UTI, file = "data/df.test.UTI")
+saveRDS(df.test.UTIk, file = "data/df.test.UTIk")
+
+saveRDS(df.test.PU, file = "data/df.test.PU")
+saveRDS(df.test.PUk, file = "data/df.test.PUk")
+
+saveRDS(df.test.DL, file = "data/df.test.DL")
+saveRDS(df.test.DLk, file = "data/df.test.DLk")
+
+saveRDS(df.test.F2M, file = "data/df.test.F2M")
+saveRDS(df.test.F2Mk, file = "data/df.test.F2Mk")
+
 ```
 
 
 ```{r Make dataframes for HIPE applied to the 10 models}
 ## Outcomes 
-HIPE.PN <- HIPE |>
+df.HIPE.PN <- HIPE |>
   select(c('rowid', 'Weights', tsk_PN$feature_names))
-HIPE.PNk <- HIPE |>
+df.HIPE.PNk <- HIPE |>
   select(c('rowid', 'Weights', tsk_PNk$feature_names))
 
-HIPE.UTI <- HIPE |>
+df.HIPE.UTI <- HIPE |>
   select(c('rowid', 'Weights', tsk_UTI$feature_names))
-HIPE.UTIk <- HIPE |>
+df.HIPE.UTIk <- HIPE |>
   select(c('rowid', 'Weights', tsk_UTIk$feature_names))
 
-HIPE.PU <- HIPE |>
+df.HIPE.PU <- HIPE |>
   select(c('rowid', 'Weights', tsk_PU$feature_names))
-HIPE.PUk <- HIPE |>
+df.HIPE.PUk <- HIPE |>
   select(c('rowid', 'Weights', tsk_PUk$feature_names))
 
-HIPE.DL <- HIPE |>
+df.HIPE.DL <- HIPE |>
   select(c('rowid', 'Weights', tsk_DL$feature_names))
-HIPE.DLk <- HIPE |>
+df.HIPE.DLk <- HIPE |>
   select(c('rowid', 'Weights', tsk_DLk$feature_names))
 
-HIPE.F2M <- HIPE |>
+df.HIPE.F2M <- HIPE |>
   select(c('rowid', 'Weights', tsk_F2M$feature_names))
-HIPE.F2Mk <- HIPE |>
+df.HIPE.F2Mk <- HIPE |>
   select(c('rowid', 'Weights', tsk_F2Mk$feature_names))
 
 
-saveRDS(HIPE.PN, file = "data/HIPE.PN")
-saveRDS(HIPE.PNk, file = "data/HIPE.PNk")
+saveRDS(df.HIPE.PN, file = "data/df.HIPE.PN")
+saveRDS(df.HIPE.PNk, file = "data/df.HIPE.PNk")
 
-saveRDS(HIPE.UTI, file = "data/HIPE.UTI")
-saveRDS(HIPE.UTIk, file = "data/HIPE.UTIk")
+saveRDS(df.HIPE.UTI, file = "data/df.HIPE.UTI")
+saveRDS(df.HIPE.UTIk, file = "data/df.HIPE.UTIk")
 
-saveRDS(HIPE.PU, file = "data/HIPE.PU")
-saveRDS(HIPE.PUk, file = "data/HIPE.PUk")
+saveRDS(df.HIPE.PU, file = "data/df.HIPE.PU")
+saveRDS(df.HIPE.PUk, file = "data/df.HIPE.PUk")
 
-saveRDS(HIPE.DL, file = "data/HIPE.DL")
-saveRDS(HIPE.DLk, file = "data/HIPE.DLk")
+saveRDS(df.HIPE.DL, file = "data/df.HIPE.DL")
+saveRDS(df.HIPE.DLk, file = "data/df.HIPE.DLk")
 
-saveRDS(HIPE.F2M, file = "data/HIPE.F2M")
-saveRDS(HIPE.F2Mk, file = "data/HIPE.F2Mk")
+saveRDS(df.HIPE.F2M, file = "data/df.HIPE.F2M")
+saveRDS(df.HIPE.F2Mk, file = "data/df.HIPE.F2Mk")
 ```
 
 ```{r tidy up unwanted data}
-rm( list = ls()[str_detect(ls(),'HIPE.')])
+rm( list = ls()[str_detect(ls(),'df.HIPE.')])
 rm( list = ls()[str_detect(ls(),'tsk_')])
 rm( list = ls()[str_detect(ls(),'list_')])
 
@@ -995,10 +1028,10 @@ probs <- c(0.10, 0.5, 0.90)
 #
 make_Predictions <- function (name, probs = c(0.10, 0.5, 0.90)) {
   fit = paste0('fit.',name)
-  HIPE = paste0('HIPE.',name)
+  HIPE = paste0('df.HIPE.',name)
 
 fit   <- readRDS(paste0('data/fit.',name))
-HIPE  <- readRDS(paste0('data/HIPE.',name))
+HIPE  <- readRDS(paste0('data/df.HIPE.',name))
 
 EP <- posterior_epred(object = fit,
                   draws = 2000,
