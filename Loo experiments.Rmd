@@ -644,10 +644,10 @@ fit.task <- function(df.train, Adapt_Delta = NULL){
 #                 prior = t_prior,
                  prior_intercept = t_prior,
                  adapt_delta = Adapt_Delta,
-                 cores = 6, seed = 12345,
+                 cores = 7, seed = 12345,
                  chains = 6,
                  iter = 6000, warmup = 2000,
-                 refresh = 0 ) # Quietly!
+                 refresh = 1 ) # Quietly!
 
  # saveRDS(fit, file = paste0('data/fit.hs.', model_name))
 
@@ -656,9 +656,7 @@ return(fit)
 
 fit.hs.PN <- fit.task(df.exp.train.PN, Adapt_Delta = 0.999)
 fit.hs.PNk <- fit.task(df.exp.train.PNk, Adapt_Delta = 0.999)
-```
 
-```{r}
 fit.hs.UTI <- fit.task(df.exp.train.UTI, Adapt_Delta = 0.999)
 fit.hs.UTIk <- fit.task(df.exp.train.UTIk, Adapt_Delta = 0.999)
 
@@ -670,6 +668,22 @@ fit.hs.DLk <- fit.task(df.exp.train.DLk, Adapt_Delta = 0.999)
 
 fit.hs.F2M <- fit.task(df.exp.train.F2M, Adapt_Delta = 0.999)
 fit.hs.F2Mk <- fit.task(df.exp.train.F2Mk, Adapt_Delta = 0.999)
+
+saveRDS(fit.hs.PN, file = 'data/fit.hs.PN')
+saveRDS(fit.hs.PNk, file = 'data/fit.hs.PNk')
+
+saveRDS(fit.hs.UTI, file = 'data/fit.hs.UTI')
+saveRDS(fit.hs.UTIk, file = 'data/fit.hs.UTIk')
+
+saveRDS(fit.hs.PU, file = 'data/fit.hs.PU')
+saveRDS(fit.hs.PUk, file = 'data/fit.hs.PUk')
+
+saveRDS(fit.hs.DL, file = 'data/fit.hs.DL')
+saveRDS(fit.hs.DLk, file = 'data/fit.hs.DLk')
+
+saveRDS(fit.hs.F2M, file = 'data/fit.hs.F2M')
+saveRDS(fit.hs.F2Mk, file = 'data/fit.hs.F2Mk')
+
 
 ```
 
