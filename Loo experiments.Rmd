@@ -660,14 +660,14 @@ fit.hs.PNk <- fit.task(df.exp.train.PNk, Adapt_Delta = 0.999)
 fit.hs.UTI <- fit.task(df.exp.train.UTI, Adapt_Delta = 0.999)
 fit.hs.UTIk <- fit.task(df.exp.train.UTIk, Adapt_Delta = 0.999)
 
-fit.hs.PU <- fit.task(df.exp.train.PU, Adapt_Delta = 0.999)
+fit.hs.PU <- fit.task(df.exp.train.PU, Adapt_Delta = 0.9995)
 fit.hs.PUk <- fit.task(df.exp.train.PUk, Adapt_Delta = 0.999)
 
-fit.hs.DL <- fit.task(df.exp.train.DL, Adapt_Delta = 0.999)
+fit.hs.DL <- fit.task(df.exp.train.DL, Adapt_Delta = 0.9995)
 fit.hs.DLk <- fit.task(df.exp.train.DLk, Adapt_Delta = 0.999)
 
-fit.hs.F2M <- fit.task(df.exp.train.F2M, Adapt_Delta = 0.999)
-fit.hs.F2Mk <- fit.task(df.exp.train.F2Mk, Adapt_Delta = 0.999)
+fit.hs.F2M <- fit.task(df.exp.train.F2M, Adapt_Delta = 0.9995)
+fit.hs.F2Mk <- fit.task(df.exp.train.F2Mk, Adapt_Delta = 0.9995)
 
 saveRDS(fit.hs.PN, file = 'data/fit.hs.PN')
 saveRDS(fit.hs.PNk, file = 'data/fit.hs.PNk')
@@ -778,20 +778,20 @@ We do live interactive testing of model fit, which proves satisfactory, suggesti
 ```{r Rstanarm model checks in shinystan, eval = FALSE}
 conflicted::conflicts_prefer(shiny::observe)
 
-launch_shinystan(fit.hs.PN, ppd = TRUE) # Allows me to check fit etc.
-launch_shinystan(fit.hs.PNk, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.PN, ppd = FALSE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.PNk, ppd = FALSE) # Allows me to check fit etc.
 
-launch_shinystan(fit.hs.UTI, ppd = TRUE) # Allows me to check fit etc.
-launch_shinystan(fit.hs.UTIk, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.UTI, ppd = FALSE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.UTIk, ppd = FALSE) # Allows me to check fit etc.
 
-launch_shinystan(fit.hs.PU, ppd = TRUE) # Allows me to check fit etc.
-launch_shinystan(fit.hs.PUk, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.PU, ppd = FALSE) # Allows me to check fit etc. * 1
+launch_shinystan(fit.hs.PUk, ppd = FALSE) # Allows me to check fit etc.
 
-launch_shinystan(fit.hs.DL, ppd = TRUE) # Allows me to check fit etc.
-launch_shinystan(fit.hs.DLk, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.DL, ppd = FALSE) # Allows me to check fit etc. * 2
+launch_shinystan(fit.hs.DLk, ppd = FALSE) # Allows me to check fit etc.
 
-launch_shinystan(fit.hs.F2M, ppd = TRUE) # Allows me to check fit etc.
-launch_shinystan(fit.hs.F2Mk, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.F2M, ppd = FALSE) # Allows me to check fit etc. * 1
+launch_shinystan(fit.hs.F2Mk, ppd = FALSE) # All me to check fit etc. * 5
 
 ```
 
