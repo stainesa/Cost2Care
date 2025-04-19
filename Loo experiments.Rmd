@@ -1009,3 +1009,53 @@ Summary.TEST <- TEST_Predicted |>
 kable(Summary.TEST, caption = 'Summary of modelled predictions from TEST data for chart review HIPE')
 
 ```
+
+
+### TRAINING and TEST data plots
+
+* A plot of the distribution of the predictions, compared with the observed data
+
+```{r Plot of predictions - training, fig.cap= 'Distribution of predicted individual risk estimates for adverse outcomes in the TRAINING data with horseshoe prior. The mean predicted risk for each outcome is a vertical line, the same colour as that outcome. The observed risk is shown as a green vertical line.', fig.dpi=1200, fig.height=7, fig.width=7}
+G_TRAIN_Predicted = ggplot(TRAIN_Predicted,
+       aes(y = Result, x = .prediction, colour = Outcome)) +
+  geom_violin() +
+  geom_vline(data = Summary.TRAIN,
+             mapping = aes(xintercept = .prediction_mean, colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') +
+  labs(title = 'Predictions on TRAINING data',
+       subtitle = 'Regularised horseshoe prior',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
+  facet_wrap( ~Outcome ) 
+G_TRAIN_Predicted
+
+ggsave('image/G_TRAIN_Predicted_hs.pdf', G_TRAIN_Predicted, units = 'cm', height = 20, width = 20)
+
+rm(G_TRAIN_Predicted)
+```
+
+```{r Plot of predictions - TEST, fig.cap= 'Distribution of predicted individual risk estimates for adverse outcomes in the TEST data with horseshoe prior. The mean predicted risk for each outcome is a vertical line, the same colour as that outcome. The observed risk is shown as a green vertical line.', fig.dpi=1200, fig.height=7, fig.width=7}
+G_TEST_Predicted = ggplot(TEST_Predicted,
+       aes(y = Result, x = .prediction, colour = Outcome)) +
+  geom_violin() +
+  geom_vline(data = Summary.TEST,
+             mapping = aes(xintercept = .prediction_mean, colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') + 
+  labs(title = 'Predictions on TEST data',
+       subtitle = 'Regularised horseshoe prior',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
+  facet_wrap( ~Outcome )
+G_TEST_Predicted
+
+ggsave('image/G_TEST_Predicted_hs.pdf', G_TEST_Predicted, units = 'cm', height = 20, width = 20)
+
+rm(G_TEST_Predicted)
+```
+
