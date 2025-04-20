@@ -1058,4 +1058,19 @@ ggsave('image/G_TEST_Predicted_hs.pdf', G_TEST_Predicted, units = 'cm', height =
 
 rm(G_TEST_Predicted)
 ```
+ 
+# LOO and projpred
 
+```{r}
+fit.hs.PNk$formula <- as.formula(fit.hs.PNk$formula)
+object <- get_refmodel(fit.hs.PNk)
+
+ cvvs_fast <- cv_varsel(
+     object,
+     validate_search = FALSE,
+     verbose = TRUE)
+ 
+plot(cvvs_fast,
+     stats = "mlpd",
+     ranking_nterms_max = NA)
+```
