@@ -1,0 +1,1073 @@
+---
+title: "L00_Experiments"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: 
+    toc: true
+    fig_caption: true
+    number_sections: true
+    latex_engine: xelatex
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+bibliography: references.bib
+csl: vancouver.csl
+---
+
+```{r Clean environment, include = FALSE}
+  rm(list = ls())
+```
+
+```{r setup, include=FALSE}
+library(rstanarm)
+library(tidybayes)
+library(posterior)
+library(projpred)
+
+library(tidyverse)
+library(bayesplot)
+library(bayestestR)
+
+library(tidybayes)
+library(lubridate)
+library(tibble)
+library(tidymodels)
+library(readxl)
+
+library(lme4)
+
+library(knitr)
+library(kableExtra)
+library(summarytools)
+
+library(patchwork)
+library(dotwhisker)
+library(ggdist)
+
+library(ranger)
+library(mlr3verse)
+library(mlr3viz)
+
+library(data.table)
+library(future)
+
+library(sjPlot)
+library(sjtable2df)
+
+library(broom)
+library(broom.mixed)
+
+library(matrixStats)
+
+tidymodels_prefer(quiet = TRUE)
+st_options(ctable.round.digits = 2)
+
+#How many CPU's?
+N = parallel::detectCores()
+  options(Ncpus = N - 1)
+  options(mc.cores = N - 1)
+  setDTthreads(threads = N - 1,
+               restore_after_fork = TRUE,
+               throttle = 1024)
+
+options(dplyr.summarise.inform = FALSE, # shut up summarise
+        ranger.num.threads = N - 1) # Prepare for rf models
+
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.pos = "H",
+	message = FALSE,
+	warning = FALSE,
+	cache = TRUE,
+	cache.extra = knitr::rand_seed,
+	cache.lazy = FALSE
+)
+rm(N)
+```
+
+Load data
+
+```{r Load existing data}
+HIPE <- readRDS('data/HIPE.Rds')
+CCH <- readRDS('data/CCH.Rds')
+#glimpse(CCH)
+
+# STAN does not like character variables, so we turn them into factors (No =  0, and  Yes = 1, more or less.
+
+CCH <- CCH |>
+  mutate(across(where(is.character), ~as_factor(.)))  |>
+  rowid_to_column(var = 'rowid')
+#glimpse(CCH)
+
+HIPE <- HIPE |>
+  mutate(across(where(is.character), ~as_factor(.))) |>
+  rowid_to_column('rowid') # Add a rowid variable
+
+#glimpse(HIPE)
+
+#table(CCH$PN) # 79 positive out of 1,000
+```
+
+
+Pick one model, and play with it.
+
+```{r Load a model etc.}
+fit.PNk <- readRDS('data/fit.PNk')
+
+```
+
+```{r get_refmodel - fails}
+#get_refmodel(fit.PNk)
+#Error in get_refmodel.stanreg(fit.PNk) : 
+#  In case of the binomial family, projpred cannot handle observation weights (apart from the numbers of trials).
+#3. stop("In case of the binomial family, projpred cannot handle observation ",
+#"weights (apart from the numbers of trials).")
+#2. get_refmodel.stanreg(fit.PNk)
+#1. get_refmodel(fit.PNk)
+
+rm(fit.PNk)
+```
+
+Original fit
+
+# Bayesian fit
+
+We use a common mildly informative prior.
+
+```{r t_prior}
+  t_prior <- student_t(df = 7, location = 0, scale = 2.5)
+```
+
+We fit the models.
+
+```{r Rstanarm model fits}
+# ancillary functions
+# 
+# Create the formula needed for stan_glm
+# 
+make_formula <- function(df.TSK) {
+  names <- names(df.TSK)
+  N = length(df.TSK)
+  Formula = paste( names[3], ' ~ ',
+                   paste(c(names[4:N]),
+                         collapse = ' + ')) # This is the formula needed for the fit
+  return(Formula)
+}
+#
+# Fit and save the desired model
+#
+fit.task <- function(df.train){
+  model_name <- deparse(substitute(df.train))
+  model_name <- str_split_i(model_name,
+                            pattern = '\\.', # Cut on .
+                            i = -1) # Last element
+
+  fit <- stan_glm(make_formula(df.train),
+                 data = df.train,
+                 family = binomial(link = "logit"),
+                 weights = Weights,
+                 prior = t_prior, prior_intercept = t_prior,
+                 cores = 6, seed = 12345,
+                 chains = 6,
+                 iter = 6000, warmup = 2000,
+                 refresh = 0 ) # Quietly!
+
+  saveRDS(fit, file = paste0('data/fit.', model_name))
+
+return(fit)
+}
+
+fit.PN  <- readRDS('data/fit.PN')
+fit.PNk <- readRDS('data/fit.PNk')
+
+fit.UTI  <- readRDS('data/fit.UTI')
+fit.UTIk <- readRDS('data/fit.UTIk')
+
+fit.PU  <- readRDS('data/fit.PU')
+fit.PUk <- readRDS('data/fit.PUk')
+
+fit.DL  <- readRDS('data/fit.DL')
+fit.DLk <- readRDS('data/fit.DLk')
+
+fit.F2M  <- readRDS('data/fit.F2M')
+fit.F2Mk <- readRDS('data/fit.F2Mk')
+
+```
+
+Revised fit with regularised horse-shoe prior
+
+```{r Rstanarm model revised fits}
+# ancillary functions
+#
+# Fit and save the desired model
+#
+fit.hs.task <- function(df.train, Adapt_Delta = NULL){
+  model_name <- deparse(substitute(df.train))
+  model_name <- str_split_i(model_name,
+                            pattern = '\\.', # Cut on .
+                            i = -1) # Last element
+  #Regularise hs prior
+  D <- length(df.train) - 3 # Terms in regression formula
+  P <- 6 # Guess at number of relevant terms
+  N <- nrow(df.train)
+  tau0 <- (P/(D-P))* (1/sqrt(N))
+
+  fit <- stan_glm(make_formula(df.train),
+                 data = df.train,
+                 family = binomial(link = "logit"),
+                 weights = Weights,
+                 prior = hs(global_scale = tau0),
+#                 prior = t_prior,
+                 prior_intercept = t_prior,
+                 adapt_delta = Adapt_Delta,
+                 cores = 6, seed = 12345,
+                 chains = 6,
+                 iter = 6000, warmup = 2000,
+                 refresh = 0 ) # Quietly!
+
+  saveRDS(fit, file = paste0('data/fit.hs.', model_name))
+
+return(fit)
+}
+
+#fit.hs.PNk <- fit.hs.task(df.train.PNk, Adapt_Delta = 0.999)
+
+```
+
+These don't suggest any vast differences between the two models, though the spread of parameters is lower in the horse shoe regularised models.
+
+We do live interactive testing of model fit, which proves satisfactory, suggesting good mixing of all chains, no issues with divergence, and no other striking anomalies. The original parameter of adapt_delta was too low for the hs models, and had to be increased to avoid divergent transitions.
+
+```{r Rstanarm model checks in shinystan, eval = FALSE}
+conflicted::conflicts_prefer(shiny::observe)
+
+launch_shinystan(fit.PNk, ppd = TRUE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.PNk, ppd = TRUE) # Allows me to check fit etc.
+
+```
+
+Make the one line per item version of CCH - CCH_expanded
+
+```{r multiply rows}
+CCH$W <- round(CCH$Weights,0)
+table(CCH$W)
+
+#CCH_expanded <- as.data.frame(lapply(CCH, rep, CCH$W)) |>
+#    select(rowid, Weights, W) |>
+#    arrange(W, rowid) # Yes
+
+CCH_expanded <- CCH %>% slice(rep(seq(n()), W)) |>
+#    select(rowid, Weights, W) |>
+    mutate(Weights = 1) |> # Reset all weights to 1
+    arrange(W, rowid) # Yes
+
+```
+
+## Load tasks
+We're fitting a series of models where we've already done the variable selection with a bunch of random forest models.
+
+Here we load the tasks to get at the chosen variables, and pull the variables out. Neither the weighting variable, Weights, nor the adverse outcome (PN, UTI, ...) is a feature in the tasks.
+
+```{r Load tasks}
+tsk_PN   <- readRDS('data/tsk.PN')
+tsk_PNk  <- readRDS('data/tsk.PNk')
+tsk_UTI  <- readRDS('data/tsk.UTI')
+tsk_UTIk <- readRDS('data/tsk.UTIk')
+tsk_PU   <- readRDS('data/tsk.PU')
+tsk_PUk  <- readRDS('data/tsk.PUk')
+tsk_DL   <- readRDS('data/tsk.DL')
+tsk_DLk  <- readRDS('data/tsk.DLk')
+tsk_F2M  <- readRDS('data/tsk.F2M')
+tsk_F2Mk <- readRDS('data/tsk.F2Mk')
+```
+
+## Training and test datasets
+
+Split CCH into expanded (one row per integer weight) training and test sets per task. Each person is in either the test or training dataset - no-one is in both. The expansion is done when the data are selected.
+
+```{r Train test split model}
+#Split CCH into training and test sets
+#
+set.seed(4763765)
+
+# Ancillary function to make the necessary pieces
+make_training <- function(df, WEIGHTS, TASK, MATCH) {
+  name <- TASK$target_names
+  NAME <- {{name}}
+  NAMEs <- ensym(NAME)
+  
+  WEIGHTS <- round(df[[WEIGHTS]],0)
+
+  splits <- initial_split(df,
+                prop = 700/1000,
+                strata = name) # Outcome
+
+  # these two are from the original dataset  
+  train <- training(splits)
+  test  <- testing(splits)
+  
+  # Expand df to one row per integer weight
+  expanded <- df %>% slice(rep(seq(n()), WEIGHTS)) |>
+    mutate(WEIGHTS = 1) |> # Reset all weights to 1
+    arrange(rowid, WEIGHTS) # Yes
+  
+ # glimpse(train)
+  
+  train <- expanded |>
+      right_join(train |> select({{MATCH}}), by = join_by({{MATCH}}))
+  test <- expanded |>
+      right_join(test |> select({{MATCH}}), by = join_by({{MATCH}}))
+#  glimpse(train)
+
+    counts <- train |>
+      select(!!NAMEs) |> group_by(!!NAMEs) |>
+      summarise(N = n()) |>
+      mutate(Type = 'Train') |>
+      bind_rows(test |>
+        select(!!NAMEs) |> group_by(!!NAMEs) |>
+        summarise(N = n()) |>
+        mutate(Type = 'Test')) 
+
+    totals <- counts |>
+      group_by(Type) |>
+      summarise(Sum = sum(N))
+
+    probs <- counts |>
+      full_join(totals, by = join_by(Type)) |>
+      mutate(Prob = N/Sum)
+    
+    tsk_name = deparse(substitute(TASK))
+    names_for_list <- c(paste(tsk_name, 'splits', sep = '_'),
+                        paste(tsk_name, 'train', sep = '_'),
+                        paste(tsk_name, 'test', sep = '_'),
+                        paste(tsk_name, 'probs', sep = '_'),
+                        paste(tsk_name, 'expanded', sep = '_'))
+
+    LIST = list(splits, train, test, probs, expanded)
+    names(LIST) <- names_for_list
+
+  return(LIST)
+}
+
+# Named list with 5 elements
+# XX_splits Split from which test and train are derived
+# XX_train Training data set
+# XX_test  Test data set
+# XX_probs Counts, totals, and probabilities by test and train
+# xx_expanded Expanded dataframe
+
+list_exp_PN  <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_PN, MATCH = 'rowid')
+list_exp_PNk <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_PNk, MATCH = 'rowid')
+
+list_exp_UTI  <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_UTI, MATCH = 'rowid')
+list_exp_UTIk <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_UTIk, MATCH = 'rowid')
+
+list_exp_PU  <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_PU, MATCH = 'rowid')
+list_exp_PUk <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_PUk, MATCH = 'rowid')
+
+list_exp_DL  <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_DL, MATCH = 'rowid')
+list_exp_DLk <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_DLk, MATCH = 'rowid')
+
+list_exp_F2M  <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_F2M, MATCH = 'rowid')
+list_exp_F2Mk <- make_training(df = CCH, WEIGHTS = 'Weights',
+                              TASK = tsk_F2Mk, MATCH = 'rowid')
+
+```
+
+## Variable selection
+
+We create separate test and training datasets for each of the models. The training datasets are around 700 cases from the chart review, and the test datasets around 300. The variables included come from the ranger fits for each task.
+
+```{r Variable selection for the two sets of models}
+#list_exp_XX[[2]] is the training data as a tibble.
+
+df.exp.train.PN <- list_exp_PN[[2]] |>
+  select(c('rowid', 'Weights', tsk_PN$target_names, tsk_PN$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.train.PNk <- list_exp_PNk[[2]] |>
+  select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names))
+
+df.exp.train.UTI <- list_exp_UTI[[2]] |>
+  select(c('rowid', 'Weights', tsk_UTI$target_names, tsk_UTI$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.train.UTIk <- list_exp_UTIk[[2]] |>
+  select(c('rowid', 'Weights', tsk_UTIk$target_names, tsk_UTIk$feature_names))
+
+df.exp.train.PU <- list_exp_PU[[2]] |>
+  select(c('rowid', 'Weights', tsk_PU$target_names, tsk_PU$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.train.PUk <- list_exp_PUk[[2]] |>
+  select(c('rowid', 'Weights', tsk_PUk$target_names, tsk_PUk$feature_names)) |>
+  select(-c(Dental.Services))
+
+df.exp.train.DL <- list_exp_DL[[2]] |>
+  select(c('rowid', 'Weights', tsk_DL$target_names, tsk_DL$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.train.DLk <- list_exp_DLk[[2]] |>
+  select(c('rowid', 'Weights', tsk_DLk$target_names, tsk_DLk$feature_names))
+
+df.exp.train.F2M <- list_exp_F2M[[2]] |>
+  select(c('rowid', 'Weights', tsk_F2M$target_names, tsk_F2M$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.train.F2Mk <- list_exp_F2Mk[[2]] |>
+  select(c('rowid', 'Weights', tsk_F2Mk$target_names, tsk_F2Mk$feature_names))
+#
+###################################################
+#list_exp_XX[[3]] is the test data as a tibble.
+
+df.exp.test.PN <- list_exp_PN[[3]] |>
+  select(c('rowid', 'Weights', tsk_PN$target_names, tsk_PN$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.test.PNk <- list_exp_PNk[[3]] |>
+  select(c('rowid', 'Weights', tsk_PNk$target_names, tsk_PNk$feature_names))
+
+df.exp.test.UTI <- list_exp_UTI[[3]] |>
+  select(c('rowid', 'Weights', tsk_UTI$target_names, tsk_UTI$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.test.UTIk <- list_exp_UTIk[[3]] |>
+  select(c('rowid', 'Weights', tsk_UTIk$target_names, tsk_UTIk$feature_names))
+
+df.exp.test.PU <- list_exp_PU[[3]] |>
+  select(c('rowid', 'Weights', tsk_PU$target_names, tsk_PU$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.test.PUk <- list_exp_PUk[[3]] |>
+  select(c('rowid', 'Weights', tsk_PUk$target_names, tsk_PUk$feature_names)) |>
+  select(-c(Dental.Services))
+
+df.exp.test.DL <- list_exp_DL[[3]] |>
+  select(c('rowid', 'Weights', tsk_DL$target_names, tsk_DL$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.test.DLk <- list_exp_DLk[[3]] |>
+  select(c('rowid', 'Weights', tsk_DLk$target_names, tsk_DLk$feature_names))
+
+df.exp.test.F2M <- list_exp_F2M[[3]] |>
+  select(c('rowid', 'Weights', tsk_F2M$target_names, tsk_F2M$feature_names)) |>
+  select(-c(Client.Support.Interventions,
+            Dental.Services,
+            Procedures.On.Ear.And.Mastoid.Process,
+            Procedures.On.Endocrine.System,
+            Radiation.Oncology.Procedures))
+
+df.exp.test.F2Mk <- list_exp_F2Mk[[3]] |>
+  select(c('rowid', 'Weights', tsk_F2Mk$target_names, tsk_F2Mk$feature_names))
+
+#########################################
+# Save test and train files
+# 
+saveRDS(df.exp.train.PN, file = "data/df.exp.train.PN")
+saveRDS(df.exp.train.PNk, file = "data/df.exp.train.PNk")
+
+saveRDS(df.exp.train.UTI, file = "data/df.exp.train.UTI")
+saveRDS(df.exp.train.UTIk, file = "data/df.exp.train.UTIk")
+
+saveRDS(df.exp.train.PU, file = "data/df.exp.train.PU")
+saveRDS(df.exp.train.PUk, file = "data/df.exp.train.PUk")
+
+saveRDS(df.exp.train.DL, file = "data/df.exp.train.DL")
+saveRDS(df.exp.train.DLk, file = "data/df.exp.train.DLk")
+
+saveRDS(df.exp.train.F2M, file = "data/df.exp.train.F2M")
+saveRDS(df.exp.train.F2Mk, file = "data/df.exp.train.F2Mk")
+
+saveRDS(df.exp.test.PN, file = "data/df.exp.test.PN")
+saveRDS(df.exp.test.PNk, file = "data/df.exp.test.PNk")
+
+saveRDS(df.exp.test.UTI, file = "data/df.exp.test.UTI")
+saveRDS(df.exp.test.UTIk, file = "data/df.exp.test.UTIk")
+
+saveRDS(df.exp.test.PU, file = "data/df.exp.test.PU")
+saveRDS(df.exp.test.PUk, file = "data/df.exp.test.PUk")
+
+saveRDS(df.exp.test.DL, file = "data/df.exp.test.DL")
+saveRDS(df.exp.test.DLk, file = "data/df.exp.test.DLk")
+
+saveRDS(df.exp.test.F2M, file = "data/df.exp.test.F2M")
+saveRDS(df.exp.test.F2Mk, file = "data/df.exp.test.F2Mk")
+
+```
+
+```{r tidy up unwanted data}
+rm( list = ls()[str_detect(ls(),'df.HIPE.')])
+rm( list = ls()[str_detect(ls(),'tsk_')])
+rm( list = ls()[str_detect(ls(),'list_')])
+
+invisible(gc(reset = TRUE, full = TRUE))
+
+```
+
+# Bayesian fit
+
+We use a common mildly informative prior for the intercept, and a regularised horseshoe prior for the regression coefficients. This is slow!
+
+```{r t_prior}
+  t_prior <- student_t(df = 7, location = 0, scale = 2.5)
+```
+
+We fit the models (this takes some little time, as there are 10)
+
+```{r Rstanarm model fits, eval = FALSE}
+# ancillary functions
+# 
+# Create the formula needed for stan_glm
+# 
+make_formula <- function(df.TSK) {
+  names <- names(df.TSK)
+  N = length(df.TSK)
+  Formula = paste( names[3], ' ~ ',
+                   paste(c(names[4:N]),
+                         collapse = ' + ')) # This is the formula needed for the fit
+  return(Formula)
+}
+#
+# Fit and save the desired model
+#
+fit.task <- function(df.train, Adapt_Delta = NULL){
+  model_name <- deparse(substitute(df.train))
+  model_name <- str_split_i(model_name,
+                            pattern = '\\.', # Cut on .
+                            i = -1) # Last element
+
+  #Regularise horse shoe prior
+  D <- length(df.train) - 3 # Terms in regression formula
+  P <- min(D,7) # Guess at number of relevant terms 8 is a guess
+  N <- nrow(df.train)
+  tau0 <- (P/(D-P))* (1/sqrt(N))
+
+  
+  fit <- stan_glm(make_formula(df.train),
+                 data = df.train,
+                 family = binomial(link = "logit"),
+#                 weights = Weights, # no weights
+                 prior = hs(global_scale = tau0),
+#                 prior = t_prior,
+                 prior_intercept = t_prior,
+                 adapt_delta = Adapt_Delta,
+                 cores = 5, seed = 12345,
+                 chains = 6,
+                 iter = 6000, warmup = 2000,
+                 refresh = 1 ) # Quietly!
+
+  saveRDS(fit, file = paste0('data/fit.hs.', model_name))
+
+return(fit)
+}
+
+fit.hs.PN <- fit.task(df.exp.train.PN, Adapt_Delta = 0.999)
+fit.hs.PNk <- fit.task(df.exp.train.PNk, Adapt_Delta = 0.999)
+
+fit.hs.UTI <- fit.task(df.exp.train.UTI, Adapt_Delta = 0.999)
+fit.hs.UTIk <- fit.task(df.exp.train.UTIk, Adapt_Delta = 0.999)
+
+fit.hs.PU <- fit.task(df.exp.train.PU, Adapt_Delta = 0.9995)
+fit.hs.PUk <- fit.task(df.exp.train.PUk, Adapt_Delta = 0.999)
+
+fit.hs.DL <- fit.task(df.exp.train.DL, Adapt_Delta = 0.9995)
+fit.hs.DLk <- fit.task(df.exp.train.DLk, Adapt_Delta = 0.999)
+
+fit.hs.F2M <- fit.task(df.exp.train.F2M, Adapt_Delta = 0.9995)
+fit.hs.F2Mk <- fit.task(df.exp.train.F2Mk, Adapt_Delta = 0.9995)
+
+saveRDS(fit.hs.PN, file = 'data/fit.hs.PN')
+saveRDS(fit.hs.PNk, file = 'data/fit.hs.PNk')
+
+saveRDS(fit.hs.UTI, file = 'data/fit.hs.UTI')
+saveRDS(fit.hs.UTIk, file = 'data/fit.hs.UTIk')
+
+saveRDS(fit.hs.PU, file = 'data/fit.hs.PU')
+saveRDS(fit.hs.PUk, file = 'data/fit.hs.PUk')
+
+saveRDS(fit.hs.DL, file = 'data/fit.hs.DL')
+saveRDS(fit.hs.DLk, file = 'data/fit.hs.DLk')
+
+saveRDS(fit.hs.F2M, file = 'data/fit.hs.F2M')
+saveRDS(fit.hs.F2Mk, file = 'data/fit.hs.F2Mk')
+
+```
+
+```{r Read hs fits}
+fit.hs.PN <- readRDS(file = 'data/fit.hs.PN')
+fit.hs.PNk <- readRDS(file = 'data/fit.hs.PNk')
+
+fit.hs.UTI <- readRDS(file = 'data/fit.hs.UTI')
+fit.hs.UTIk <- readRDS(file = 'data/fit.hs.UTIk')
+
+fit.hs.PU <- readRDS(file = 'data/fit.hs.PU')
+fit.hs.PUk <- readRDS(file = 'data/fit.hs.PUk')
+
+fit.hs.DL <- readRDS(file = 'data/fit.hs.DL')
+fit.hs.DLk <- readRDS(file = 'data/fit.hs.DLk')
+
+fit.hs.F2M <- readRDS(file = 'data/fit.hs.F2M')
+fit.hs.F2Mk <- readRDS(file = 'data/fit.hs.F2Mk')
+```
+
+```{r 10 fold CV for the hs fits}
+kfit.hs.PN <- kfold(fit.hs.PN, k = 2)
+kfit.hs.PNk <- kfold(fit.hs.PNk, k = 10)
+
+kfit.hs.UTI <- kfold(fit.hs.UTI, k = 10)
+kfit.hs.UTIk <- kfold(fit.hs.UTIk, k = 10)
+
+kfit.hs.PU <- kfold(fit.hs.PU, k = 10)
+kfit.hs.PUk <- kfold(fit.hs.PUk, k = 10)
+
+kfit.hs.DL <- kfold(fit.hs.DL, k = 10)
+kfit.hs.DLk <- kfold(fit.hs.DLk, k = 10)
+
+kfit.hs.F2M <- kfold(fit.hs.F2M, k = 10)
+kfit.hs.F2Mk <- kfold(fit.hs.F2Mk, k = 10)
+
+
+```
+
+First we run a series of pretty routine diagnostics for each of the 10 models
+
+```{r diagnostic measures for each model}
+kable(bayestestR::diagnostic_posterior(fit.hs.PN), caption = 'Diagnostics for PN model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.PNk), caption = 'Diagnostics for PNk model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.UTI), caption = 'Diagnostics for UTI model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.UTIk), caption = 'Diagnostics for UTIk model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.PU), caption = 'Diagnostics for PU model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.PUk), caption = 'Diagnostics for PUk model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.DL), caption = 'Diagnostics for DL model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.DLk), caption = 'Diagnostics for DLk model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.F2M), caption = 'Diagnostics for F2M model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.F2Mk), caption = 'Diagnostics for F2Mk model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.PN), caption = 'Diagnostics for PN model')
+
+kable(bayestestR::diagnostic_posterior(fit.hs.PNk), caption = 'Diagnostics for PNk model')
+
+
+```
+
+Then we prepare a set of 10 dot and whisker plots to visually display the point estimates and the uncertainty (HDI) for each parameter in each model.
+
+```{r Dot and Whisker plots of parameter estimates from each model}
+make_dwPlot_fit <- function(fit) {
+  model_name <- deparse(substitute(fit))
+  model_name <-
+    str_split_i(model_name,
+              pattern = '\\.', # Cut on .
+              i = -1) # Last element
+
+pe <- point_estimate(fit, centrality = 'mean')
+hdi <- ci(fit, method = 'hdi') |>
+    full_join(pe,
+              by = join_by(Parameter, Effects, Component)) |>
+     rename(estimate = Mean) |>
+     rename(term = Parameter) |>
+     rename(conf.low = CI_low) |>
+     rename(conf.high = CI_high)
+
+Graph <- dwplot(hdi,  vline = geom_vline(
+        xintercept = 0,
+        colour = "red",
+        linetype = 2), # plot line at zero _behind_ coefs
+    whisker_args = list(size = 1, colour = 'green')) +
+  theme_minimal() +
+  labs( title = paste0('Parameter estimates for ', model_name),
+        y = 'Item', x = 'Effect size') +
+  guides(colour = 'none')
+
+Graph
+
+ggsave(filename =
+      paste0('image/Dot_plot_fit_', model_name, '.pdf'),
+       height = 10, width = 15, dpi = 1200)
+
+return(Graph)
+}
+
+dw_PN   <- make_dwPlot_fit(fit.hs.PN)
+dw_PNk  <- make_dwPlot_fit(fit.hs.PNk)
+
+dw_UTI  <- make_dwPlot_fit(fit.hs.UTI)
+dw_UTIk <- make_dwPlot_fit(fit.hs.UTIk)
+
+dw_PU   <- make_dwPlot_fit(fit.hs.PU)
+dw_PUk  <- make_dwPlot_fit(fit.hs.PUk)
+
+dw_DL   <- make_dwPlot_fit(fit.hs.DL)
+dw_DLk  <- make_dwPlot_fit(fit.hs.DLk)
+
+dw_F2M  <- make_dwPlot_fit(fit.hs.F2M)
+dw_F2mk <- make_dwPlot_fit(fit.hs.F2Mk)
+
+rm( list = ls()[str_detect(ls(),'dw_.')])
+```
+
+We do live interactive testing of model fit, which proves satisfactory, suggesting good mixing of all chains, no issues with divergence, and no other striking anomalies.
+
+```{r Rstanarm model checks in shinystan, eval = FALSE}
+conflicted::conflicts_prefer(shiny::observe)
+
+launch_shinystan(fit.hs.PN, ppd = FALSE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.PNk, ppd = FALSE) # Allows me to check fit etc.
+
+launch_shinystan(fit.hs.UTI, ppd = FALSE) # Allows me to check fit etc.
+launch_shinystan(fit.hs.UTIk, ppd = FALSE) # Allows me to check fit etc.
+
+launch_shinystan(fit.hs.PU, ppd = FALSE) # Allows me to check fit etc. * 1
+launch_shinystan(fit.hs.PUk, ppd = FALSE) # Allows me to check fit etc.
+
+launch_shinystan(fit.hs.DL, ppd = FALSE) # Allows me to check fit etc. * 2
+launch_shinystan(fit.hs.DLk, ppd = FALSE) # Allows me to check fit etc.
+
+launch_shinystan(fit.hs.F2M, ppd = FALSE) # Allows me to check fit etc. * 1
+launch_shinystan(fit.hs.F2Mk, ppd = FALSE) # All me to check fit etc. * 5
+
+```
+
+# Predictions
+
+We use the epred predictions, which are the linear predictions, transformed by the invlogit function, and so directly represent probabilities.
+
+## Training data predictions
+
+```{r Collect predictions - training data}
+
+TRAIN_Predicted <- bind_rows(
+
+  epred_draws(fit.hs.PN, df.exp.train.PN,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'PN'),
+  epred_draws(fit.hs.PNk, df.exp.train.PNk,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'PNk'),
+  
+  epred_draws(fit.hs.UTI, df.exp.train.UTI,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'UTI'),
+  epred_draws(fit.hs.UTIk, df.exp.train.UTIk,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'UTIk'),
+  
+    epred_draws(fit.hs.PU, df.exp.train.PU,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'PU'),
+  epred_draws(fit.hs.PUk, df.exp.train.PUk,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'PUk'),
+  
+    epred_draws(fit.hs.DL, df.exp.train.DL,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'DL'),
+  epred_draws(fit.hs.DLk, df.exp.train.DLk,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'DLk'),
+  
+    epred_draws(fit.hs.F2M, df.exp.train.F2M,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'F2M'),
+  epred_draws(fit.hs.F2Mk, df.exp.train.F2Mk,
+        ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'F2Mk'),
+  
+  )
+
+#nrow(TRAIN_Predicted)/nrow(df.exp.train.PNk)
+
+rm( list = ls()[str_detect(ls(),'df.exp.train.')])
+```
+
+## Test data predictions
+
+```{r Collect predictions - test data}
+
+TEST_Predicted <- bind_rows(
+
+  epred_draws(fit.hs.PN, df.exp.test.PN,
+        ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'PN'),
+  epred_draws(fit.hs.PNk, df.exp.test.PNk,
+        ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'PNk'),
+  
+  epred_draws(fit.hs.UTI, df.exp.test.UTI,
+        ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'UTI'),
+  epred_draws(fit.hs.UTIk, df.exp.test.UTIk,
+        ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'UTIk'),
+  
+    epred_draws(fit.hs.PU, df.exp.test.PU,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'PU'),
+  epred_draws(fit.hs.PUk, df.exp.test.PUk,
+        ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'PUk'),
+  
+    epred_draws(fit.hs.DL, df.exp.test.DL,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'DL'),
+  epred_draws(fit.hs.DLk, df.exp.test.DLk,
+        ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'DLk'),
+  
+    epred_draws(fit.hs.F2M, df.exp.test.F2M,
+          ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'F2M'),
+  epred_draws(fit.hs.F2Mk, df.exp.test.F2Mk,
+        ndraws = 2000, value = '.prediction') |>
+    ungroup() |>
+    select(1:3, .row, .draw, .prediction) |>
+      rename(Result = 3) |>
+    mutate(Outcome = 'F2Mk'),
+  
+  )
+
+#nrow(TEST_Predicted)/nrow(df.exp.test.PNk)
+
+rm( list = ls()[str_detect(ls(),'df.exp.test.')])
+```
+
+## Interpret predictions
+
+We have 2000 estimates for each of 10 models of the predicted value of the probability of the outcome (PN, UTI, ... F2M), derived from the models we have fitted, both for the training datasets, and, more relevantly, for the test datasets. This ought to be sufficient for posterior checking.
+
+For the Chart review data (training and test datasets) we also have the ground truth, in a variable 'Observed'. Clearly we won't have this for the HIPE data.
+
+We want three things (for each model)
+
+* Summary tables of the predicted and observed data
+
+```{r Summary tables  of observed, and of predictions test and train}
+#########################################
+# summary of chart review
+Summary.CHART <- CCH |>
+  select(PN:F2M) |>
+  mutate(across(everything(),
+                ~ ifelse( . == 'Yes', 1, 0))) |>
+  pivot_longer(cols = everything(),
+               names_to = 'Outcome',
+               values_to = 'Observed') |>
+  group_by(Outcome) |>
+  summarise(across(Observed, list(mean = mean, median = median, sd = stats::sd))) # 5 values
+
+kable(Summary.CHART, caption = 'Summary of observed outcomes for  chart review')
+
+#########################################
+# Add (identical) rows for the restricted models
+SCR <- Summary.CHART |>
+  mutate(Outcome = str_replace(Outcome, '$', 'k')) # Add 'k' on to outcome names to indicate restricted models
+
+Summary.CHART <- Summary.CHART |>
+  bind_rows(SCR) |>
+  arrange(Outcome) # 10 Values
+rm(SCR)
+
+#########################################
+# Summary of training predictions
+Summary.TRAIN <- TRAIN_Predicted |>
+  select(Outcome, .prediction) |>
+  group_by(Outcome) |>
+  summarise(across(.prediction, list(mean = mean, median = median, sd = stats::sd))) # 10 values
+
+kable(Summary.TRAIN, caption = 'Summary of modelled predictions from TRAINING data for chart review HIPE')
+
+#########################################
+# Summary of test predictions
+Summary.TEST <- TEST_Predicted |>
+  select(Outcome, .prediction) |>
+  group_by(Outcome) |>
+  summarise(across(.prediction, list(mean = mean, median = median, sd = stats::sd))) # 10 values
+
+kable(Summary.TEST, caption = 'Summary of modelled predictions from TEST data for chart review HIPE')
+
+```
+
+
+### TRAINING and TEST data plots
+
+* A plot of the distribution of the predictions, compared with the observed data
+
+```{r Plot of predictions - training, fig.cap= 'Distribution of predicted individual risk estimates for adverse outcomes in the TRAINING data with horseshoe prior. The mean predicted risk for each outcome is a vertical line, the same colour as that outcome. The observed risk is shown as a green vertical line.', fig.dpi=1200, fig.height=7, fig.width=7}
+G_TRAIN_Predicted = ggplot(TRAIN_Predicted,
+       aes(y = Result, x = .prediction, colour = Outcome)) +
+  geom_violin() +
+  geom_vline(data = Summary.TRAIN,
+             mapping = aes(xintercept = .prediction_mean, colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') +
+  labs(title = 'Predictions on TRAINING data',
+       subtitle = 'Regularised horseshoe prior',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
+  facet_wrap( ~Outcome ) 
+G_TRAIN_Predicted
+
+ggsave('image/G_TRAIN_Predicted_hs.pdf', G_TRAIN_Predicted, units = 'cm', height = 20, width = 20)
+
+rm(G_TRAIN_Predicted)
+```
+
+```{r Plot of predictions - TEST, fig.cap= 'Distribution of predicted individual risk estimates for adverse outcomes in the TEST data with horseshoe prior. The mean predicted risk for each outcome is a vertical line, the same colour as that outcome. The observed risk is shown as a green vertical line.', fig.dpi=1200, fig.height=7, fig.width=7}
+G_TEST_Predicted = ggplot(TEST_Predicted,
+       aes(y = Result, x = .prediction, colour = Outcome)) +
+  geom_violin() +
+  geom_vline(data = Summary.TEST,
+             mapping = aes(xintercept = .prediction_mean, colour = Outcome)) +
+  geom_vline(data = Summary.CHART,
+             aes(xintercept = Observed_mean), colour = 'green') +
+  theme_minimal() +
+  guides(colour = 'none') + 
+  labs(title = 'Predictions on TEST data',
+       subtitle = 'Regularised horseshoe prior',
+       x = 'Prediction') +
+    coord_cartesian(xlim = c(0,0.3)) +
+  facet_wrap( ~Outcome )
+G_TEST_Predicted
+
+ggsave('image/G_TEST_Predicted_hs.pdf', G_TEST_Predicted, units = 'cm', height = 20, width = 20)
+
+rm(G_TEST_Predicted)
+```
+ 
+# LOO and projpred
+
+```{r}
+fit.hs.PNk$formula <- as.formula(fit.hs.PNk$formula)
+object <- get_refmodel(fit.hs.PNk)
+
+ cvvs_fast <- cv_varsel(
+     object,
+     validate_search = TRUE,
+     parallel = TRUE,  
+     nterms_max = length(tsk.PNk[["feature_names"]]),
+     verbose = TRUE)
+ 
+plot(cvvs_fast,
+     stats = "mlpd",
+     ranking_nterms_max = NA)
+plot(cvvs_fast,
+     stats = "mlpd",
+     deltas = TRUE)
+
+rk <- ranking(cvvs_fast)
+pr_rk <- cv_proportions(rk)
+```
