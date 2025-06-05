@@ -67,7 +67,7 @@ HIPE <- readRDS('data/HIPE.Rds')
 table(HIPE$ModelF)
 ```
 
-Then we shrink the file to lose non-ertinent variables
+Then we shrink the file to lose non-pertinent variables
 
 ## Make smaller analysis data file
 We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
