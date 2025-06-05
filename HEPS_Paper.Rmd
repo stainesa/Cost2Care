@@ -1,0 +1,57 @@
+---
+title: "HEPs paper"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(table1)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Load data file}
+
+#####################################################
+# Load the merged HIPE/Study data file
+# 
+Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.Rds')
+NAMES <- read_excel(
+      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+      sheet = 'NAMES')
+
+#####################################################
+# Load the total HIPE data file
+# 
+HIPE <- readRDS('data/HIPE.Rds')
+
+```
+
+## Make smaller analysis data file
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
+
+```{r simplify data}
+ 
+C2C.H <- Cost2Care.HIPE %>%
+    filter(!is.na(LOS)) %>%
+    select(Training:proc.desc.20,) %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, rawlos, ICD_combined)
+                  ) %>%
+  select(-c(uti, delirium, pressure.ulcer, pneumonia,
+            uti.hadx, delirium.hadx, pressure.ulcer.hadx,
+            pneumonia.hadx, any.f2m, any.f2m.hadx)) %>%
+  select(!contains('desc')) %>% # Basically HIPE text variables
+  select(!starts_with('proc.')) %>%
+  select(!starts_with('dx.')) %>%
+  select(!starts_with('hadx.')) %>%
+  select(!ends_with('Ch')) # Charlson score
+  
+ 
+```
+
