@@ -38,10 +38,10 @@ We omit records where the outcome is missing - these are the two discussed previ
  
 C2C.H <- Cost2Care.HIPE %>%
     filter(!is.na(LOS)) %>%
-    select(Training:proc.desc.20,) %>%
+    select(StudyID, Gender_consensus, Age_consensus, Elective_Emergency, Ward_moves, Bed_moves, Training:proc.desc.20,) %>%
     select(-c(DateOfAdmission, DateOfDischarge,
               MonthOfAdmission, MonthOfDischarge,
-              mon.adm, rawlos, ICD_combined)
+              mon.adm, ICD_combined)
                   ) %>%
   select(-c(uti, delirium, pressure.ulcer, pneumonia,
             uti.hadx, delirium.hadx, pressure.ulcer.hadx,
@@ -51,7 +51,14 @@ C2C.H <- Cost2Care.HIPE %>%
   select(!starts_with('dx.')) %>%
   select(!starts_with('hadx.')) %>%
   select(!ends_with('Ch')) # Charlson score
-  
  
 ```
 
+
+```{r Table1}
+
+Table1 <- table1(~ age + Bed_moves + Ward_moves + rawlos  + Elective_Emergency + SeasonOfAdmission  | Gender_consensus, data = C2C.H, render.continuous = c("Mean","SD"))
+Table1 <- as.data.frame(Table1)
+table1(~ age + Bed_moves + Ward_moves + rawlos  + Elective_Emergency + SeasonOfAdmission  | Gender_consensus, data = C2C.H)
+
+```
