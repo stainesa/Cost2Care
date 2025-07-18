@@ -1,5 +1,5 @@
 ---
-title: "Data load"
+title: "Cost2Care Data load and transform"
 author: "Anthony Staines"
 date: "`r Sys.Date()`"
 output:
@@ -66,7 +66,7 @@ rm(N)
 
 # Aims
 
-This file loads the main HIPE data, and the HIPE data for the study hospital, a Model 4 hospital, the chart review data for the study hospital, and a file of the ACHI procedure codes used nationally in that year. It processes these data, and prepares the analysis datasets.
+This file loads the main HIPE data, and the HIPE data for the study hospital, a Model 4 hospital, the chart review data for the study hospital, and a file of the ACHI procedure codes used nationally in that year. It processes these data, and prepares the analysis datasets, including the simplified dataset used in the final analyses.
 
 # Load and process the national HIPE, ACHI, site HIPE, and Chart Review data files
 
@@ -413,7 +413,6 @@ HIPE_FILE <- HIPE_FILE %>%
 
 ```
 
-
 ### Apply key function to HIPE data
 
 There are two HIPE data files.
@@ -538,7 +537,7 @@ DRG <- DRG |> group_by(Complexity) |> summarise(Count = sum(N))
 
 We use this file to add the DRG Complexity codes to the file
 
-```{r AddDRG complexity codes to the files}
+```{r AddDRG complexity codes to the two files}
 
 HIPE <- HIPE |>
   left_join(DRG_coding, by = join_by(drgv.8 == drgv.8)) |>
@@ -596,7 +595,7 @@ Then compare the list of ACHI codes provided to that in the full HIPE, and the c
 
 All codes go from 0 - no procedure in that category, up to the total number of procedures received in that category
 
-There are 19 chapters, most of which make sense, but one, Chapter 19, 'Interventions Not Elsewhere Classified' needs to be divided further. In any event each chapter needs to become a variable. Chapter 19 can be divided sensibly further into the anatomical site recorded, as these are things like Diagnostic test, and Allied Health Professional.
+There are 19 chapters, most of which make sense, but one, Chapter 19, 'Interventions Not Elsewhere Classified' needs to be divided further. In any event each chapter needs to become a variable. Chapter 19 can be divided sensibly further into the 'anatomical site' recorded, as these are things like 'Diagnostic test', and 'Allied Health Professional'.
 
 ### ACHI processing
 
@@ -744,7 +743,7 @@ PROC.Site <- PROC.Site %>%
 
 Merge these ACHI codes into both datasets
 
-```{r Merge the group variables back into the main datasets}
+```{r Merge the group variables back into the two main datasets}
 #####################################
 # HIPE
 # 
@@ -766,7 +765,7 @@ HIPE.Site <- HIPE.Site |>
 
 ## Merge the HIPE.Site data and the chart review data
 
-Next we check and merge the Chart Review data, and the corresponding HIPE.Site data for those cases.
+Next we check and merge the Chart Review data, and the corresponding HIPE.Site data for those cases. These are the selected weighted sample of cases from one large Model 4 hospital.
 
 ```{r Check and merge two sets of site data}
 
@@ -798,7 +797,7 @@ rm(COMBINED, NAMES, NN)
 
 ## Failure to maintain
 
-This is a variable indicating the presence of one, or , more, of PN (Pneumonia), UTI (Urinary tract infection), PU (Pressure ulcer), or DL (Delirium) associated with health care identified in the chart review.
+This is a variable indicating the presence of one, or more, of PN (Pneumonia), UTI (Urinary tract infection), PU (Pressure ulcer), or DL (Delirium) associated with health care identified in the chart review.
 
 This adds one new variable to the combined Hipe.Site and Chart Review file
 
@@ -1020,7 +1019,7 @@ We show a series of hospital level variables.
 
 ### Age
 
-Age at admission does not vary greatly between the main group of hospitals. Note that this particular work is confined to an older group of patients, all aged 65 or over, and admitted for at least three days.
+Age at admission does not vary greatly between the main groups of hospitals. Note that this particular work is confined to an older group of patients, all aged 65 or over, and admitted for at least three days.
 
 ```{r Draw age}
 ggplot(data = HIPE,
@@ -1430,6 +1429,32 @@ HIPE <- HIPE |>
 kable(Weights)
 ```
 
+# Produce simplified files
+
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
+
+```{r simplify data}
+ 
+C2C.H <- Cost2Care.HIPE %>%
+    filter(!is.na(LOS)) %>%
+    select(StudyID, Gender_consensus, Age_consensus, Elective_Emergency, Ward_moves, Bed_moves, Training:proc.desc.20,) %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, ICD_combined)
+                  ) %>%
+  select(-c(uti, delirium, pressure.ulcer, pneumonia,
+            uti.hadx, delirium.hadx, pressure.ulcer.hadx,
+            pneumonia.hadx, any.f2m, any.f2m.hadx)) %>%
+  select(!contains('desc')) %>% # Basically HIPE text variables
+  select(!starts_with('proc.')) %>%
+  select(!starts_with('dx.')) %>%
+  select(!starts_with('hadx.')) %>%
+  select(!ends_with('Ch')) %>% # Charlson score and components
+  mutate(Elixhauser = ScoreEl) %>% # Keep Elixhauser score
+  select(!ends_with('El')) # Elixhauser score components only
+ 
+```
+
 # Save files
 
 ```{r Save the files}
@@ -1444,5 +1469,11 @@ saveRDS(HIPE, file = "data/HIPE.Rds",
 saveRDS(HIPE.Site, file = "data/HIPE.Site.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
+
+saveRDS(C2C.H, file = "data/C2C.H.Rds",
+        ascii = FALSE, version = NULL,
+        compress = TRUE, refhook = NULL)
+
+
 ```
 
