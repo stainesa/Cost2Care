@@ -1350,7 +1350,7 @@ The main outcomes available are
 * the presence of health care associated pneumonia (PN - variable beginning with 'PN.')
 * the presence of a health care associated pressure ulcer (PU - variable beginning with 'PU.')
 * the presence of health care associated delirium infection (DL - variable beginning with 'DL.')
-* Failure to maintian - i.e. any one or more of the above (F2M)
+* Failure to maintain - i.e. any one or more of the above (F2M)
 * Death recorded
 * Prolonged length of stay
 
