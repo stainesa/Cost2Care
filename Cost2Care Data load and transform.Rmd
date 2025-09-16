@@ -20,30 +20,35 @@ csl: vancouver.csl
 rm(list=ls())
 
 library(tidyverse)
-library(lubridate)
-library(tibble)
 library(readxl)
-
-library(skimr)
-library(gt)
-
-library(comorbidity)
-library(tidymodels)
-library(lme4)
-#library(lmerTest)
 library(knitr)
 library(kableExtra)
 
-library(sjPlot)
-library(sjtable2df)
-library(broom)
-library(broom.mixed)
+library(rsample)
+library(comorbidity)
+
+library(skimr)
 library(summarytools)
 
-library(pixiedust)
-library(stargazer)
 
-tidymodels_prefer(quiet = TRUE)
+#library(lubridate)
+#library(tibble)
+
+#library(gt)
+
+#library(tidymodels)
+#library(lme4)
+#library(lmerTest)
+
+#library(sjPlot)
+#library(sjtable2df)
+#library(broom)
+#library(broom.mixed)
+
+#library(pixiedust)
+#library(stargazer)
+
+#tidymodels_prefer(quiet = TRUE)
 
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
                       warning = NA, message = NA,
@@ -57,8 +62,8 @@ options(mc.cores = N)
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
 
-lgr::get_logger("mlr3")$set_threshold("error")
-lgr::get_logger("bbotk")$set_threshold("error")
+#lgr::get_logger("mlr3")$set_threshold("error")
+#lgr::get_logger("bbotk")$set_threshold("error")
 
 set.seed(979)
 rm(N)
@@ -82,7 +87,7 @@ HIPE <- as_tibble(read.csv("data/H240272_2022.csv",
 #
 HIPE <- HIPE %>%
   mutate(StudyID = paste0(row_number())) %>%
-  relocate(StudyID)
+  relocate(StudyID) # To first column
 
 ########### HIPE.Site #################################
 # HIPE linked to chart review file
@@ -95,6 +100,7 @@ HIPE.Site <- as_tibble(
 # 
 HIPE.Site <- HIPE.Site %>%
   filter(StudyID != 41 & StudyID != 405)
+glimpse(HIPE.Site)
 
 ########## Make StudyID character ###################
 # Make StudyID a character variable
@@ -103,7 +109,7 @@ HIPE.Site <- HIPE.Site %>%
   mutate(StudyID = as.character(StudyID))
 
 ########### Sheet names ################################
-# Check the sheet names (Note the extra ' ' in the "Chart review data ")
+# Check the sheet names (Note the extra ' ' (space) in the "Chart review data ")
 # 
 excel_sheets('data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx')
 
@@ -113,15 +119,16 @@ Cost2Care <- read_excel(path='data/Final Cleaned Data Cost2Care Chart Review and
 
 ########### Fix the names ##########################
 # Fix the names
+#  set better names up manually, and load.
 # PN - PNeumonia;       UTI - Urinary Tract Infection;
 # PU - Pressure Ulcer;  DL - DeLirium
 # 
     NAMES <- read_excel(
       'data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx',
       sheet = 'NAMES')
-          names(Cost2Care) <- NAMES$Chart_review_data_revised
+    names(Cost2Care) <- NAMES$Chart_review_data_revised
 
-########### Remove unamed columns ###################
+########### Remove unnamed columns ###################
 # Remove 5 empty columns with missing names
 # 
 Cost2Care <- Cost2Care %>%
@@ -551,7 +558,7 @@ HIPE.Site <- HIPE.Site |>
 
 ### Level of complexity
 
-Most admissions nationally have higher complexity.
+High complexity is the commonest, but intermediate and low complexity together are a small majority of admissions.
 
 ```{r Table of complexity}
 
@@ -765,7 +772,7 @@ HIPE.Site <- HIPE.Site |>
 
 ## Merge the HIPE.Site data and the chart review data
 
-Next we check and merge the Chart Review data, and the corresponding HIPE.Site data for those cases. These are the selected weighted sample of cases from one large Model 4 hospital.
+Next we check and merge the Chart Review data, and the corresponding HIPE.Site data for those cases. These are from a selected weighted sample of discharges for people aged 65 and over from *one* large Model 4 hospital.
 
 ```{r Check and merge two sets of site data}
 
@@ -830,6 +837,7 @@ There are a total of `r PEOPLE` admissions in these records, from `r HOSPITALS` 
 
 ```{r Delete the numbers}
 rm(PEOPLE, HOSPITALS, STUDY)
+
 ```
 
 # Outcomes
@@ -1250,11 +1258,16 @@ ctable(itulos <- as_factor(Cost2Care.HIPE$itulos),
 ##################################################
 # PN
 #
-ctable(PN <- as_factor(Cost2Care.HIPE$PN),
-  pneumonia <- as_factor(Cost2Care.HIPE$pneumonia),
+
+PN <- as_factor(Cost2Care.HIPE$PN)
+pneumonia <- fct_recode(as_factor(Cost2Care.HIPE$pneumonia),
+                    Yes = "1",
+                    No = "0")
+ctable(PN, pneumonia,
   chisq = TRUE,
   prop = "n")
 
+rm(PN, pneumonia)
 ```
 
 ### UTI
@@ -1263,9 +1276,16 @@ ctable(PN <- as_factor(Cost2Care.HIPE$PN),
 ##################################################
 # UTI
 #
-ctable(UTI <- as_factor(Cost2Care.HIPE$UTI),
-  uti <- as_factor(Cost2Care.HIPE$uti))
 
+UTI <- as_factor(Cost2Care.HIPE$UTI)
+uti <- fct_recode(as_factor(Cost2Care.HIPE$uti),
+                    Yes = "1",
+                    No = "0")
+ctable(UTI, uti,
+  chisq = TRUE,
+  prop = "n")
+
+rm(UTI, uti)
 ```
 
 ### PU
@@ -1274,9 +1294,15 @@ ctable(UTI <- as_factor(Cost2Care.HIPE$UTI),
 ##################################################
 # PU
 #
-ctable(PU <- as_factor(Cost2Care.HIPE$PU),
-  pressure.ulcer <- as_factor(Cost2Care.HIPE$pressure.ulcer))
+PU <- as_factor(Cost2Care.HIPE$PU)
+pressure.ulcer <- fct_recode(as_factor(Cost2Care.HIPE$pressure.ulcer),
+                    Yes = "1",
+                    No = "0")
+ctable(PU, pressure.ulcer,
+  chisq = TRUE,
+  prop = "n")
 
+rm(PU, pressure.ulcer)
 ```
 
 ### DL
@@ -1285,9 +1311,16 @@ ctable(PU <- as_factor(Cost2Care.HIPE$PU),
 ##################################################
 # DL
 #
-ctable(DL <- as_factor(Cost2Care.HIPE$DL),
-  delirium <- as_factor(Cost2Care.HIPE$delirium))
 
+DL <- as_factor(Cost2Care.HIPE$DL)
+delirium <- fct_recode(as_factor(Cost2Care.HIPE$delirium),
+                    Yes = "1",
+                    No = "0")
+ctable(DL,delirium,
+  chisq = TRUE,
+  prop = "n")
+
+rm(DL, delirium)
 ```
 
 ### F2M
@@ -1299,9 +1332,14 @@ ctable(DL <- as_factor(Cost2Care.HIPE$DL),
 #Check
 #names(Cost2Care.HIPE)[which(str_detect(names(Cost2Care.HIPE),"hadx"))]
 #
-ctable(H.any_F2M <- as_factor(Cost2Care.HIPE$H.any_F2M),
-  F2M <- as_factor(Cost2Care.HIPE$F2M))
+H.any_F2M <- as_factor(Cost2Care.HIPE$H.any_F2M)
+F2M <- as_factor(Cost2Care.HIPE$F2M)
 
+ctable(H.any_F2M, F2M,
+  chisq = TRUE,
+  prop = "n")
+
+rm(H.any_F2M, F2M)
 ```
 
 # Major outcomes
@@ -1431,7 +1469,7 @@ kable(Weights)
 
 # Produce simplified files
 
-We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the variable 'rawlos' (which is another version of the outcome variable!) 
 
 ```{r simplify data}
  
