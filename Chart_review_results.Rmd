@@ -2,9 +2,53 @@
 title: "Chart review results"
 author: "Anthony Staines"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  pdf_document: 
+    toc: true
+    fig_caption: true
+    number_sections: true
+    latex_engine: xelatex
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+bibliography: references.bib
+csl: vancouver.csl
 ---
 
 ```{r setup, include=FALSE}
+rm(list=ls())
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load the chart review data
+
+Load the data, select key variables, and shift to long form.
+
+```{r Load data}
+
+Cost2Care.HIPE <- readRDS(file = "data/Cost2Care.HIPE.Rds") %>%
+    select(StudyID, PN, UTI, PU, DL, F2M) %>%
+    pivot_longer(!StudyID, names_to = "Outcome",
+                 values_to = "Count") %>%
+    mutate(Count = case_match(Count, # Numeric version of Count
+                              "No"  ~ 0,
+                              "Yes" ~1))
+
+```
+
+Prepare a dataframe with Source, Cases, Total, Estimate
+
+```{r}
+Source = "Chart_review"
+
+Chart <- Cost2Care.HIPE %>%
+    mutate(Source = Source) %>%
+    relocate(Source) %>%
+    group_by(Outcome) %>%
+    summarise()
 ```
