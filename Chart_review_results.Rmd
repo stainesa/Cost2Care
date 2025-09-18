@@ -49,6 +49,84 @@ Source = "Chart_review"
 Chart <- Cost2Care.HIPE %>%
     mutate(Source = Source) %>%
     relocate(Source) %>%
-    group_by(Outcome) %>%
-    summarise()
+    group_by(Source,Outcome) %>%
+    summarise(Cases = sum(Count),
+              Total = n(),
+              .groups = "drop") %>%
+    mutate(Estimate = Cases/Total)
+
+CI <- Hmisc::binconf(Chart$Cases, Chart$Total, include.x = TRUE, include.n = TRUE) # Calculate default Wilson CI's - A. Agresti and B.A. Coull, Approximate is better than "exact" for interval estimation of binomial proportions, American Statistician, 52:119–126, 1998.
+
+Chart <- Chart %>%
+  cbind(as_tibble(CI)) %>%
+  select(!(X:PointEst)) #Glue the CI's into the tibble
+
+# Sort out nicely ordered factor levels for chart labels
+Chart <- Chart %>%
+  mutate(Outcome = 
+           fct_relevel(Outcome,
+                  "PN", "UTI", "PU", "DL", "F2M") ) %>%
+  mutate(Outcomes = case_match(Outcome,
+                      "PN" ~ "Pneumonia",
+                      "UTI" ~ "UTI",
+                      "PU" ~  "Pressure Ulcer",
+                      "DL" ~  "Delirium",
+                      "F2M" ~ "Failure to Maintain")) %>%
+  mutate(Outcomes = 
+           fct_relevel(Outcomes,
+                  "Pneumonia", "UTI",
+                  "Pressure Ulcer", "Delirium",
+                  "Failure to Maintain") )
+
+```
+
+```{r Point estimates and 95% confidence intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% confidence intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
+
+
+ggplot(data=Chart, aes(x = Outcomes, y = Estimate)) +
+  geom_point(colour = 'red', size = 4) +
+  geom_errorbar(aes(ymin = Lower, ymax = Upper, width = 0.2)) +
+  labs(title = "Point estimates and 95% CI for outcomes",
+       subtitle = "People 65 + discharged from study hospital") +
+  guides(colour = "none", fill = "none", size = "none") +
+    theme_minimal(base_size = 12)
+
+```
+
+```{r Prediction interval}
+library(StatInt)
+library(extraDistr)
+
+n     <- 1000 # Number of charts reviewed in next run
+m     <- 1000 # Number of charts reviewed in next run
+alpha <- 1 #Priors
+beta  <- 1
+
+Chart <- Chart %>%
+  mutate(m = Total) %>%
+  mutate(alpha = 1) %>%
+  mutate(beta = 1) %>%
+  mutate(PEstimate = m * (alpha + Cases)/(alpha + beta + Total)) # Sanity check
+
+
+Chart2 <- Chart %>%
+  group_by(Outcome) %>%
+  nest() 
+
+n     = 1000
+m     = 1000
+alpha = 1
+beta  = 1
+
+jvec <- seq(0, m-1, by = 1) 
+
+Probs <- pbbinom(jvec, size = m, alpha = (alpha + 100), beta = (beta + n - 100))
+Probs_max = Probs[min(which(Probs >= 0.975))]
+Probs_min = Probs[max(which(Probs <= 0.025))]
+min(which(Probs >= 0.975))/1000
+max(which(Probs <= 0.025))/1000
+
+Probs <- pbbinom(seq(0, m-1, by = 1), size = m, alpha = (alpha + 100), beta = (beta + n - 100))
+
+
 ```
