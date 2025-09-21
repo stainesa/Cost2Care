@@ -30,26 +30,6 @@ library(comorbidity)
 library(skimr)
 library(summarytools)
 
-
-#library(lubridate)
-#library(tibble)
-
-#library(gt)
-
-#library(tidymodels)
-#library(lme4)
-#library(lmerTest)
-
-#library(sjPlot)
-#library(sjtable2df)
-#library(broom)
-#library(broom.mixed)
-
-#library(pixiedust)
-#library(stargazer)
-
-#tidymodels_prefer(quiet = TRUE)
-
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
                       warning = NA, message = NA,
                       fig.pos = 'H',
@@ -112,7 +92,9 @@ HIPE.Site <- HIPE.Site %>%
 # Check the sheet names (Note the extra ' ' (space) in the "Chart review data ")
 # 
 excel_sheets('data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx')
-
+# 
+# StudyID's 41 and 405 never had a chart review, and are not in this file.
+# 
 Cost2Care <- read_excel(path='data/Final Cleaned Data Cost2Care Chart Review and HIPE Data 17th February 2025 WORKING.xlsx',
                         sheet = 'Chart review data ',
                         range = "A2:FX1002")
