@@ -15,6 +15,7 @@ editor_options:
 bibliography: references.bib
 csl: vancouver.csl
 ---
+# Setup
 
 ```{r setup, include=FALSE}
 rm(list=ls())
@@ -54,7 +55,11 @@ Chart <- Cost2Care.HIPE %>%
               Total = n(),
               .groups = "drop") %>%
     mutate(Estimate = Cases/Total)
+```
 
+Calculate confidence intervals for the point estimate of the prevalence of adverse events of each type.
+
+```{r calculate CI}
 CI <- Hmisc::binconf(Chart$Cases, Chart$Total, include.x = TRUE, include.n = TRUE) # Calculate default Wilson CI's - A. Agresti and B.A. Coull, Approximate is better than "exact" for interval estimation of binomial proportions, American Statistician, 52:119–126, 1998.
 
 Chart <- Chart %>%
@@ -77,11 +82,9 @@ Chart <- Chart %>%
                   "Pneumonia", "UTI",
                   "Pressure Ulcer", "Delirium",
                   "Failure to Maintain") )
-
 ```
 
 ```{r Point estimates and 95% confidence intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% confidence intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
-
 
 ggplot(data=Chart, aes(x = Outcomes, y = Estimate)) +
   geom_point(colour = 'red', size = 4) +
@@ -93,40 +96,56 @@ ggplot(data=Chart, aes(x = Outcomes, y = Estimate)) +
 
 ```
 
-```{r Prediction interval}
-library(StatInt)
+#Prediction intervals
+
+```{r Prediction intervals}
 library(extraDistr)
 
-n     <- 1000 # Number of charts reviewed in next run
+n     <- 1000 # Number of charts reviewed
 m     <- 1000 # Number of charts reviewed in next run
 alpha <- 1 #Priors
 beta  <- 1
+
+PI <- function(n, k, m, alpha  = 1, beta = 1, type = NULL)
+{  
+  jvec <- seq(0, m-1, by = 1)
+  Probs <- pbbinom(jvec,
+                   size = m,
+                   alpha = (alpha + k),
+                   beta = (beta + n - k))
+
+  Probs_min = max(which(Probs <= 0.025))
+  Probs_max = min(which(Probs >= 0.975))
+  
+  type <- tolower(substr(type,1,1))
+  
+  if (type == "l") {return(Probs_min)
+  } else {
+     if (type == "u") {return(Probs_max)
+      } else {
+    stop("type of prediction interval,
+        lower or upper, must be provided")
+      }
+  }
+}
+ 
+Probs2 <- PI(1000,100,1000,1,1,"lower")
 
 Chart <- Chart %>%
   mutate(m = Total) %>%
   mutate(alpha = 1) %>%
   mutate(beta = 1) %>%
-  mutate(PEstimate = m * (alpha + Cases)/(alpha + beta + Total)) # Sanity check
-
+  mutate(PEstimate = m * (alpha + Cases)/(alpha + beta + Total)) # Sanity check - very very close to frequentist estimate as expected
 
 Chart2 <- Chart %>%
-  group_by(Outcome) %>%
-  nest() 
+  mutate(Plower =  PI(1000,Cases,1000,1,1,"lower")) %>%
+  mutate(Pupper =  PI(1000,Cases,1000,1,1,"upper"))
+  
 
-n     = 1000
-m     = 1000
-alpha = 1
-beta  = 1
-
-jvec <- seq(0, m-1, by = 1) 
-
-Probs <- pbbinom(jvec, size = m, alpha = (alpha + 100), beta = (beta + n - 100))
-Probs_max = Probs[min(which(Probs >= 0.975))]
-Probs_min = Probs[max(which(Probs <= 0.025))]
-min(which(Probs >= 0.975))/1000
-max(which(Probs <= 0.025))/1000
-
-Probs <- pbbinom(seq(0, m-1, by = 1), size = m, alpha = (alpha + 100), beta = (beta + n - 100))
-
+Probs <- pbbinom(seq(0, m-1, by = 1),
+                 size = m, alpha = (alpha + 100),
+                 beta = (beta + n - 100))
+min(which(Probs >= 0.975))
+max(which(Probs <= 0.025))
 
 ```
