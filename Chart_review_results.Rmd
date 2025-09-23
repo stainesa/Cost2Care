@@ -101,35 +101,57 @@ ggplot(data=Chart, aes(x = Outcomes, y = Estimate)) +
 ```{r Prediction intervals}
 library(extraDistr)
 
-n     <- 1000 # Number of charts reviewed
-m     <- 1000 # Number of charts reviewed in next run
-alpha <- 1 #Priors
-beta  <- 1
-
-PI <- function(n, k, m, alpha  = 1, beta = 1, type = NULL)
+PI <- function(Study_Population, Study_Events,
+               Event_Names,
+               Prediction_Population,
+               alpha  = 1, beta = 1,
+               lower.tail = TRUE)
 {  
-  jvec <- seq(0, m-1, by = 1)
-  Probs <- pbbinom(jvec,
-                   size = m,
-                   alpha = (alpha + k),
-                   beta = (beta + n - k))
+  JVEC  <- rep( seq( from = 0,
+          to = Prediction_Population-1,
+          by = 1),
+          times = length(Study_Events))
+  
+  NAMES <- rep(Event_Names,
+               times = length(JVEC) /
+                 length(Event_Names ))
 
-  Probs_min = max(which(Probs <= 0.025))
-  Probs_max = min(which(Probs >= 0.975))
+  PROBS <- pbbinom(q = JVEC,
+                   size = Study_Population,
+                   alpha = (alpha + Study_Events),
+                   beta = (beta + Study_Population - k),
+                   lower.tail = lower.tail)
+
+#cat(length(JVEC),length(CASE_NUMBERS),length(NAMES),length(PROBS),"\n")
+
+glimpse(tibble(JVEC, Event_Names))
+
+Result <- tibble(JVEC, NAMES, PROBS) %>%
+  select(NAMES, JVEC, PROBS) %>%
+  arrange(NAMES,JVEC,PROBS)
+
+return((Result))
   
-  type <- tolower(substr(type,1,1))
-  
-  if (type == "l") {return(Probs_min)
-  } else {
-     if (type == "u") {return(Probs_max)
-      } else {
-    stop("type of prediction interval,
-        lower or upper, must be provided")
-      }
-  }
+#Probs_min = max(which(Probs <= 0.025))
+#  Probs_max = min(which(Probs >= 0.975))
+
 }
- 
-Probs2 <- PI(1000,100,1000,1,1,"lower")
+
+
+#function(Study_Population, Study_Events,
+#               Event_Names,
+#               Prediction_Population,
+#               alpha  = 1, beta = 1,
+#               lower.tail = TRUE)
+
+Probs2 <- PI(Study_Population = 1000,
+             Study_Events = Chart$Cases,
+             Event_Names = Chart$Outcomes,
+             Prediction_Population = 1000,
+             alpha = 1, beta = 1,
+             lower.tail = TRUE)
+Probs2 <- PI(1000,Chart$Cases,1000,1,1,"upper")
+
 
 Chart <- Chart %>%
   mutate(m = Total) %>%
@@ -138,8 +160,14 @@ Chart <- Chart %>%
   mutate(PEstimate = m * (alpha + Cases)/(alpha + beta + Total)) # Sanity check - very very close to frequentist estimate as expected
 
 Chart2 <- Chart %>%
-  mutate(Plower =  PI(1000,Cases,1000,1,1,"lower")) %>%
-  mutate(Pupper =  PI(1000,Cases,1000,1,1,"upper"))
+  mutate(Plower =  PI(n = 1000,
+                      k =Cases, m=1000,
+                      alpha = 1, beta = 1,
+                      type = "lower")) %>%
+  mutate(Pupper =  PI(n = 1000,
+                      k =Cases, m=1000,
+                      alpha = 1, beta = 1,
+                      type = "lower")) 
   
 
 Probs <- pbbinom(seq(0, m-1, by = 1),
