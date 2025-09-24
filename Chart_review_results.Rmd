@@ -23,6 +23,8 @@ rm(list=ls())
 library(tidyverse)
 library(knitr)
 library(kableExtra)
+library(extraDistr)
+
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -64,7 +66,8 @@ CI <- Hmisc::binconf(Chart$Cases, Chart$Total, include.x = TRUE, include.n = TRU
 
 Chart <- Chart %>%
   cbind(as_tibble(CI)) %>%
-  select(!(X:PointEst)) #Glue the CI's into the tibble
+  select(!(X:PointEst)) %>% #Glue the CI's into the tibble
+  rename(CI_Lower = Lower, CI_Upper = Upper)
 
 # Sort out nicely ordered factor levels for chart labels
 Chart <- Chart %>%
@@ -84,29 +87,31 @@ Chart <- Chart %>%
                   "Failure to Maintain") )
 ```
 
-```{r Point estimates and 95% confidence intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% confidence intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
+```{r Point estimates and 0.95 confidence intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% confidence intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
 
-ggplot(data=Chart, aes(x = Outcomes, y = Estimate)) +
+CI_plot <- ggplot(data=Chart,
+                  aes(x = Outcomes, y = Estimate)) +
   geom_point(colour = 'red', size = 4) +
-  geom_errorbar(aes(ymin = Lower, ymax = Upper, width = 0.2)) +
+  geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper, width = 0.2)) +
   labs(title = "Point estimates and 95% CI for outcomes",
-       subtitle = "People 65 + discharged from study hospital") +
+       subtitle = "People 65 + discharged from study hospital",
+       y = "Estimate") +
   guides(colour = "none", fill = "none", size = "none") +
-    theme_minimal(base_size = 12)
+    theme_minimal(base_size = 12) +
+  scale_y_continuous(limits = c(0,0.28), breaks = c(0,0.5,0.1,0.15,0.2,0.25))
 
+CI_plot
 ```
 
 #Prediction intervals
 
 ```{r Prediction intervals}
-library(extraDistr)
 
-PI <- function(Study_Population, Study_Events,
+  PI <- function(Study_Population, Study_Events,
                Event_Names,
                Prediction_Population,
-               alpha  = 1, beta = 1,
-               lower.tail = TRUE)
-{  
+               alpha  = 1, beta = 1)
+  {  
   JVEC  <- rep( seq( from = 0,
           to = Prediction_Population-1,
           by = 1),
@@ -121,59 +126,80 @@ PI <- function(Study_Population, Study_Events,
                    alpha = (alpha + Study_Events),
                    beta = (beta +
                           Study_Population - Study_Events),
-                   lower.tail = lower.tail)
+                   lower.tail = TRUE) # reminder
 
-#cat(length(JVEC),length(CASE_NUMBERS),length(NAMES),length(PROBS),"\n")
+  Result <- tibble(JVEC, NAMES, PROBS) %>%
+    select(NAMES, JVEC, PROBS) %>%
+    arrange(NAMES,JVEC,PROBS) %>%
+    group_by(NAMES) %>%
+    mutate(PI_Lower = max(which(PROBS <= 0.025))) %>%
+    mutate(PI_Upper = min(which(PROBS >= 0.975))) %>%
+    select(NAMES, PI_Lower, PI_Upper) %>%
+    distinct()
 
-
-Result <- tibble(JVEC, NAMES, PROBS) %>%
-  select(NAMES, JVEC, PROBS) %>%
-  arrange(NAMES,JVEC,PROBS)
-
-return((Result))
-  
-#Probs_min = max(which(Probs <= 0.025))
-#  Probs_max = min(which(Probs >= 0.975))
-
+  return((Result))
 }
-
 
 #function(Study_Population, Study_Events,
 #               Event_Names,
 #               Prediction_Population,
-#               alpha  = 1, beta = 1,
-#               lower.tail = TRUE)
+#               alpha  = 1, beta = 1)
 
 Probs2 <- PI(Study_Population = 1000,
              Study_Events = Chart$Cases,
-             Event_Names = Chart$Outcomes,
+             Event_Names = Chart$Outcome,
              Prediction_Population = 1000,
-             alpha = 1, beta = 1,
-             lower.tail = TRUE)
-Probs2 <- PI(1000,Chart$Cases,1000,1,1,"upper")
-
+             alpha = 1, beta = 1)
 
 Chart <- Chart %>%
   mutate(m = Total) %>%
   mutate(alpha = 1) %>%
   mutate(beta = 1) %>%
-  mutate(PEstimate = m * (alpha + Cases)/(alpha + beta + Total)) # Sanity check - very very close to frequentist estimate as expected
+  mutate(PI_Estimate = m * (alpha + Cases)/(alpha + beta + Total)) # Sanity check - very very close to frequentist estimate as expected
 
-Chart2 <- Chart %>%
-  mutate(Plower =  PI(n = 1000,
-                      k =Cases, m=1000,
-                      alpha = 1, beta = 1,
-                      type = "lower")) %>%
-  mutate(Pupper =  PI(n = 1000,
-                      k =Cases, m=1000,
-                      alpha = 1, beta = 1,
-                      type = "lower")) 
+Chart <- Chart %>%
+  left_join(Probs2, by = join_by(Outcome == NAMES)) %>%
+  mutate(PI_Estimate = PI_Estimate/m) %>% # Sclae correctly
+  mutate(PI_Lower = PI_Lower/m) %>%
+  mutate(PI_Upper = PI_Upper/m)
   
+```
 
-Probs <- pbbinom(seq(0, m-1, by = 1),
-                 size = m, alpha = (alpha + 100),
-                 beta = (beta + n - 100))
-min(which(Probs >= 0.975))
-max(which(Probs <= 0.025))
 
+```{r Point estimates and 0.95 prediction intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% prediction intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
+
+PI_plot <- ggplot(data=Chart, aes(x = Outcomes, y = PI_Estimate)) +
+  geom_point(colour = 'red', size = 4) +
+  geom_errorbar(aes(ymin = PI_Lower, ymax = PI_Upper, width = 0.2)) +
+  labs(title = "Point estimates and 95% PI for outcomes",
+       subtitle = "People 65 + discharged from study hospital",
+       y = "Estimate") +
+  guides(colour = "none", fill = "none", size = "none") +
+    theme_minimal(base_size = 12) +
+  scale_y_continuous(limits = c(0,0.28), breaks = c(0,0.5,0.1,0.15,0.2,0.25))
+
+PI_plot
+```
+
+
+```{r Point estimates and 0.95 prediction and confidence intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% prediction intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
+
+library(patchwork)
+
+CI_plot = CI_plot +
+  theme(plot.title=element_blank()) +
+  theme(plot.subtitle=element_blank())
+
+PI_plot = PI_plot +
+  theme(plot.title=element_blank()) +
+  theme(plot.subtitle=element_blank())
+
+plot <- (CI_plot + PI_plot) +
+  plot_layout(axes = "collect", axis_titles = "collect") +
+  plot_annotation(
+    title = "Comparing 95% Confidence Intervals and Prediction Intervals",
+    subtitle = "People 65 + discharged from study hospital"
+  )
+
+plot
 ```
