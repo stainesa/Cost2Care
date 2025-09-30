@@ -15,7 +15,14 @@ editor_options:
 bibliography: references.bib
 csl: vancouver.csl
 ---
-# Setup
+# Introduction
+The object of this file is to generate a graph of confidence intervals and prediction intervals for the point estimates of the rates of each of the complications of interest, namely Pneumonia, Urinary Tract Infection, Pressure Ulcer, Delirium and Failure to Maintain, from the Chart Review data.
+
+Confidence intervals are estimates of the precision of the point estimates from the original data, while prediction intervals are estimates of the precision of future point estimates, in this case from another chart review, a similar set of cases, of similar sample size.
+
+In many cases prediction intervals are more useful, but they are also more difficult to calculate, requiring significant extra computation. In this work, the confidence intervals are binomial confidence intervals, and the prediction intervals are Bayesian, ultimately based on the beta-binomial distribution. The priors chosen are uninformative, with alpha and beta both set to one.
+
+## Setup
 
 ```{r setup, include=FALSE}
 rm(list=ls())
@@ -25,10 +32,10 @@ library(knitr)
 library(kableExtra)
 library(extraDistr)
 
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, messages = FALSE)
 ```
 
-# Load the chart review data
+## Load the chart review data
 
 Load the data, select key variables, and shift to long form.
 
@@ -58,6 +65,8 @@ Chart <- Cost2Care.HIPE %>%
               .groups = "drop") %>%
     mutate(Estimate = Cases/Total)
 ```
+
+# Confidence Intervals
 
 Calculate confidence intervals for the point estimate of the prevalence of adverse events of each type.
 
@@ -103,7 +112,9 @@ CI_plot <- ggplot(data=Chart,
 CI_plot
 ```
 
-#Prediction intervals
+# Prediction intervals
+
+First we write a function to calculate the prediction intervals. This is based on the lucid explanation from https://stats.stackexchange.com/questions/255570/prediction-interval-for-binomial-random-variable
 
 ```{r Prediction intervals}
 
@@ -165,10 +176,12 @@ Chart <- Chart %>%
   
 ```
 
+## Graphs
 
 ```{r Point estimates and 0.95 prediction intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% prediction intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
 
-PI_plot <- ggplot(data=Chart, aes(x = Outcomes, y = PI_Estimate)) +
+PI_plot <- ggplot(data=Chart,
+                  aes(x = Outcomes, y = PI_Estimate)) +
   geom_point(colour = 'red', size = 4) +
   geom_errorbar(aes(ymin = PI_Lower, ymax = PI_Upper, width = 0.2)) +
   labs(title = "Point estimates and 95% PI for outcomes",
@@ -178,11 +191,12 @@ PI_plot <- ggplot(data=Chart, aes(x = Outcomes, y = PI_Estimate)) +
     theme_minimal(base_size = 12) +
   scale_y_continuous(limits = c(0,0.28), breaks = c(0,0.5,0.1,0.15,0.2,0.25))
 
-PI_plot
+#PI_plot
 ```
 
+A first attempt at a response is to glue together two plots for confidence intervals and prediction intervals, but this is not wholly satisfactory.
 
-```{r Point estimates and 0.95 prediction and confidence intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% prediction intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
+```{r Point estimates and 0.95 prediction and confidence intervals for each outcome in the chart review data 1, fig.cap= 'Point estimates and 95% confidence and prediction intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
 
 library(patchwork)
 
@@ -202,4 +216,57 @@ plot <- (CI_plot + PI_plot) +
   )
 
 plot
+```
+
+A better solution is to use pivot_longer and pivot_wider to put the data into a common format, and then graph that.We also save the file as "image/CI_and_PI_plot_Chart_Review.png".
+
+```{r Point estimates and 0.95 prediction and confidence intervals for each outcome in the chart review data 2, fig.cap= 'Point estimates and 95% prediction intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
+
+Chart <- Chart %>%
+  rename(CI_Estimate = Estimate) %>%
+  select(Source, Outcome, Outcomes, Cases, Total, m, alpha, beta, 
+         CI_Lower, CI_Estimate, CI_Upper,
+         PI_Lower, PI_Estimate, PI_Upper)
+
+Chart <- Chart %>%
+  pivot_longer(cols = CI_Lower:PI_Upper,
+               names_to = c("Type", "Measure"),
+               names_sep = "_")
+
+Chart <- Chart %>%
+  pivot_wider(#cols = Type:value,
+              names_from = c("Measure"),
+              values_from = "value")
+
+Both_plot <- ggplot(data = Chart,
+                    aes(x = Outcomes, y = Estimate,
+                        ymin = Lower, ymax = Upper,
+                        colour = Type)) +
+  geom_point(aes(y = Estimate),
+             size = 4) +
+  geom_errorbar(data = Chart %>%
+               filter(Type == "CI"),
+               aes(ymin = Lower, ymax = Upper),
+                   linewidth = 1, width = 0.3) +
+  geom_errorbar(data = Chart %>%
+               filter(Type == "PI"),
+               aes(ymin = Lower, ymax = Upper),
+                   linewidth = 0.8, width = 0.2) +
+  labs(title = "95% Prediction and confidence intervals for each outcome") +
+  theme_minimal()
+  
+Both_plot
+
+ggsave("image/CI_and_PI_plot_Chart_Review.png",
+       units = "in", dpi = 1200, height = 5, width = 7)
+```
+
+# Save the data.
+
+The data are saved as "data/CI_and_PI_Chart_Review.Rds".
+
+```{r Save Chart data}
+
+saveRDS(Chart, "data/CI_and_PI_Chart_Review.Rds")
+
 ```
