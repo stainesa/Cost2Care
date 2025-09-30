@@ -40,14 +40,13 @@ knitr::opts_chunk$set(echo = FALSE, messages = FALSE)
 Load the data, select key variables, and shift to long form.
 
 ```{r Load data}
-
-Cost2Care.HIPE <- readRDS(file = "data/Cost2Care.HIPE.Rds") %>%
+C2C.H <- readRDS(file = "data/C2C.H.Rds") %>%
     select(StudyID, PN, UTI, PU, DL, F2M) %>%
     pivot_longer(!StudyID, names_to = "Outcome",
                  values_to = "Count") %>%
     mutate(Count = case_match(Count, # Numeric version of Count
                               "No"  ~ 0,
-                              "Yes" ~1))
+                              "Yes" ~ 1))
 
 ```
 
@@ -56,7 +55,7 @@ Prepare a dataframe with Source, Cases, Total, Estimate
 ```{r}
 Source = "Chart_review"
 
-Chart <- Cost2Care.HIPE %>%
+Chart <- C2C.H %>%
     mutate(Source = Source) %>%
     relocate(Source) %>%
     group_by(Source,Outcome) %>%
