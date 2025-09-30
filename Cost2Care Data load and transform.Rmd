@@ -1360,7 +1360,7 @@ HIPE.Site <- HIPE.Site %>%
 
 ## Define sampling weights
 
-The chart review was augmented to secure roughly equal number of medical and surgical admissions. This leads to a sizeable over-inclusion of surgical admissions in the data, relative to the totality of admissions.to account for this, we need to define a weighting variable.
+The chart review was augmented to secure roughly equal number of medical and surgical admissions. This leads to a sizeable over-inclusion of surgical admissions in the data, relative to the totality of admissions. To account for this, we need to define a weighting variable.
 
 The first table shows the proportion of medical and surgical patients in the chart review data, using two measures, the speciality of admission, and the use (or otherwise) of an anaesthetic.
 
@@ -1457,7 +1457,10 @@ We omit records where the outcome is missing - these are the two discussed previ
  
 C2C.H <- Cost2Care.HIPE %>%
     filter(!is.na(LOS)) %>%
-    select(StudyID, Gender_consensus, Age_consensus, Elective_Emergency, Ward_moves, Bed_moves, Training:proc.desc.20,) %>%
+    select(StudyID, Gender_consensus, Age_consensus,
+           PN, UTI, PU, DL, F2M,
+           Elective_Emergency, Ward_moves, Bed_moves,
+           Training:proc.desc.20) %>%
     select(-c(DateOfAdmission, DateOfDischarge,
               MonthOfAdmission, MonthOfDischarge,
               mon.adm, ICD_combined)
