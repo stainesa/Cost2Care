@@ -146,7 +146,7 @@ We write a function that
     + ID, a unique identifier variable
     + DateOfAdmission, DateOfDischarge, MonthOfAdmission, MonthOfDischarge
     + SeasonOfAdmission (Nov-Feb = Winter) (Mar-Oct = Other)
-    + MedSurg, based on recorded specialty on admission
+    + MedSurg, based on recorded speciality on admission
     + ModelF, a factor for Hospital Model
     + HospNo and HospCode
     + Source - four levels each, Home, Care, Transfer, Other
@@ -420,7 +420,7 @@ HIPE.Site <- HIPE_PROCESS(HIPE.Site)
 
 ## DRG
 
-DRG codes are alphanumeric codes, which have a description attached. most of these descriptions, include an indication of complexity, either Minor, Intermediate or Major.
+DRG codes are alphanumeric codes, which have a description attached. Most of these descriptions, include an indication of complexity, either Minor, Intermediate or Major.
 
 ### DRG codes
 
@@ -524,9 +524,9 @@ DRG <- DRG |> group_by(Complexity) |> summarise(Count = sum(N))
 
 ```
 
-We use this file to add the DRG Complexity codes to the file
+We use this file to add the DRG Complexity codes to the files HIPE and HIPE.Site
 
-```{r AddDRG complexity codes to the two files}
+```{r Add DRG complexity codes to the two files}
 
 HIPE <- HIPE |>
   left_join(DRG_coding, by = join_by(drgv.8 == drgv.8)) |>
@@ -1092,7 +1092,7 @@ First, we produce a summary of the chart review dataset. Please review this, and
 skimr::skim(Cost2Care.HIPE)
 ```
 
-Note that hadx.01 and hadx30 are both 100% missing. They are in the summary, but as logical variables.
+Note that hadx.01 and hadx.30 are both 100% missing. They are in the summary, but as logical variables.
 
 ## Check matching
 
@@ -1451,7 +1451,7 @@ kable(Weights)
 
 # Produce simplified files
 
-We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the variable 'rawlos' (which is another version of the outcome variable!) 
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the variable 'rawlos' (which is another version of the outcome variable!). This gives us a working study site file, C2C.H.
 
 ```{r simplify data}
  
