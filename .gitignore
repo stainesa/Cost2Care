@@ -43,4 +43,6 @@ image/
 *.pdf
 *.RData
 Outputs/
+DELETED/
 Anna.data
+
