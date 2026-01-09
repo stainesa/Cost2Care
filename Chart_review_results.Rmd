@@ -37,7 +37,7 @@ knitr::opts_chunk$set(echo = FALSE, messages = FALSE)
 
 ## Load the chart review data
 
-Load the data, select key variables, and shift to long form.
+Load the data, C2C.H, select key variables, and shift to long form.
 
 ```{r Load data}
 C2C.H <- readRDS(file = "data/C2C.H.Rds") %>%
@@ -94,6 +94,8 @@ Chart <- Chart %>%
                   "Pressure Ulcer", "Delirium",
                   "Failure to Maintain") )
 ```
+
+Now, plot the CI's
 
 ```{r Point estimates and 0.95 confidence intervals for each outcome in the chart review data, fig.cap= 'Point estimates and 95% confidence intervals for each outcome in the chart review data.', fig.dpi=1200, fig.height=5, fig.width=7}
 
