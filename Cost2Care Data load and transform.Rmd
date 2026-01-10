@@ -1458,16 +1458,18 @@ We omit records where the outcome is missing - these are the two discussed previ
 C2C.H <- Cost2Care.HIPE %>%
     filter(!is.na(LOS)) %>%
     select(StudyID, Gender_consensus, Age_consensus,
-           PN, UTI, PU, DL, F2M,
+           PN, UTI, PU, DL, F2M,MedSurg,
            Elective_Emergency, Ward_moves, Bed_moves,
            Training:proc.desc.20) %>%
     select(-c(DateOfAdmission, DateOfDischarge,
               MonthOfAdmission, MonthOfDischarge,
               mon.adm, ICD_combined)
                   ) %>%
-  select(-c(uti, delirium, pressure.ulcer, pneumonia,
+  select(-c(rawlos,
+            uti, delirium, pressure.ulcer, pneumonia,
             uti.hadx, delirium.hadx, pressure.ulcer.hadx,
-            pneumonia.hadx, any.f2m, any.f2m.hadx)) %>%
+            pneumonia.hadx,
+            any.f2m, any.f2m.hadx)) %>%
   select(!contains('desc')) %>% # Basically HIPE text variables
   select(!starts_with('proc.')) %>%
   select(!starts_with('dx.')) %>%
