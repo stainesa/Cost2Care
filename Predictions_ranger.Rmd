@@ -51,7 +51,7 @@ library(stargazer)
 
 library(patchwork)
 
-tidymodels_prefer(quiet = TRUE)
+#tidymodels_prefer(quiet = TRUE)
 
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fig.pos = 'H',
       cache.extra = knitr::rand_seed)
@@ -83,42 +83,16 @@ These are the chart review file merged with the matched HIPE file provided by HP
 ```{r Load data file}
 
 #####################################################
-# Load the merged HIPE/Study data file
+# Load the working version of the merged HIPE/Study data file
 # 
-Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.Rds')
-NAMES <- read_excel(
-      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
-      sheet = 'NAMES')
+C2C.H <- readRDS('data/C2C.H.Rds')
+HIPE.Site <- readRDS('data/HIPE.Site.Rds')
 
 #####################################################
 # Load the total HIPE data file
 # 
 HIPE <- readRDS('data/HIPE.Rds')
 
-```
-
-## Make smaller analysis data file
-We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the rawlos (which is another version of the outcome variable!) 
-
-```{r simplify data}
- 
-C2C.H <- Cost2Care.HIPE %>%
-    filter(!is.na(LOS)) %>%
-    select(Training:proc.desc.20,) %>%
-    select(-c(DateOfAdmission, DateOfDischarge,
-              MonthOfAdmission, MonthOfDischarge,
-              mon.adm, rawlos, ICD_combined, age)
-                  ) %>%
-  select(-c(uti, delirium, pressure.ulcer, pneumonia,
-            uti.hadx, delirium.hadx, pressure.ulcer.hadx,
-            pneumonia.hadx, any.f2m, any.f2m.hadx)) %>%
-  select(!contains('desc')) %>% # Basically HIPE text variables
-  select(!starts_with('proc.')) %>%
-  select(!starts_with('dx.')) %>%
-  select(!starts_with('hadx.')) %>%
-  select(!ends_with('Ch')) # Charlson score
-  
- 
 ```
 
 # Intent
@@ -130,14 +104,14 @@ These models can be sense checked by their ability to predict the length of stay
 The most obvious limitation is that the chart review was done in one hospital, a model 4 centre.
 
 # Model Length of Stay
-We actually model the scaled length of stay which has a mean of zero (but a  median of -0.3), and a standard deviation of 1, while the actual length of stay has a mean of 15.5, (but a median of 9), and a standard deviation of 20. The earlier models shown used the actual length of stay.
+We actually model the scaled length of stay which has a mean of zero (but a  median of -0.3), and a standard deviation of 1, while the actual length of stay has a mean of 15.5, (but a median of 9), and a standard deviation of 20.
 
 ## lmer based predictions of Length of Stay (centred and scaled)
 
 ```{r Simple lmer model}
 ModelLOS <- lmer(data=C2C.H,
              LosC ~
-               AgeC + as_factor(sex) + ScoreEl +
+               AgeC + as_factor(sex) + Elixhauser +
                Source + SeasonOfAdmission +
                Destination + ProcCount + itulos +
                fullelig + elem +
@@ -262,6 +236,7 @@ A plot of this task is a plot of the outcome variable, in this case centred and 
 # Define a regression task for LosC
 #
 tsk_C <- as_task_regr(C2C.H, target = "LosC", id = 'C')
+  tsk_C$col_roles$stratum = c("MedSurg")
   tsk_C
   split_C = mlr3::partition(tsk_C)
   
@@ -274,17 +249,22 @@ tsk_C <- as_task_regr(C2C.H, target = "LosC", id = 'C')
 TRAIN <- bind_cols(
   SET = split_C$train,
   Result = 'TRAIN',
-  LosC = C2C.H$LosC[split_C$train])
+  LosC = C2C.H$LosC[split_C$train],
+  MedSurg = C2C.H$MedSurg[split_C$train])
 TEST <- bind_cols(
   SET = split_C$test,
   Result = 'TEST',
-  LosC = C2C.H$LosC[split_C$test])
+  LosC = C2C.H$LosC[split_C$test],
+  MedSurg = C2C.H$MedSurg[split_C$test])
 SPLIT <- bind_rows(TRAIN,TEST)
 
-ggplot(data = SPLIT, aes(y = LosC, group = Result, x = Result)) + geom_boxplot(fill='darkgreen') +
+ggplot(data = SPLIT,
+       aes(y = LosC, group = Result,
+           x = Result)) +
+  geom_boxplot() +
     labs (title = 'Length of stay for Training and Test units',
           subtitle = 'Centred to zero and scaled to standard deviation units',
-          x = 'Test data or trainign data',
+          x = 'Test data or training data',
           y = 'Length of stay (SD units)') +
   theme_minimal()
 
@@ -292,7 +272,7 @@ ggplot(data = SPLIT, aes(y = LosC, group = Result, x = Result)) + geom_boxplot(f
 
 ## Importance
 
-Then we look briefly at the importance of the respective variables using a simple ranger model, with no tuning. We could use this to filter variables out. What we see is a block of variables with importance of zero, and another block with, more or less, similar importance of around 3.
+Then we look briefly at the importance of the respective variables using a simple ranger model, with no tuning. We could use this to filter variables out. What we see is a small block of variables with importance of zero, and a reasonable range from 0 to 0.15, with another block with, more or less, similar importance of around 0.06 to 0.08.
 
 ```{r Look at variable importance}
 lrn_Filter = lrn("regr.ranger", seed = 42)
@@ -311,10 +291,9 @@ flt_Imp = flt("importance", learner = lrn_Filter)
 
 ```
 
-
 ## Tuning
 
-First set up a basic model to tune, in this case a random forest regression.
+First set up a basic model to tune, in this case a random forest regression. We're tuning on mtry, which is the number of variables to possibly split at in each node, with a default value of 8 where we're looking at 5 to 25; and the number of trees to look at, which is to an extent, arbitrary but we're looking from 500 to 3,000 per run.
 
 ```{r tuning model}
 # Regression RF model
@@ -365,9 +344,8 @@ plan(multisession)
 
 #SAVE them
 
-saveRDS(instance_mbo, file = 'data/instance_mbo')
-saveRDS(instance_random_search, file = 'data/instance_random_search')
-
+#saveRDS(instance_mbo, file = 'data/instance_mbo')
+#saveRDS(instance_random_search, file = 'data/instance_random_search')
 
 ```
 
@@ -400,13 +378,14 @@ ParameterSearchResults_random_search <- as.data.table(instance_random_search$arc
 ggplot(data = ParameterSearchResults_mbo,
        aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
-    autoplot(instance_mbo, type = "surface")
+    autoplot(instance_mbo, type = "surface") +
+  labs(title = ("Model Based Optimization"))
 
 ggplot(data = ParameterSearchResults_random_search,
        aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse))
-    autoplot(instance_random_search, type = "surface")
-
+    autoplot(instance_random_search, type = "surface") +
+  labs(title = ("Random Search Based Optimization"))
 
 ```
 
@@ -414,7 +393,7 @@ ggplot(data = ParameterSearchResults_random_search,
 
 g1 <- ggplot(data = ParameterSearchResults_mbo,
        aes(x = num.trees, y = regr.mse)) +
-  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  geom_jitter(aes(size = regr.mse, colour = as.integer(mtry))) + #mtry is an integer, but of type numeric, which triggers an error
   labs(title = "Model Based Optimisation") +
   theme_minimal()
 
@@ -442,12 +421,11 @@ g4 <- ggplot(data = ParameterSearchResults_random_search,
 
 ## Comments on tuning results
 
-These results are odd. Both methods suggest a minimal number of mtry (5) for the lowest mse, but the actual mse is quite flat in the number of trees, and fairly flat in the number of variables included in each one (mtry).
-
+These results are quite different, though both suggest the number of trees is not too important. The model based optimisation strongly suggests 9 for mtry (the number of variables considered at each split), while for the random search method, the range of mtry considered optimal is from 15 to 25.
 
 # Trimmed tuning
 
-For this reason we repeat the exercise with a trimmed data set, excluding extreme outliers. The rationale for this is that while these very long lengths of stay matter a lot from a service perspective, from a research perspective, they are probably driven by very specific individual factors, which will not be captured by any retrospective routine data system. Another way too look at this would be to think of the observed distribution as some kind of mixture model, but there is insufficient data to estimate or interpret the mixture.
+We repeat the exercise with a trimmed data set, excluding extreme outliers. The rationale for this is that while these very long lengths of stay matter a lot from a service perspective, from a research perspective, they are probably driven by very specific individual factors, which will not be captured by any retrospective routine data system. Another way too look at this would be to think of the observed distribution as some kind of mixture model, but there is insufficient data to estimate or interpret the mixture.
 
 After testing a number of values - 5, 3, and 2.5, we elect to trim off at a scaled length of stay of 3. This is 76 days, and at the 98th percentile of lengths of stay. This drops nine observations from the site dataset, and 2426 observations from the national HIPE dataset.
 
@@ -502,7 +480,7 @@ ggplot(data = SPLIT,
 
 ## Importance
 
-Then we look briefly at the importance of the respective variables using a simple ranger model, with no tuning. We could use this to filter variables out. What we see is a block of variables with importance of zero, and another block with, more or less, similar importance of around 3.
+Then we look briefly at the importance of the respective variables using a simple ranger model, with no tuning. The range and pattern of importances are similar to the untrimmed dataset.
 
 ```{r Look at variable importance}
 lrn_Filter = lrn("regr.ranger", seed = 42)
@@ -585,7 +563,6 @@ Then we run them
 #saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
 #saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
 
-
 ```
 
 Now we look at the results
@@ -617,13 +594,15 @@ ParameterSearchResults_random_search.trim <- as.data.table(instance_random_searc
 
 ggplot(data = ParameterSearchResults_mbo.trim,
        aes(y = num.trees, x = mtry)) +
-  geom_jitter(aes(size = regr.mse, colour= regr.mse))
+  geom_jitter(aes(size = regr.mse, colour= regr.mse)) +
+  labs(title = ("Model Based Optimization trimmed"))
 
 autoplot(instance_mbo.trim, type = "surface")
 
 ggplot(data = ParameterSearchResults_random_search.trim,
        aes(y = num.trees, x = mtry)) +
-  geom_jitter(aes(size = regr.mse, colour= regr.mse))
+  geom_jitter(aes(size = regr.mse, colour= regr.mse)) +
+  labs(title = ("Random Search Based Optimization trimmed"))
 
 
 autoplot(instance_random_search.trim, type = "surface")
@@ -634,7 +613,7 @@ autoplot(instance_random_search.trim, type = "surface")
 
 g1 <- ggplot(data = ParameterSearchResults_mbo.trim,
        aes(x = num.trees, y = regr.mse)) +
-  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  geom_jitter(aes(size = regr.mse, colour = as.integer(mtry))) +
   labs(title = "Model Based Optimisation") +
   theme_minimal()
 
@@ -647,7 +626,7 @@ g2 <- ggplot(data = ParameterSearchResults_mbo.trim,
     
 g3 <- ggplot(data = ParameterSearchResults_random_search.trim,
        aes(x = num.trees, y = regr.mse)) +
-  geom_jitter(aes(size = regr.mse, colour = mtry)) +
+  geom_jitter(aes(size = regr.mse, colour = as.integer(mtry))) +
   labs(title = "Random Search Optimisation") +
   theme_minimal()
 
@@ -660,12 +639,12 @@ g4 <- ggplot(data = ParameterSearchResults_random_search.trim,
  g1 + g2 + g3 + g4 # patchwork
 ```
 
-Interpreting these, suggests that a little over 10, perhaps 11 or 12, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2500 seems reasonable.
+Interpreting these, suggests that a little over 15, perhaps 17 or 18, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2000 seems reasonable.
 
 ```{r Train the final model}
 lrn_R_mbo = lrn('regr.ranger',
-            mtry = 11,
-            num.trees = 2500,
+            mtry = 17,
+            num.trees = 2000,
             importance = "permutation"
             )
 
@@ -703,17 +682,3 @@ ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
 ```
 
 An important point is that these predictions omit, completely, the effect of hospital and hospital model, as these variables are constant in the site data on which the model was trained.
-
-This suggests a dual strategy - using the random forest models to identify variables, and guide modelling, and using lmer models to prepare final predictions.
-
-In this case, we proceed to prepare a lmer model for the national data, guided by the random forest model for the site data, but including the structural variables.
-
-```{r}
-ModelHIPE <- lmer(data=HIPE.trim,
-             LosC ~ age + sex + ScoreEl + Source + SeasonOfAdmission + fullelig + elem + mdc +  specialty + ProcCount +
-               (1 | ModelF) +
-                (1 | ModelF:HospCode) +
-                (1 | drgv.8))
-tab_model(ModelHIPE)
-```
-
