@@ -1438,6 +1438,15 @@ Cost2Care.HIPE <- Cost2Care.HIPE |>
   select(-AN)
 
 ##############################################################
+# Add the Weight variable to the HIPE.Site file
+#
+HIPE.Site <- HIPE.Site |>
+  mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No'))  |>
+  right_join(Weights |> ungroup() |> select(MedSurg, AN, Weights),
+             by = join_by(MedSurg, AN)) |>
+  select(-AN)
+
+##############################################################
 # Add the Weight variable to the HIPE file
 #
 HIPE <- HIPE |>
@@ -1452,10 +1461,11 @@ kable(Weights)
 # Produce simplified files
 
 We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the variable 'rawlos' (which is another version of the outcome variable!). This gives us a working study site file, C2C.H.
+We similarly simplify the HIPE National file HIPE to H.N, and the HIPE site file to H.S.
 
 ```{r simplify data}
  
-C2C.H <- Cost2Care.HIPE %>%
+CTC.H <- Cost2Care.HIPE %>%
     filter(!is.na(LOS)) %>%
     select(StudyID, Gender_consensus, Age_consensus,
            PN, UTI, PU, DL, F2M,MedSurg,
@@ -1477,26 +1487,84 @@ C2C.H <- Cost2Care.HIPE %>%
   select(!ends_with('Ch')) %>% # Charlson score and components
   mutate(Elixhauser = ScoreEl) %>% # Keep Elixhauser score
   select(!ends_with('El')) # Elixhauser score components only
+
+H.N <- HIPE %>%
+    filter(!is.na(LosC)) %>%
+#    select(StudyID, Gender_consensus, Age_consensus,
+#           PN, UTI, PU, DL, F2M,MedSurg,
+#           Elective_Emergency, Ward_moves, Bed_moves,
+#           Training:proc.desc.20) %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, ICD_combined)
+                  ) %>%
+  select(-c(rawlos,
+            uti, delirium, pressure.ulcer, pneumonia,
+            uti.hadx, delirium.hadx, pressure.ulcer.hadx,
+            pneumonia.hadx,
+            any.f2m, any.f2m.hadx)) %>%
+  select(!contains('desc')) %>% # Basically HIPE text variables
+  select(!starts_with('proc.')) %>%
+  select(!starts_with('dx.')) %>%
+  select(!starts_with('hadx.')) %>%
+  select(!ends_with('Ch')) %>% # Charlson score and components
+  mutate(Elixhauser = ScoreEl) %>% # Keep Elixhauser score
+  select(!ends_with('El')) # Elixhauser score components only
  
+
+H.S <- HIPE.Site %>%
+    filter(!is.na(LosC)) %>%
+#    select(StudyID, Gender_consensus, Age_consensus,
+#           PN, UTI, PU, DL, F2M,MedSurg,
+#           Elective_Emergency, Ward_moves, Bed_moves,
+#           Training:proc.desc.20) %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, ICD_combined)
+                  ) %>%
+  select(-c(rawlos,
+            uti, delirium, pressure.ulcer, pneumonia,
+            uti.hadx, delirium.hadx, pressure.ulcer.hadx,
+            pneumonia.hadx,
+            any.f2m, any.f2m.hadx)) %>%
+  select(!contains('desc')) %>% # Basically HIPE text variables
+  select(!starts_with('proc.')) %>%
+  select(!starts_with('dx.')) %>%
+  select(!starts_with('hadx.')) %>%
+  select(!ends_with('Ch')) %>% # Charlson score and components
+  mutate(Elixhauser = ScoreEl) %>% # Keep Elixhauser score
+  select(!ends_with('El')) # Elixhauser score components only
 ```
 
 # Save files
 
 ```{r Save the files}
+# Site review + HIPE
 saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.HIPE.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
+saveRDS(CTC.H, file = "data/C2C.H.Rds",
+        ascii = FALSE, version = NULL,
+        compress = TRUE, refhook = NULL)
+
+# HIPE for country
 saveRDS(HIPE, file = "data/HIPE.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
+saveRDS(H.N, file = "data/H.C.Rds",
+        ascii = FALSE, version = NULL,
+        compress = TRUE, refhook = NULL)
+
+# HIPE for site data only
 saveRDS(HIPE.Site, file = "data/HIPE.Site.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
-saveRDS(C2C.H, file = "data/C2C.H.Rds",
+saveRDS(H.S, file = "data/H.S.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
+
 ```
 
