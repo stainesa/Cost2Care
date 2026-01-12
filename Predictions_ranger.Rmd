@@ -83,16 +83,23 @@ These are the chart review file merged with the matched HIPE file provided by HP
 ```{r Load data file}
 
 #####################################################
-# Load the working version of the merged HIPE/Study data file
+# Load the working version of the merged HIPE Study site file
 # 
-C2C.H <- readRDS('data/C2C.H.Rds')
-HIPE.Site <- readRDS('data/HIPE.Site.Rds')
+H.S <- readRDS('data/H.S.Rds')
 
 #####################################################
-# Load the total HIPE data file
+# Load the working version of the total HIPE data file
 # 
-HIPE <- readRDS('data/HIPE.Rds')
+H.N <- readRDS('data/H.N.Rds')
 
+```
+
+## Drop the ModelF variable
+This has the same value as ModelCode, but different levels in the two files, Model 3 and Model 4 in the national file, but only Model 4 in the site file.
+
+```{r Remove surplus factor variable}
+H.N <- H.N %>% select(-ModelF)
+H.S <- H.S %>% select(-ModelF)
 ```
 
 # Intent
@@ -109,7 +116,7 @@ We actually model the scaled length of stay which has a mean of zero (but a  med
 ## lmer based predictions of Length of Stay (centred and scaled)
 
 ```{r Simple lmer model}
-ModelLOS <- lmer(data=C2C.H,
+ModelLOS <- lmer(data=CTC.H,
              LosC ~
                AgeC + as_factor(sex) + Elixhauser +
                Source + SeasonOfAdmission +
@@ -121,9 +128,9 @@ FE <- plot_model(ModelLOS)
 RE <- plot_model(ModelLOS, type ='re')
 FE + RE
 
-PRED <- predict(ModelLOS, newdata = C2C.H)
+PRED <- predict(ModelLOS, newdata = CTC.H)
 
-C <- bind_cols(LosC = C2C.H$LosC, PRED = PRED, sex = C2C.H$sex)
+C <- bind_cols(LosC = CTC.H$LosC, PRED = PRED, sex = CTC.H$sex)
 
 ggplot(data = C,
        aes(x=LosC, y = PRED, colour=as_factor(sex))) +
@@ -147,12 +154,12 @@ This is not such a bad predictor! Adding extra variables has improved the fit qu
 # 
 
 RANGER1 <- ranger(
-    data = C2C.H %>% select(-Training),
+    data = CTC.H %>% select(-Training),
     formula = LosC ~.,
         num.trees = 1000,
     mtry = 11,
     importance = "permutation",
-    case.weights = C2C.H$Training,
+    case.weights = CTC.H$Training,
     holdout = TRUE
 )
 
@@ -179,15 +186,15 @@ ggplot(data  = DF %>% filter(Importance > 0.0),
 ############################################
 # Predictions on test and training data
 #  
-RANGER1.train.predict <- predict(RANGER1, data = C2C.H %>% filter(Training))
+RANGER1.train.predict <- predict(RANGER1, data = CTC.H %>% filter(Training))
   summary(RANGER1.train.predict$predictions)
-    PRED.train <- bind_cols(LosC = C2C.H$LosC[C2C.H$Training],
+    PRED.train <- bind_cols(LosC = CTC.H$LosC[CTC.H$Training],
                             Prediction = RANGER1.train.predict$predictions,
                             Train = TRUE)
 
-RANGER1.test.predict <- predict(RANGER1, data = C2C.H %>% filter(!Training))
+RANGER1.test.predict <- predict(RANGER1, data = CTC.H %>% filter(!Training))
   summary(RANGER1.test.predict$predictions)
-    PRED.test <- bind_cols(LosC = C2C.H$LosC[!C2C.H$Training],
+    PRED.test <- bind_cols(LosC = CTC.H$LosC[!CTC.H$Training],
                            Prediction = RANGER1.test.predict$predictions,
                            Train = FALSE)
 
@@ -227,7 +234,7 @@ The ranger predictions are quite good too, though still not great at high length
 
 ## Regression
 
-First we set up a regression task. We split the data into a two-thirds training set, and a one third testing set. This is a simple random split. When we get the Medical/surgical stuff sorted, we can split within these strata, but as the strata are of roughly equal size, we ought to be fine, even now.
+First we set up a regression task. We split the study site HIPE (H.S)data into a two-thirds training set, and a one third testing set, stratified by MedSurg.
 
 A plot of this task is a plot of the outcome variable, in this case centred and scaled length of stay. Note that this is very very skew, with a long tail of outliers, and a designed minimum of 3 days.
 
@@ -235,7 +242,7 @@ A plot of this task is a plot of the outcome variable, in this case centred and 
 #
 # Define a regression task for LosC
 #
-tsk_C <- as_task_regr(C2C.H, target = "LosC", id = 'C')
+tsk_C <- as_task_regr(H.S, target = "LosC", id = 'C')
   tsk_C$col_roles$stratum = c("MedSurg")
   tsk_C
   split_C = mlr3::partition(tsk_C)
@@ -249,13 +256,13 @@ tsk_C <- as_task_regr(C2C.H, target = "LosC", id = 'C')
 TRAIN <- bind_cols(
   SET = split_C$train,
   Result = 'TRAIN',
-  LosC = C2C.H$LosC[split_C$train],
-  MedSurg = C2C.H$MedSurg[split_C$train])
+  LosC = CTC.H$LosC[split_C$train],
+  MedSurg = CTC.H$MedSurg[split_C$train])
 TEST <- bind_cols(
   SET = split_C$test,
   Result = 'TEST',
-  LosC = C2C.H$LosC[split_C$test],
-  MedSurg = C2C.H$MedSurg[split_C$test])
+  LosC = CTC.H$LosC[split_C$test],
+  MedSurg = CTC.H$MedSurg[split_C$test])
 SPLIT <- bind_rows(TRAIN,TEST)
 
 ggplot(data = SPLIT,
@@ -272,7 +279,7 @@ ggplot(data = SPLIT,
 
 ## Importance
 
-Then we look briefly at the importance of the respective variables using a simple ranger model, with no tuning. We could use this to filter variables out. What we see is a small block of variables with importance of zero, and a reasonable range from 0 to 0.15, with another block with, more or less, similar importance of around 0.06 to 0.08.
+Then we look briefly at the importance of the respective variables using a simple ranger model, with no tuning. We could use this to filter variables out. What we see is a smooth scree ranging from 0 to 0.18, a small block of variables with importance of zero, and , with another block with, more or less, similar importance of around 0.06 to 0.08.
 
 ```{r Look at variable importance}
 lrn_Filter = lrn("regr.ranger", seed = 42)
@@ -304,7 +311,7 @@ lrn_R = lrn('regr.ranger',
             )
 ```
 
-We set up two instances, which are identical apart from the tuners used. One is 2,000 runs of a random search model, and one 750 runs of a model based optimisation model. They cover the parameter space in different ways. Both are very slow.
+We set up two instances, which are identical apart from the tuners used. One is 2,000 runs of a random search model, and one 750 runs of a model based optimisation model. They cover the parameter space in different ways. Both are very slow to run.
 
 ```{r set up an instance for tuning}
 instance_mbo = ti(
@@ -313,14 +320,13 @@ instance_mbo = ti(
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
   terminator = trm("evals", n_evals=750), # For tuner "mbo"
-#  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
 )
+
 instance_random_search = ti(
   task = tsk_C,
   learner = lrn_R,
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
-#  terminator = trm("evals", n_evals=750), # For tuner "mbo"
   terminator = trm("evals", n_evals=2000), # For tuner "random_search"
 )
 ```
@@ -331,6 +337,7 @@ We set up the actual tuners
 
 tuner_mbo <- tnr("mbo")
 tuner_random_search <- tnr("random_search")
+
 ```
 
 Then we run them
@@ -338,14 +345,14 @@ Then we run them
 ```{r Run the tuners}
 #######################################
 # SLOW - about 3.5 hours
-plan(multisession)
-  tuner_mbo$optimize(instance_mbo)
-  tuner_random_search$optimize(instance_random_search)
+#plan(multisession)
+#  tuner_mbo$optimize(instance_mbo)
+#  tuner_random_search$optimize(instance_random_search)
 
 #SAVE them
 
-#saveRDS(instance_mbo, file = 'data/instance_mbo')
-#saveRDS(instance_random_search, file = 'data/instance_random_search')
+# saveRDS(instance_mbo, file = 'data/instance_mbo')
+# saveRDS(instance_random_search, file = 'data/instance_random_search')
 
 ```
 
@@ -383,8 +390,7 @@ ggplot(data = ParameterSearchResults_mbo,
 
 ggplot(data = ParameterSearchResults_random_search,
        aes(y = num.trees, x = mtry)) +
-  geom_jitter(aes(size = regr.mse, colour= regr.mse))
-    autoplot(instance_random_search, type = "surface") +
+  geom_jitter(aes(size = regr.mse, colour= regr.mse)) +
   labs(title = ("Random Search Based Optimization"))
 
 ```
@@ -421,7 +427,7 @@ g4 <- ggplot(data = ParameterSearchResults_random_search,
 
 ## Comments on tuning results
 
-These results are quite different, though both suggest the number of trees is not too important. The model based optimisation strongly suggests 9 for mtry (the number of variables considered at each split), while for the random search method, the range of mtry considered optimal is from 15 to 25.
+These results are quite different, though both suggest the number of trees is not too important. The model based optimisation strongly suggests 10 to 15 for mtry (the number of variables considered at each split), while for the random search method, the range of mtry considered optimal is from 15 to 25.
 
 # Trimmed tuning
 
@@ -434,7 +440,7 @@ TRIM_LosC = 3
 ``` 
 
 ```{r Make the trimmed data LosC <= TRIMLosC}
-C2C.H.trim <- C2C.H %>%
+H.S.trim <- H.S %>%
   filter(LosC <= TRIM_LosC)
 
 ```
@@ -444,7 +450,7 @@ C2C.H.trim <- C2C.H %>%
 # Define a regression task for LosC
 #
 tsk_C.trim <- as_task_regr(
-  C2C.H.trim,
+  H.S.trim,
   target = "LosC",
   id = 'C.trim')
   tsk_C.trim
@@ -460,11 +466,11 @@ split_C.trim = partition(tsk_C.trim)
 TRAIN <- bind_cols(
   SET = split_C.trim$train,
   Result = 'TRAIN',
-  LosC = C2C.H.trim$LosC[split_C.trim$train])
+  LosC = H.S.trim$LosC[split_C.trim$train])
 TEST <- bind_cols(
   SET = split_C.trim$test,
   Result = 'TEST',
-  LosC = C2C.H.trim$LosC[split_C.trim$test])
+  LosC = H.S.trim$LosC[split_C.trim$test])
 SPLIT <- bind_rows(TRAIN,TEST)
 
 ggplot(data = SPLIT,
@@ -529,14 +535,13 @@ instance_mbo.trim = ti(
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
   terminator = trm("evals", n_evals=750), # For tuner "mbo"
-#  terminator = trm("evals", n_evals=2000), # For tuner "random_search"
-)
+  )
+
 instance_random_search.trim = ti(
   task = tsk_C.trim,
   learner = lrn_R,
   resampling = rsmp("holdout"),
   measures = msr("regr.mse"),
-#  terminator = trm("evals", n_evals=750), # For tuner "mbo"
   terminator = trm("evals", n_evals=2000), # For tuner "random_search"
 )
 ```
@@ -554,14 +559,14 @@ Then we run them
 ```{r Run the tuners}
 #######################################
 # SLOW - about 3.5 hours
-#plan(multisession)
-#  tuner_mbo$optimize(instance_mbo.trim)
-#  tuner_random_search$optimize(instance_random_search.trim)
+plan(multisession)
+  tuner_mbo$optimize(instance_mbo.trim)
+  tuner_random_search$optimize(instance_random_search.trim)
 
 #SAVE them
 
-#saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
-#saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
+saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
+saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
 
 ```
 
@@ -605,7 +610,7 @@ ggplot(data = ParameterSearchResults_random_search.trim,
   labs(title = ("Random Search Based Optimization trimmed"))
 
 
-autoplot(instance_random_search.trim, type = "surface")
+# autoplot(instance_random_search.trim, type = "surface")
 
 ```
 
@@ -639,11 +644,11 @@ g4 <- ggplot(data = ParameterSearchResults_random_search.trim,
  g1 + g2 + g3 + g4 # patchwork
 ```
 
-Interpreting these, suggests that a little over 15, perhaps 17 or 18, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2000 seems reasonable.
+Interpreting these, suggests that 10, or 11, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2000 seems reasonable.
 
 ```{r Train the final model}
 lrn_R_mbo = lrn('regr.ranger',
-            mtry = 17,
+            mtry = 11,
             num.trees = 2000,
             importance = "permutation"
             )
@@ -667,8 +672,9 @@ ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
 # Predict LosC for trimmed national HIPE data
 
 ```{r}
-HIPE.trim <- HIPE %>% filter(LosC <= TRIM_LosC)
-HIPE.prediction <- lrn_R_mbo$predict_newdata(task = tsk_C.trim, newdata = HIPE.trim)
+H.N.trim <- H.N %>% filter(LosC <= TRIM_LosC)
+
+HIPE.prediction <- lrn_R_mbo$predict_newdata(task = tsk_C.trim, newdata = H.N.trim)
 autoplot(HIPE.prediction)
 HIPE.prediction$score(msrs(c("regr.mse", "regr.mae")))
 
