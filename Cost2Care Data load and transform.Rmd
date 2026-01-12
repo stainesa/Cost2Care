@@ -1356,6 +1356,15 @@ HIPE.Site <- HIPE.Site %>%
     mutate(ModelF = fct_drop(ModelF)) %>% # Drop the unused factor levels
     mutate(HospCode = fct_drop(HospCode))
 
+# Ensure factor levels are the same between HIPE and HIPE.SITE
+HIPE.Site$ModelF <- fct_expand(HIPE.Site$ModelF,
+                               levels(HIPE$ModelF),
+                               after = Inf)
+
+HIPE.Site$HospCode <- fct_inseq(fct_expand(HIPE.Site$HospCode,
+                               levels(HIPE$Hospcode),
+                               after = Inf))
+
 ```
 
 ## Define sampling weights
