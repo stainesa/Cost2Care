@@ -94,14 +94,6 @@ H.N <- readRDS('data/H.N.Rds')
 
 ```
 
-## Drop the ModelF variable
-This has the same value as ModelCode, but different levels in the two files, Model 3 and Model 4 in the national file, but only Model 4 in the site file.
-
-```{r Remove surplus factor variable}
-H.N <- H.N %>% select(-ModelF)
-H.S <- H.S %>% select(-ModelF)
-```
-
 # Intent
 
 Our aim is to develop models for prediction of the various adverse outcomes, pneumonia, UTI, delirium and pressure ulcer. The gold standard for these is the chart review.
@@ -111,6 +103,7 @@ These models can be sense checked by their ability to predict the length of stay
 The most obvious limitation is that the chart review was done in one hospital, a model 4 centre.
 
 # Model Length of Stay
+
 We actually model the scaled length of stay which has a mean of zero (but a  median of -0.3), and a standard deviation of 1, while the actual length of stay has a mean of 15.5, (but a median of 9), and a standard deviation of 20.
 
 ## lmer based predictions of Length of Stay (centred and scaled)
@@ -559,14 +552,14 @@ Then we run them
 ```{r Run the tuners}
 #######################################
 # SLOW - about 3.5 hours
-plan(multisession)
-  tuner_mbo$optimize(instance_mbo.trim)
-  tuner_random_search$optimize(instance_random_search.trim)
+#plan(multisession)
+#  tuner_mbo$optimize(instance_mbo.trim)
+#  tuner_random_search$optimize(instance_random_search.trim)
 
 #SAVE them
 
-saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
-saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
+#saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
+#saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
 
 ```
 
@@ -578,7 +571,7 @@ instance_mbo.trim <- readRDS('data/instance_mbo.trim')
 instance_random_search.trim <- readRDS('data/instance_random_search.trim')
 ```
 
-Inspect the key results
+## Inspect the key results
 
 ```{r Optimum parameter estimates trimmed}
 
@@ -646,6 +639,9 @@ g4 <- ggplot(data = ParameterSearchResults_random_search.trim,
 
 Interpreting these, suggests that 10, or 11, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2000 seems reasonable.
 
+# Final model
+This model uses the tuned values derived above for the trimmed model.
+
 ```{r Train the final model}
 lrn_R_mbo = lrn('regr.ranger',
             mtry = 11,
@@ -656,6 +652,8 @@ lrn_R_mbo = lrn('regr.ranger',
 lrn_R_mbo$train(tsk_C.trim,
                 row_ids = split_C.trim$train)
 ```
+
+## Final model predictions
 
 ```{r Predictions from the final model}
 prediction = lrn_R_mbo$predict(tsk_C.trim, split_C.trim$test)
@@ -669,7 +667,7 @@ ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
   geom_smooth()
 ```
 
-# Predict LosC for trimmed national HIPE data
+## Predict LosC for trimmed national HIPE data
 
 ```{r}
 H.N.trim <- H.N %>% filter(LosC <= TRIM_LosC)
