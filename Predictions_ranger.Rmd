@@ -80,17 +80,26 @@ rm(N)
 # Load the merged data file, and the national file
 These are the chart review file merged with the matched HIPE file provided by HPO, and the national HIPE file.
 
-```{r Load data file}
+```{r Load data files}
+#####################################################
+# Load the working version of the merged HIPE Study site file
+# 
+CTC.H <- readRDS('data/CTC.H.Rds')
+
 
 #####################################################
 # Load the working version of the merged HIPE Study site file
 # 
 H.S <- readRDS('data/H.S.Rds')
+H.S <- H.S %>%
+  select(-c(ModelF, ModelCode, HospCode))
 
 #####################################################
 # Load the working version of the total HIPE data file
 # 
 H.N <- readRDS('data/H.N.Rds')
+H.N <- H.N %>%
+  select(-c(ModelF, ModelCode, HospCode))
 
 ```
 
@@ -377,8 +386,7 @@ ParameterSearchResults_random_search <- as.data.table(instance_random_search$arc
 
 ggplot(data = ParameterSearchResults_mbo,
        aes(y = num.trees, x = mtry)) +
-  geom_jitter(aes(size = regr.mse, colour= regr.mse))
-    autoplot(instance_mbo, type = "surface") +
+  geom_jitter(aes(size = regr.mse, colour= regr.mse)) +
   labs(title = ("Model Based Optimization"))
 
 ggplot(data = ParameterSearchResults_random_search,
@@ -420,7 +428,7 @@ g4 <- ggplot(data = ParameterSearchResults_random_search,
 
 ## Comments on tuning results
 
-These results are quite different, though both suggest the number of trees is not too important. The model based optimisation strongly suggests 10 to 15 for mtry (the number of variables considered at each split), while for the random search method, the range of mtry considered optimal is from 15 to 25.
+These results are similar, though both suggest the number of trees, once over 500 or so, is not too important. Both methods suggest 5 for mtry (the number of variables considered at each split).
 
 # Trimmed tuning
 
@@ -558,8 +566,8 @@ Then we run them
 
 #SAVE them
 
-#saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
-#saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
+# saveRDS(instance_mbo.trim, file = 'data/instance_mbo.trim')
+# saveRDS(instance_random_search.trim, file = 'data/instance_random_search.trim')
 
 ```
 
@@ -578,8 +586,6 @@ instance_random_search.trim <- readRDS('data/instance_random_search.trim')
 instance_mbo.trim$result$learner_param_vals
 instance_random_search.trim$result$learner_param_vals
 
-#instance_mbo.trim$archive$benchmark_result
-#instance_random_search.trim$archive$benchmark_result
 ```
 
 ```{r Draw the key results trimmed}
@@ -595,15 +601,11 @@ ggplot(data = ParameterSearchResults_mbo.trim,
   geom_jitter(aes(size = regr.mse, colour= regr.mse)) +
   labs(title = ("Model Based Optimization trimmed"))
 
-autoplot(instance_mbo.trim, type = "surface")
 
 ggplot(data = ParameterSearchResults_random_search.trim,
        aes(y = num.trees, x = mtry)) +
   geom_jitter(aes(size = regr.mse, colour= regr.mse)) +
   labs(title = ("Random Search Based Optimization trimmed"))
-
-
-# autoplot(instance_random_search.trim, type = "surface")
 
 ```
 
@@ -637,14 +639,14 @@ g4 <- ggplot(data = ParameterSearchResults_random_search.trim,
  g1 + g2 + g3 + g4 # patchwork
 ```
 
-Interpreting these, suggests that 10, or 11, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2000 seems reasonable.
+Interpreting these, suggests that 8, is the best choice for mtry, and that the choice for num.trees is less critical, but around 2000 seems reasonable.
 
 # Final model
 This model uses the tuned values derived above for the trimmed model.
 
 ```{r Train the final model}
 lrn_R_mbo = lrn('regr.ranger',
-            mtry = 11,
+            mtry = 8,
             num.trees = 2000,
             importance = "permutation"
             )
@@ -655,17 +657,28 @@ lrn_R_mbo$train(tsk_C.trim,
 
 ## Final model predictions
 
+These are predictions of the test data, which was not used to train the model.
+
 ```{r Predictions from the final model}
 prediction = lrn_R_mbo$predict(tsk_C.trim, split_C.trim$test)
 prediction$score(msrs(c("regr.mse", "regr.mae")))
 
-prediction$truth
+#prediction$truth
 OUTCOME <- as_tibble(cbind(Truth = prediction$truth, Predicted = prediction$response))
+  OUTCOME$Difference = OUTCOME$Truth - OUTCOME$Predicted
 
-ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
+ggplot(data = OUTCOME, aes(y = Truth, x = Predicted)) +
   geom_jitter() +
-  geom_smooth()
+  geom_smooth() +
+  labs(title = "MBO predictions of scaled LOS for trimmed data")
+
+ggplot(data = OUTCOME, aes(x = Truth, y = Difference)) +
+  geom_jitter() +
+  geom_smooth() +
+  labs(title = "MBO residudals of scaled LOS for trimmed data")
 ```
+
+This suggests an acceptable, but far from perfect prediction, with a tendency to underestimate the LOS for shorter stays.
 
 ## Predict LosC for trimmed national HIPE data
 
@@ -679,10 +692,18 @@ HIPE.prediction$score(msrs(c("regr.mse", "regr.mae")))
 
 OUTCOME <- as_tibble(cbind(Truth = HIPE.prediction$truth,
                            Predicted = HIPE.prediction$response))
+  OUTCOME$Difference = OUTCOME$Truth - OUTCOME$Predicted
 
-ggplot(data = OUTCOME, aes(x = Truth, y = Predicted)) +
-  geom_jitter() +
-  geom_smooth()
+
+ggplot(data = sample_n(OUTCOME, 2000), aes(x = Truth, y = Predicted)) +
+  geom_jitter(alpha = 0.25) +
+  geom_smooth() +
+  labs(title = "MBO predictions of scaled LOS for trimmed data")
+
+ggplot(data = sample_n(OUTCOME, 2000), aes(x = Truth, y = Difference)) +
+  geom_jitter(alpha = 0.25) +
+  geom_smooth() +
+  labs(title = "MBO residudals of scaled LOS for trimmed data")
 ```
 
 An important point is that these predictions omit, completely, the effect of hospital and hospital model, as these variables are constant in the site data on which the model was trained.
