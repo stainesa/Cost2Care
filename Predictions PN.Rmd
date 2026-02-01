@@ -87,7 +87,7 @@ These are the chart review file merged with the matched HIPE file provided by HP
 #####################################################
 # Load the merged HIPE/Study data file
 # 
-Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.rds')
+Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.Rds')
 NAMES <- read_excel(
       'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
       sheet = 'NAMES')
@@ -95,7 +95,7 @@ NAMES <- read_excel(
 #####################################################
 # Load the total HIPE data file
 # 
-HIPE <- readRDS('data/Hipe.rds')
+HIPE <- readRDS('data/HIPE.Rds')
 
 ```
 
@@ -166,7 +166,7 @@ ctable(PN_A <- as_factor(C2C.H$PN_A),
 
 ```
 
-Prepare a number of table exploring the relationships between the various PN variables.
+Prepare a number of tables exploring the relationships between the various PN variables.
 
 ```{r PN}
 ctable(PN <- as_factor(C2C.H$PN),
@@ -227,7 +227,7 @@ There are two obvious candidates for the outcome variable - one is the chart rev
 
 ## Classification
 
-First we set up a classification task. We split the data into a two-thirds training set, and a one third testing set. This is a simple random split. When we get the Medical/surgical stuff sorted, we can split within these strata, but as the strata are of roughly equal size, we ought to be fine, even now.
+First we set up a classification task. We split the data into a two-thirds training set, and a one third testing set. This is a simple random split.
 
 
 ```{r Define and draw two classification tasks and splits}
