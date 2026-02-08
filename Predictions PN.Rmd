@@ -354,9 +354,9 @@ flt_Imp = flt("importance", learner = lrn_Filter)
      ggplot(data = Imp, aes(x=score.x, y = score.y)) + geom_point() +geom_smooth()
 
 ```
+
 The importances for the PN and PN_A targets are not greatly different.
 Roughly, all the individual hadx scores are non-contributory. The main contributors are the number of health care associated codes, the number of procedures, the diagnoses, and the length of stay.
-
 
 ## Define learners
 
@@ -492,11 +492,9 @@ Tuner_df <- as_tibble(
                   c('classif.bbrier',
                     'classif.logloss',
                     'classif.acc'))))
-
 autoplot(instance_PN)
 
-ggplot(data = Tuner_df %>% mutate(mtry = cut(mtry,4)), aes(x = threshold.thresholds, y = classif.auc, group = mtry, colour=mtry)) + geom_smooth() + facet_wrap(~cut(num.trees/1000, 4))
-
+ggplot(data = Tuner_df %>% mutate(mtry = cut(mtry,4)), aes(x = threshold.thresholds, y = classif.auc, group = mtry, colour=mtry)) + geom_smooth()# + facet_wrap(~cut(num.trees/1000, 4))
 
 ```
 
