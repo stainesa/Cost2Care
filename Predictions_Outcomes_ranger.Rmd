@@ -70,7 +70,7 @@ rm(N)
 ```
 
 # Load the merged data file, and the national file
-These are the chart review file merged with the matched HIPE file provided by HPO, and the national HIPE file.
+These are the chart review file merged with the matched HIPE file provided by HPO, and the national HIPE file. They have been extensively processed.
 
 ```{r Load data file}
 
