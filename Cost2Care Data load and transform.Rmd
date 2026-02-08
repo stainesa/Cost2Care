@@ -1550,29 +1550,35 @@ H.S <- HIPE.Site %>%
 
 ```{r Save the files}
 # Site review + HIPE
-saveRDS(Cost2Care.HIPE, file = "data/Cost2Care.HIPE.Rds",
+saveRDS(Cost2Care.HIPE,
+        file = "data/transformed_data/Cost2Care.HIPE.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
-saveRDS(CTC.H, file = "data/CTC.H.Rds",
+saveRDS(CTC.H,
+        file = "data/transformed_data/CTC.H.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
 # HIPE for country
-saveRDS(HIPE, file = "data/HIPE.Rds",
+saveRDS(HIPE,
+        file = "data/transformed_data/HIPE.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
-saveRDS(H.N, file = "data/H.N.Rds",
+saveRDS(H.N,
+        file = "data/transformed_data/H.N.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
 # HIPE for site data only
-saveRDS(HIPE.Site, file = "data/HIPE.Site.Rds",
+saveRDS(HIPE.Site,
+        file = "data/transformed_data/HIPE.Site.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
-saveRDS(H.S, file = "data/H.S.Rds",
+saveRDS(H.S,
+        file = "data/transformed_data/H.S.Rds",
         ascii = FALSE, version = NULL,
         compress = TRUE, refhook = NULL)
 
