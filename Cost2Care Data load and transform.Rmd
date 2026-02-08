@@ -588,7 +588,7 @@ There are 19 chapters, most of which make sense, but one, Chapter 19, 'Intervent
 
 ### ACHI processing
 
-We prepare a coding file to group ACHI procedures into meaningful group, mostly by ACHI chapter, for Intervention n.e.c. we use the Anatomical sites provided.
+We prepare a coding file to group ACHI procedures into meaningful groups, mostly by ACHI chapter, for Intervention n.e.c. we use the Anatomical sites provided.
 
 ```{r Prepare per procedure files PROC and PROC_SITE}
 # These have 20 rows per StudyId, one of each of the 20 procedure codes.
@@ -802,7 +802,6 @@ Cost2Care.HIPE <- Cost2Care.HIPE |>
         (UTI == "Yes" | PN == "Yes" | PU == "Yes" | DL == "Yes")
         ,"Yes", "No")
     )
-
 ```
 
 ## Summary report
@@ -1100,7 +1099,7 @@ It is desirable to check the matching, and see if the other HIPE.Site variables 
 
 There are two groups for comparison. 
 
-## HIPE
+### HIPE
 
 In the first group the codes come from HIPE files, so the check is the correctness of the matching.
 
@@ -1374,40 +1373,40 @@ The chart review was augmented to secure roughly equal number of medical and sur
 The first table shows the proportion of medical and surgical patients in the chart review data, using two measures, the speciality of admission, and the use (or otherwise) of an anaesthetic.
 
 ```{r Chart review breakdown}
-H.C <- HIPE.Site %>%
+W.C <- HIPE.Site %>%
   mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No')) %>%
   select(ModelF, HospCode, MedSurg, AN)
 #table(H.C$MedSurg)
 #table(H.C$AN)
-ctable(H.C$MedSurg,H.C$AN, prop = 't')
+ctable(W.C$MedSurg,W.C$AN, prop = 't')
 
 ```
 
 The second is the corresponding table for all discharges in the chart review hospital.
 
 ```{r Study site breakdown}
-H.S <- HIPE |>
+W.S <- HIPE |>
   filter(HospCode == '4.1') %>%
     mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No'))  %>%
   select(ModelF, HospCode, MedSurg, AN)
 
 #table(H.S$MedSurg)
 #table(H.S$AN)
-ctable(H.S$MedSurg,H.S$AN, prop='t')
+ctable(W.S$MedSurg,W.S$AN, prop='t')
 
 ```
 
 The third shows the same in all the model 3 and 4 hospitals.
 
 ```{r Model 3 and 4 breakdown}
-H.A <- HIPE |>
+W.A <- HIPE |>
   group_by(ModelF) %>%
     mutate(AN = ifelse(Anaesthesia > 0, 'Yes', 'No'))  %>%
   select(ModelF, HospCode, MedSurg, AN)
 
 #table(H.A$MedSurg)
 #table(H.A$AN)
-ctable(H.A$MedSurg,H.A$AN, prop = 't')
+ctable(W.A$MedSurg,W.A$AN, prop = 't')
 
 ```
 
@@ -1417,13 +1416,13 @@ Pulling these together, it's possible to calculate sampling weights, as inverse 
 ##############################################################
 # Calculate the totals for each group
 # 
-H.C <- H.C |> # Study site Chart review cases
+W.C <- W.C |> # Study site Chart review cases
   group_by(ModelF, HospCode, MedSurg, AN) |>
   summarise(N.C = n())
-H.S <- H.S |> # Study site total
+W.S <- W.S |> # Study site total
   group_by(ModelF, HospCode, MedSurg, AN) |>
   summarise(N.S = n())
-H.A <- H.A |> # All Model 3 and Model 4
+W.A <- W.A |> # All Model 3 and Model 4
   group_by(ModelF, HospCode, MedSurg, AN) |>
   summarise(N.A = n())
 
@@ -1431,8 +1430,8 @@ H.A <- H.A |> # All Model 3 and Model 4
 # Calculate weights to indicate how many discharges each
 # sampled discharge represents
 # 
-Weights <- H.C |>
-  full_join(H.S,by = join_by(ModelF, HospCode, MedSurg, AN))  |>
+Weights <- W.C |>
+  full_join(W.S,by = join_by(ModelF, HospCode, MedSurg, AN))  |>
   mutate(Ratio = N.C/N.S) |>
   mutate(Weights = 1/Ratio) |>
   mutate(Check = N.C * Weights)
@@ -1461,6 +1460,7 @@ HIPE.Site <- HIPE.Site |>
 HIPE <- HIPE |>
   mutate(Weights = 1)
 
+rm(W.A, W.C, W.S)
 ```
 
 ```{r Weights table}
@@ -1469,7 +1469,8 @@ kable(Weights)
 
 # Produce simplified files
 
-We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the variable 'rawlos' (which is another version of the outcome variable!). This gives us a working study site file, C2C.H.
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, text descriptions, and the variable 'rawlos' (which is another version of the LosC variable!). This gives us a working study site file, C2C.H.
+
 We similarly simplify the HIPE National file HIPE to H.N, and the HIPE site file to H.S.
 
 ```{r simplify data}
