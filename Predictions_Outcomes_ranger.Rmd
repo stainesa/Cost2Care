@@ -1,0 +1,109 @@
+---
+title: "Predictions_Outcomes_ranger.Rmd"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r clean up environment}
+rm(list = ls())
+```
+
+# Predictions
+
+Prepares predictions for each of our outcomes using a tree-based (ranger) classification approach, for the study site file, using the study (chart review) outcomes, and the HIPE predictors. These are then applied to the national data to see how they perform.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+library(tidyverse)
+library(lubridate)
+library(tibble)
+library(readxl)
+library(comorbidity)
+library(tidymodels)
+library(lme4)
+#library(lmerTest)
+library(knitr)
+library(kableExtra)
+library(summarytools)
+library(patchwork)
+
+
+library(ranger)
+library(mlr3verse)
+library(mlr3viz)
+library(data.table)
+library(future)
+
+library(sjPlot)
+library(sjtable2df)
+
+library(broom)
+library(broom.mixed)
+
+library(stargazer)
+
+tidymodels_prefer(quiet = TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fig.pos = 'H',
+      cache.extra = knitr::rand_seed)
+
+st_options(ctable.round.digits = 2)
+
+#How many CPU's?
+N = 16
+  options(Ncpus = N - 1)
+  options(mc.cores = N - 1)
+  setDTthreads(threads = N - 1,
+               restore_after_fork = TRUE,
+               throttle = 1024)
+
+options(dplyr.summarise.inform = FALSE, # shut up summarise
+        ranger.num.threads = N) # Prepare for rf models
+lgr::get_logger("mlr3")$set_threshold("error")
+lgr::get_logger("bbotk")$set_threshold("error")
+
+
+set.seed(979)
+rm(N)
+```
+
+# Load the merged data file, and the national file
+These are the chart review file merged with the matched HIPE file provided by HPO, and the national HIPE file.
+
+```{r Load data file}
+
+#####################################################
+# Load the merged HIPE/Study data file
+# 
+Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.Rds')
+NAMES <- read_excel(
+      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
+      sheet = 'NAMES')
+
+#####################################################
+# Load the total HIPE data file
+# 
+HIPE <- readRDS('data/HIPE.Rds')
+
+```
+
+## Make smaller analysis data file
+We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, and text descriptions, but Season of admission remains in.
+
+```{r simplify data}
+ 
+C2C.H <- Cost2Care.HIPE %>%
+        filter(!is.na(PN)) %>%
+    select(PN, PN_Associated, H.PN, H.PN_hadx, ModelF:proc.desc.20,) %>%
+    select(-c(DateOfAdmission, DateOfDischarge,
+              MonthOfAdmission, MonthOfDischarge,
+              mon.adm, ICD_combined, age)
+                  ) %>%
+    select(!contains('desc')) #%>% # Basically HIPE text variables
+#    select(!starts_with('proc.')) %>%
+#    select(!starts_with('dx.')) %>%
+#    select(!starts_with('hadx.')) #%>%
+ 
+```
