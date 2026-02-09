@@ -797,6 +797,14 @@ This adds one new variable to the combined Hipe.Site and Chart Review file
 # F2M Failure to maintain - any one or more of the adverse outcomes
 # PN (Pneumonia), UTI (Urinary tract infection), PU (Pressure ulcer), or DL (Delirium)
 
+# Chart review only
+Cost2Care <- Cost2Care |>
+    mutate(F2M = ifelse(
+        (UTI == "Yes" | PN == "Yes" | PU == "Yes" | DL == "Yes")
+        ,"Yes", "No")
+    )
+
+# HIPE + Chart Review
 Cost2Care.HIPE <- Cost2Care.HIPE |>
     mutate(F2M = ifelse(
         (UTI == "Yes" | PN == "Yes" | PU == "Yes" | DL == "Yes")
@@ -1341,7 +1349,7 @@ It is wholly possible to have several of these outcomes.
 
 ## Remove Maternity and Specialist hospitals
 
-The HIPE dataset contains data from Model 4, Model 3 and Model 2 hospitals, as a well as the three large maternity hospitals in Dublin `r table(HIPE$ModelF)[[5]]` discharges, and five specialist hospitals, `r table(HIPE$ModelF)[[4]]` discharges. There is fair evidence, as shown above, that the latter two groups are rather different from the first three. There is also a case for removing the Model 2 hospitals, which account for  small proportion of total admissions, and serve rather different roles. Following discussion with the team, the `r table(HIPE$ModelF)[[3]]` Model 2 discharges were removed from the saved HIPE file. We also remove the corresponding factor levels from both the national HIPE file, and the chart review site file.
+The HIPE dataset contains data from Model 4, Model 3 and Model 2 hospitals, as a well as the three large maternity hospitals in Dublin `r table(HIPE$ModelF)[[5]]` discharges, and five specialist hospitals, `r table(HIPE$ModelF)[[4]]` discharges. There is fair evidence, as shown above, that the latter two groups are rather different from the first three. There is also a case for removing the Model 2 hospitals, which account for a small proportion of total admissions, and serve rather different roles. Following discussion with the team, the `r table(HIPE$ModelF)[[3]]` Model 2 discharges were removed from the saved HIPE file. We also remove the corresponding factor levels from both the national HIPE file, and the chart review site file.
 
 ```{r Drop Model 2 specialist and maternity hospitals and corresponding factor levels}
 
@@ -1435,7 +1443,9 @@ Weights <- W.C |>
   mutate(Ratio = N.C/N.S) |>
   mutate(Weights = 1/Ratio) |>
   mutate(Check = N.C * Weights)
+```
 
+```{r Add the weughts to the data files}
 ##############################################################
 # Add the Weight variable to the Cost2Care.HIPE file
 #
@@ -1474,7 +1484,10 @@ We omit records where the outcome is missing - these are the two discussed previ
 We similarly simplify the HIPE National file HIPE to H.N, and the HIPE site file to H.S.
 
 ```{r simplify data}
- 
+
+###################################################
+# Chart review + HIPE
+# 
 CTC.H <- Cost2Care.HIPE %>%
     filter(!is.na(LOS)) %>%
     select(StudyID, Gender_consensus, Age_consensus,
@@ -1498,6 +1511,9 @@ CTC.H <- Cost2Care.HIPE %>%
   mutate(Elixhauser = ScoreEl) %>% # Keep Elixhauser score
   select(!ends_with('El')) # Elixhauser score components only
 
+###################################################
+# National HIPE data
+# 
 H.N <- HIPE %>%
     filter(!is.na(LosC)) %>%
 #    select(StudyID, Gender_consensus, Age_consensus,
@@ -1521,7 +1537,9 @@ H.N <- HIPE %>%
   mutate(Elixhauser = ScoreEl) %>% # Keep Elixhauser score
   select(!ends_with('El')) # Elixhauser score components only
  
-
+###################################################
+# Review site HIPE data
+# 
 H.S <- HIPE.Site %>%
     filter(!is.na(LosC)) %>%
 #    select(StudyID, Gender_consensus, Age_consensus,
