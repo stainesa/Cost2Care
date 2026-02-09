@@ -9,6 +9,13 @@ output: html_document
 rm(list = ls())
 ```
 
+
+# Intent
+
+Our aim is to develop models for prediction of the various adverse outcomes, pneumonia, UTI, delirium and pressure ulcer from HIPE data. There are two HIPE data sets, one for all the HIPE data (H.N) and one for HIPE data from the chart review site (H.S). The gold standard for complications these is the chart review data (CTC.H).
+
+The most obvious limitation is that the chart review was done in one hospital, a model 4 centre. The national HIPE data used here has only Model 3 and Model 4 hospitals.
+
 # Predictions
 
 Prepares predictions for each of our outcomes using a tree-based (ranger) classification approach, for the study site file, using the study (chart review) outcomes, and the HIPE predictors. These are then applied to the national data to see how they perform.
@@ -69,41 +76,77 @@ set.seed(979)
 rm(N)
 ```
 
-# Load the merged data file, and the national file
+## Load the merged data file, and the national file
 These are the chart review file merged with the matched HIPE file provided by HPO, and the national HIPE file. They have been extensively processed.
 
 ```{r Load data file}
 
 #####################################################
-# Load the merged HIPE/Study data file
+# Load the Names
 # 
-Cost2Care.HIPE <- readRDS('data/Cost2Care.HIPE.Rds')
 NAMES <- read_excel(
       'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
       sheet = 'NAMES')
 
 #####################################################
-# Load the total HIPE data file
+# Load the merged HIPE/Study data file
 # 
-HIPE <- readRDS('data/HIPE.Rds')
+CTC.H <- readRDS('data/transformed_data/CTC.H.Rds')
+
+#####################################################
+# Load the total national HIPE data file
+# 
+H.N <- readRDS('data/transformed_data/H.N.Rds')
 
 ```
 
-## Make smaller analysis data file
-We omit records where the outcome is missing - these are the two discussed previously. We leave out date records, and text descriptions, but Season of admission remains in.
+## Tidy data
 
-```{r simplify data}
- 
-C2C.H <- Cost2Care.HIPE %>%
-        filter(!is.na(PN)) %>%
-    select(PN, PN_Associated, H.PN, H.PN_hadx, ModelF:proc.desc.20,) %>%
-    select(-c(DateOfAdmission, DateOfDischarge,
-              MonthOfAdmission, MonthOfDischarge,
-              mon.adm, ICD_combined, age)
-                  ) %>%
-    select(!contains('desc')) #%>% # Basically HIPE text variables
-#    select(!starts_with('proc.')) %>%
-#    select(!starts_with('dx.')) %>%
-#    select(!starts_with('hadx.')) #%>%
- 
+```{r Remove non-HIPE codes, except for outcomes, and duplicate codes}
+    CTC.H <- CTC.H %>%
+    select(-c("discode","source", "Ward_moves", "Bed_moves"))
 ```
+
+
+```{r test of selecting columns}
+##################################################################
+# This function allows us to replace a given outcome (PN etc...)
+#  with the generic variable Outcome. Hence we can model Outcome
+#  without worrying about which Outcome we've got
+#
+Set_Outcome <- function(Outcome = PN, df = CTC.H ) {
+    df |>
+        mutate(Outcome = {{Outcome}})
+}
+
+# Check
+Df <- Set_Outcome(PN,CTC.H)
+    table(Df$PN,Df$Outcome)
+Df <- Set_Outcome(UTI,CTC.H)
+    table(Df$UTI,Df$Outcome)
+Df <- Set_Outcome(PU,CTC.H)
+    table(Df$PU,Df$Outcome)
+Df <- Set_Outcome(DL,CTC.H)
+    table(Df$DL,Df$Outcome)
+Df <- Set_Outcome(F2M,CTC.H)
+    table(Df$F2M,Df$Outcome)
+```
+
+```{r}
+#################################################
+# Define a classification task for PN
+#
+tsk_PN <- as_task_classif(CTC.H,
+                          target = "PN",
+                          id = 'PN')
+  tsk_PN
+  
+  split_PN = mlr3::partition(tsk_PN)
+  split_PN
+  
+  autoplot(tsk_PN) + 
+    labs (title = 'Pneumonia',
+          x = 'PN',
+          y = 'Coding in chart review')
+```
+
