@@ -241,12 +241,11 @@ First we set up a classification task. We split the data into a two-thirds train
 #################################################
 # Define a classification task for PN
 #
-tsk_PN <- as_task_classif(C2C.H %>%
-                            select(-c(PN_Associated, PN_A, pneumonia, rawlos)),
+tsk_PN <- as_task_classif(CTC.H,
                           target = "PN",
                           id = 'PN')
   tsk_PN
-  split_PN = partition(tsk_PN)
+  split_PN = mlr3::partition(tsk_PN)
   
   autoplot(tsk_PN) + 
     labs (title = 'Pneumonia',
