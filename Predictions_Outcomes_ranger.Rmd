@@ -21,7 +21,6 @@ The most obvious limitation is that the chart review was done in one hospital, a
 Prepares predictions for each of our outcomes using a tree-based (ranger) classification approach, for the study site file, using the study (chart review) outcomes, and the HIPE predictors. These are then applied to the national data to see how they perform.
 
 ```{r setup, include=FALSE}
-rm(list=ls())
 
 library(tidyverse)
 library(lubridate)
@@ -35,7 +34,6 @@ library(knitr)
 library(kableExtra)
 library(summarytools)
 library(patchwork)
-
 
 library(ranger)
 library(mlr3verse)
@@ -71,7 +69,6 @@ options(dplyr.summarise.inform = FALSE, # shut up summarise
 lgr::get_logger("mlr3")$set_threshold("error")
 lgr::get_logger("bbotk")$set_threshold("error")
 
-
 set.seed(979)
 rm(N)
 ```
@@ -104,11 +101,14 @@ H.N <- readRDS('data/transformed_data/H.N.Rds')
 
 ```{r Remove non-HIPE codes, except for outcomes, and duplicate codes}
     CTC.H <- CTC.H %>%
-    select(-c("discode","source", "Ward_moves", "Bed_moves"))
+    select(-c("StudyID", "Gender_consensus",
+              "Age_consensus", "AgeC",
+              "Elective_Emergency", "discode","source",
+              "Ward_moves", "Bed_moves",
+              "hosp.anon", "HospNo", "ModelF"))
 ```
 
-
-```{r test of selecting columns}
+```{r test of selecting columns by name}
 ##################################################################
 # This function allows us to replace a given outcome (PN etc...)
 #  with the generic variable Outcome. Hence we can model Outcome
@@ -132,21 +132,310 @@ Df <- Set_Outcome(F2M,CTC.H)
     table(Df$F2M,Df$Outcome)
 ```
 
-```{r}
+# Now define an outcome task
+
+```{r Functions to define an Outcome task}
+
+# Set up task
 #################################################
-# Define a classification task for PN
+# Define a classification task for PN etc.
 #
-tsk_PN <- as_task_classif(CTC.H,
-                          target = "PN",
-                          id = 'PN')
-  tsk_PN
+
+Set_task <- function(Outcome = Outcome,
+                     Data_for_classification = Df){
+tsk_Outcome <- as_task_classif(Data_for_classification,
+                          target = "Outcome",
+                          id = 'Outcome')
+  tsk_Outcome$positive = "Yes"
   
-  split_PN = mlr3::partition(tsk_PN)
-  split_PN
-  
-  autoplot(tsk_PN) + 
-    labs (title = 'Pneumonia',
-          x = 'PN',
-          y = 'Coding in chart review')
+  tsk_Outcome
+}
+
 ```
 
+```{r split task}
+
+Split_task <- function(tsk_Outcome) {
+  split_Outcome = mlr3::partition(tsk_Outcome)
+
+    split_Outcome
+}
+```
+
+```{r plot task}
+
+plot_task <- function(tsk_Outcome) {
+  autoplot(tsk_Outcome) + 
+    labs (title = 'Outcome',
+          x = 'Outcome',
+          y = 'Coding in chart review')
+  
+}
+```
+
+```{r calculate importance}
+importance <- function(task) {
+lrn_Filter = lrn("classif.ranger",
+                 seed = 42)
+  lrn_Filter$param_set$values = list(importance = "permutation")
+
+flt_Imp = flt("importance", learner = lrn_Filter)
+
+flt_Imp$calculate(task)
+}
+```
+
+```{r draw importance}
+draw_importance <- function(IMPORTANCE,
+                            Outcome_label = "Outcome",
+                            cut_off = 0){
+TITLE <-  paste0("Plot of importance by feature for ",
+                   Outcome_label)
+SUBTITLE <- paste0("Importance greater than ", cut_off)
+
+IMPORTANCE.df <-
+    setDF(as.data.table(IMPORTANCE)) |>
+    filter(score > cut_off) |>
+    arrange(desc(score), feature) |>
+    mutate(featureF = factor(feature)) |>
+    mutate(featureF = fct_reorder(featureF, score))
+
+ggplot(IMPORTANCE.df, aes(x = score, y = featureF)) +
+  geom_point(colour = 'red') +
+  labs(title = TITLE, subtitle = SUBTITLE,
+       x = "Permutation importance", y = "Feature") +
+  theme_minimal()
+  }
+```
+
+```{r simple trainer}
+trainer <- function(tsk_Outcome, split_Outcome){
+  lrn_Outcome = lrn('classif.ranger',
+            predict_type = "prob",
+            mtry = 12,
+            num.trees = 2000,
+            importance = "permutation"
+            )
+  measures = msrs(
+    c('classif.auc','classif.bbrier',
+      'classif.logloss','classif.acc'))
+  
+  lrn_Outcome$train(tsk_Outcome,
+                    split_Outcome$train)
+  
+  lrn_Outcome$train(tsk_Outcome,
+                    split_Outcome$train)
+  
+  prediction = lrn_Outcome$predict(tsk_Outcome,
+                              split_Outcome$test)
+  
+cat(prediction$score(measures),"\n")
+cat(prediction$confusion,"\n")
+  autoplot(prediction, type = 'roc')
+}
+```
+
+```{r}
+tune_trainer <- function(tsk_Outcome = tsk_Outcome){
+  
+# Same as before
+measures = msrs(c('classif.auc','classif.bbrier',
+                  'classif.logloss','classif.acc'))
+cv10 = rsmp("cv", folds = 10) # 10 folds
+
+search_space = ps(
+  threshold.thresholds =
+    p_dbl(lower = 0, upper = 1),
+  mtry = p_int(lower = 5, upper = 30),
+  num.trees = p_int(1000, 2000)
+)
+
+lrn_Outcome = lrn('classif.ranger',
+            predict_type = "prob",
+            importance = "permutation"
+            )  %>>% po("threshold")
+
+glrn_Outcome = GraphLearner$new(lrn_Outcome)
+
+instance_Outcome = ti(
+  task = tsk_Outcome,
+  learner = glrn_Outcome,
+  resampling = cv10,
+  measures = msr("classif.auc"),
+  terminator = trm("evals",
+                   n_evals=200), # For tuner "random_search"
+  search_space = search_space
+  )
+
+tuner = tnr("random_search")
+  future::plan(multisession, workers = 10)
+
+tuner$optimize(instance_Outcome)
+
+Tuner_df <- as_tibble(
+  as.data.table(instance_Outcome$archive,
+                measures = msrs(
+                  c('classif.bbrier',
+                    'classif.logloss',
+                    'classif.acc'))))
+autoplot(instance_Outcome)
+
+Tuner_df
+}
+```
+
+```{r Draw tuners}
+draw_tuners = function(Tuner_df){
+
+ggplot(data = Tuner_df %>%
+         mutate(mtry = cut(mtry,4)),
+       aes(x = threshold.thresholds,
+           y = classif.auc,
+           group = mtry,
+           colour=mtry)) + geom_smooth()# + facet_wrap(~cut(num.trees/1000, 4))}
+}
+
+```
+
+## Set Outcome to "PN"
+
+```{r Outcome = PN}
+Df <- Set_Outcome(PN,CTC.H)
+    table(Df$PN,Df$Outcome)
+```
+
+```{r Set up and stratify task and split}
+
+# Remove all outcomes, except the desired one
+Df <- Df |> select(-c(PN:F2M))
+
+# Set up task
+tsk_Outcome <- Set_task(Outcome, Df)
+  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
+  
+  split_Outcome <- Split_task(tsk_Outcome)
+    #  plot_task(tsk_Outcome)
+    #  tsk_Outcome
+
+IMPORTANCE <- importance(tsk_Outcome)
+
+draw_importance(IMPORTANCE = IMPORTANCE,
+                Outcome_label = "PN",
+                cut_off = 0)
+
+test <- trainer(tsk_Outcome = tsk_Outcome,
+        split_Outcome = split_Outcome)
+
+tune_df <- tune_trainer(tsk_Outcome)
+
+draw_tuners(tune_df)
+
+```
+
+# UTI
+
+```{r Outcome = UTI}
+Df <- Set_Outcome(UTI,CTC.H)
+    table(Df$UTI,Df$Outcome)
+```
+
+```{r Set up and stratify task and split}
+
+# Remove all outcomes, except the desired one
+Df <- Df |> select(-c(PN:F2M))
+
+# Set up task
+tsk_Outcome <- Set_task(Outcome, Df)
+  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
+  
+  split_Outcome <- Split_task(tsk_Outcome)
+    #  plot_task(tsk_Outcome)
+    #  tsk_Outcome
+
+IMPORTANCE <- importance(tsk_Outcome)
+
+draw_importance(IMPORTANCE = IMPORTANCE,
+                Outcome_label = "UTI",
+                cut_off = 0)
+```
+
+# PU
+
+```{r Outcome = PU}
+Df <- Set_Outcome(PU,CTC.H)
+    table(Df$PU,Df$Outcome)
+```
+
+```{r Set up and stratify task and split}
+
+# Remove all outcomes, except the desired one
+Df <- Df |> select(-c(PN:F2M))
+
+# Set up task
+tsk_Outcome <- Set_task(Outcome, Df)
+  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
+  
+  split_Outcome <- Split_task(tsk_Outcome)
+    #  plot_task(tsk_Outcome)
+    #  tsk_Outcome
+
+IMPORTANCE <- importance(tsk_Outcome)
+
+draw_importance(IMPORTANCE = IMPORTANCE,
+                Outcome_label = "PU",
+                cut_off = 0)
+```
+
+# DL
+
+```{r Outcome = DL}
+Df <- Set_Outcome(DL,CTC.H)
+    table(Df$DL,Df$Outcome)
+```
+
+```{r Set up and stratify task and split}
+
+# Remove all outcomes, except the desired one
+Df <- Df |> select(-c(PN:F2M))
+
+# Set up task
+tsk_Outcome <- Set_task(Outcome, Df)
+  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
+  
+  split_Outcome <- Split_task(tsk_Outcome)
+    #  plot_task(tsk_Outcome)
+    #  tsk_Outcome
+
+IMPORTANCE <- importance(tsk_Outcome)
+
+draw_importance(IMPORTANCE = IMPORTANCE,
+                Outcome_label = "DL",
+                cut_off = 0)
+```
+
+# F2M
+
+```{r Outcome = F2M}
+Df <- Set_Outcome(F2M,CTC.H)
+    table(Df$F2M,Df$Outcome)
+```
+
+```{r Set up and stratify task and split}
+
+# Remove all outcomes, except the desired one
+Df <- Df |> select(-c(PN:F2M))
+
+# Set up task
+tsk_Outcome <- Set_task(Outcome, Df)
+  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
+  
+  split_Outcome <- Split_task(tsk_Outcome)
+    #  plot_task(tsk_Outcome)
+    #  tsk_Outcome
+
+IMPORTANCE <- importance(tsk_Outcome)
+
+draw_importance(IMPORTANCE = IMPORTANCE,
+                Outcome_label = "F2M",
+                cut_off = 0)
+```
