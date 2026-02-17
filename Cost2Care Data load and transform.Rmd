@@ -1493,7 +1493,7 @@ CTC.H <- Cost2Care.HIPE %>%
     select(StudyID, Gender_consensus, Age_consensus,
            PN, UTI, PU, DL, F2M,MedSurg,
            Elective_Emergency, Ward_moves, Bed_moves,
-           Training:proc.desc.20) %>%
+           Training:proc.desc.20, Weights) %>%
     select(-c(DateOfAdmission, DateOfDischarge,
               MonthOfAdmission, MonthOfDischarge,
               mon.adm, ICD_combined)
@@ -1522,7 +1522,7 @@ H.N <- HIPE %>%
 #           Training:proc.desc.20) %>%
     select(-c(DateOfAdmission, DateOfDischarge,
               MonthOfAdmission, MonthOfDischarge,
-              mon.adm, ICD_combined)
+              mon.adm, ICD_combined, Weights)
                   ) %>%
   select(-c(rawlos,
             uti, delirium, pressure.ulcer, pneumonia,
@@ -1548,7 +1548,7 @@ H.S <- HIPE.Site %>%
 #           Training:proc.desc.20) %>%
     select(-c(DateOfAdmission, DateOfDischarge,
               MonthOfAdmission, MonthOfDischarge,
-              mon.adm, ICD_combined)
+              mon.adm, ICD_combined, Weights)
                   ) %>%
   select(-c(rawlos,
             uti, delirium, pressure.ulcer, pneumonia,
