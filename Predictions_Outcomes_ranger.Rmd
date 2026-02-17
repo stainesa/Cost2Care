@@ -108,7 +108,29 @@ H.N <- readRDS('data/transformed_data/H.N.Rds')
               "hosp.anon", "HospNo", "ModelF"))
 ```
 
-```{r test of selecting columns by name}
+## Proportions of each adverse outcome
+
+```{r Proportions of each adverse outcome}
+Proportions <- CTC.H |>
+  select(PN:F2M, Died) |>
+  mutate(across(PN:Died,
+                ~ fct_count(as_factor(.),
+                            prop=TRUE)$p[[2]])) |> # Proportion of Yes for each adverse Outcome (the smaller proportion)
+  unique()
+```
+
+```{r Table of percentage of adverse events in chart review}
+Proportions |>
+  mutate(across(everything(), ~(round(. * 100,2)))) |>
+  kable(caption = 'Percentage of people from chart review  experiencing each adverse outcome')
+
+```
+
+# Functions for ranger analysis
+
+## select columns given the colunn name
+
+```{r Function to select columns by name}
 ##################################################################
 # This function allows us to replace a given outcome (PN etc...)
 #  with the generic variable Outcome. Hence we can model Outcome
@@ -132,28 +154,31 @@ Df <- Set_Outcome(F2M,CTC.H)
     table(Df$F2M,Df$Outcome)
 ```
 
-# Now define an outcome task
+## Now define an outcome task
 
-```{r Functions to define an Outcome task}
+```{r Define Outcome task}
 
 # Set up task
-#################################################
-# Define a classification task for PN etc.
+##################################################
+# Define a classification task for Outome (PN:F2M).
 #
 
 Set_task <- function(Outcome = Outcome,
                      Data_for_classification = Df){
-tsk_Outcome <- as_task_classif(Data_for_classification,
-                          target = "Outcome",
-                          id = 'Outcome')
-  tsk_Outcome$positive = "Yes"
   
+  tsk_Outcome <- as_task_classif(Data_for_classification,
+                          target = "Outcome",
+                          id = "Outcome",
+                          stratum = "Outcome",
+                          positive = "Yes") # Makes 'Yes' the rarer outcome, the positive response
+
   tsk_Outcome
 }
-
 ```
 
-```{r split task}
+## Split task into test aand training sets
+
+```{r Split task}
 
 Split_task <- function(tsk_Outcome) {
   split_Outcome = mlr3::partition(tsk_Outcome)
@@ -162,30 +187,43 @@ Split_task <- function(tsk_Outcome) {
 }
 ```
 
-```{r plot task}
+## Plot task
+
+```{r function to plot task}
 
 plot_task <- function(tsk_Outcome) {
   autoplot(tsk_Outcome) + 
     labs (title = 'Outcome',
           x = 'Outcome',
           y = 'Coding in chart review')
+}
+```
+
+## Calculate importance
+
+```{r function to calculate importance}
+importance <- function(task) {
+  lrn_Filter = lrn("classif.ranger",
+                 seed = 42)
+  lrn_Filter$param_set$values = list(importance = "permutation")
+  
+  flt_Imp = flt("importance", learner = lrn_Filter)
+  flt_Imp$calculate(task)
+}
+```
+
+## Filter by importance
+
+```{r function to filter by importance}
+filter_importance <- function(flt_Imp) {
+  
   
 }
 ```
 
-```{r calculate importance}
-importance <- function(task) {
-lrn_Filter = lrn("classif.ranger",
-                 seed = 42)
-  lrn_Filter$param_set$values = list(importance = "permutation")
+## Draw importance
 
-flt_Imp = flt("importance", learner = lrn_Filter)
-
-flt_Imp$calculate(task)
-}
-```
-
-```{r draw importance}
+```{r function to draw importance}
 draw_importance <- function(IMPORTANCE,
                             Outcome_label = "Outcome",
                             cut_off = 0){
@@ -208,7 +246,11 @@ ggplot(IMPORTANCE.df, aes(x = score, y = featureF)) +
   }
 ```
 
-```{r simple trainer}
+## Simple trainer
+
+Produces predictions from test set
+
+```{r function for simple trainer}
 trainer <- function(tsk_Outcome, split_Outcome){
   lrn_Outcome = lrn('classif.ranger',
             predict_type = "prob",
@@ -228,43 +270,48 @@ trainer <- function(tsk_Outcome, split_Outcome){
   
   prediction = lrn_Outcome$predict(tsk_Outcome,
                               split_Outcome$test)
-  
-cat(prediction$score(measures),"\n")
-cat(prediction$confusion,"\n")
+}
+
+## function for simple trainer outputs
+
+Print_predictions <- function(Prediction = prediction) {
+  cat(prediction$score(measures),"\n")
+  cat(prediction$confusion,"\n")
   autoplot(prediction, type = 'roc')
 }
 ```
 
-```{r}
-tune_trainer <- function(tsk_Outcome = tsk_Outcome){
+## Tune trainer for mtry and num.trees
+
+```{r function to tune trainer}
+tune_trainer <- function(tsk_Outcome = tsk_Outcome,
+                         n_Evaluations = 500){
   
 # Same as before
-measures = msrs(c('classif.auc','classif.bbrier',
+  measures_selected = msrs(c('classif.auc','classif.bbrier',
                   'classif.logloss','classif.acc'))
-cv10 = rsmp("cv", folds = 10) # 10 folds
+  cv10 = rsmp("cv", folds = 10) # 10 folds
 
-search_space = ps(
-  threshold.thresholds =
-    p_dbl(lower = 0, upper = 1),
-  mtry = p_int(lower = 5, upper = 30),
-  num.trees = p_int(1000, 2000)
-)
+  search_space = ps(
+    mtry = p_int(lower = 5, upper = 30),
+    num.trees = p_int(1000, 2000)
+  )
 
-lrn_Outcome = lrn('classif.ranger',
+  lrn_Outcome = lrn('classif.ranger',
             predict_type = "prob",
             importance = "permutation"
-            )  %>>% po("threshold")
+            )
 
-glrn_Outcome = GraphLearner$new(lrn_Outcome)
+  glrn_Outcome = GraphLearner$new(lrn_Outcome)
 
-instance_Outcome = ti(
-  task = tsk_Outcome,
-  learner = glrn_Outcome,
-  resampling = cv10,
-  measures = msr("classif.auc"),
-  terminator = trm("evals",
-                   n_evals=200), # For tuner "random_search"
-  search_space = search_space
+  instance_Outcome = ti(
+    task = tsk_Outcome,
+    learner = glrn_Outcome,
+    resampling = cv10,
+    terminator = trm("evals",
+                   n_evals = n_Evaluations), # For tuner "random_search"
+    search_space = search_space,
+    measures = measures_selected
   )
 
 tuner = tnr("random_search")
@@ -273,16 +320,13 @@ tuner = tnr("random_search")
 tuner$optimize(instance_Outcome)
 
 Tuner_df <- as_tibble(
-  as.data.table(instance_Outcome$archive,
-                measures = msrs(
-                  c('classif.bbrier',
-                    'classif.logloss',
-                    'classif.acc'))))
-autoplot(instance_Outcome)
+  as.data.table(instance_Outcome$archive))
 
 Tuner_df
 }
 ```
+
+## Draw tuner results
 
 ```{r Draw tuners}
 draw_tuners = function(Tuner_df){
@@ -296,6 +340,25 @@ ggplot(data = Tuner_df %>%
 }
 
 ```
+
+## Set threshold
+
+```{r ancillary function for threshold}
+SELECT_THRESHOLD <- function(df) {
+  df <- df %>%
+    rowid_to_column(var = 'Threshold') %>%
+    mutate(Threshold = Threshold/n()) %>%
+    mutate(Specificity =  1 - x) %>%
+    mutate(Sensitivity = y) %>%
+    mutate(Diff = Sensitivity - Specificity) %>%
+      slice(which.min(abs(Diff))) %>%
+  select(Threshold)
+    
+return(df)
+}
+```
+
+# Outcomes
 
 ## Set Outcome to "PN"
 
@@ -311,11 +374,11 @@ Df <- Df |> select(-c(PN:F2M))
 
 # Set up task
 tsk_Outcome <- Set_task(Outcome, Df)
-  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
+#  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
   
   split_Outcome <- Split_task(tsk_Outcome)
-    #  plot_task(tsk_Outcome)
-    #  tsk_Outcome
+      plot_task(tsk_Outcome)
+      tsk_Outcome
 
 IMPORTANCE <- importance(tsk_Outcome)
 
@@ -326,7 +389,7 @@ draw_importance(IMPORTANCE = IMPORTANCE,
 test <- trainer(tsk_Outcome = tsk_Outcome,
         split_Outcome = split_Outcome)
 
-tune_df <- tune_trainer(tsk_Outcome)
+tune_df <- tune_trainer(tsk_Outcome, 50)
 
 draw_tuners(tune_df)
 
