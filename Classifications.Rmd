@@ -141,7 +141,7 @@ Proportions |>
 
 
 Proportions |>
-  mutate(across(everything(), ~(round(. * 100,1)))) |>
+ 
   kable(caption = 'Percentage of people from chart review  experiencing each adverse outcome')
 ```
 
