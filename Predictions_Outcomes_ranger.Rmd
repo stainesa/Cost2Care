@@ -271,10 +271,15 @@ trainer <- function(tsk_Outcome, split_Outcome){
   prediction = lrn_Outcome$predict(tsk_Outcome,
                               split_Outcome$test)
 }
+```
 
-## function for simple trainer outputs
+```{r print trainer output}
+# function for simple trainer outputs
+## define measures to include
+measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'))
 
-Print_predictions <- function(Prediction = prediction) {
+## print and plot
+print_predictions <- function(prediction) {
   cat(prediction$score(measures),"\n")
   cat(prediction$confusion,"\n")
   autoplot(prediction, type = 'roc')
@@ -293,8 +298,8 @@ tune_trainer <- function(tsk_Outcome = tsk_Outcome,
   cv10 = rsmp("cv", folds = 10) # 10 folds
 
   search_space = ps(
-    mtry = p_int(lower = 5, upper = 30),
-    num.trees = p_int(1000, 2000)
+    mtry = p_int(lower = 3, upper = 13),
+    num.trees = p_int(900, 1500)
   )
 
   lrn_Outcome = lrn('classif.ranger',
@@ -329,21 +334,79 @@ Tuner_df
 ## Draw tuner results
 
 ```{r Draw tuners}
-draw_tuners = function(Tuner_df){
+draw_tuners = function(Tuner_df,
+                       TITLE = 'TITLE'){
+  # mtry
+    #Maximise
+    AUC.m <- ggplot(data = Tuner_df,
+          aes(x = mtry,
+              y = classif.auc)) +
+        geom_smooth(colour = 'red') +
+      theme_minimal()
+    #Minimise
+    BBRIER.m <- ggplot(data = Tuner_df,
+                 aes(x = mtry,
+                     y = classif.bbrier)) +
+        geom_smooth(colour = 'green') +
+      scale_y_reverse() +
+      theme_minimal()
+    #Maximise
+    ACC.m <- ggplot(data = Tuner_df,
+              aes(x = mtry,
+                  y = classif.acc)) +
+        geom_smooth(colour = 'red') +
+      theme_minimal()
+    #Minimise
+    LOGLOSS.m <- ggplot(data = Tuner_df,
+                  aes(x = mtry,
+                      y = classif.logloss)) +
+        geom_smooth(colour = 'green') +
+      scale_y_reverse() +
+      theme_minimal()
 
-ggplot(data = Tuner_df %>%
-         mutate(mtry = cut(mtry,4)),
-       aes(x = threshold.thresholds,
-           y = classif.auc,
-           group = mtry,
-           colour=mtry)) + geom_smooth()# + facet_wrap(~cut(num.trees/1000, 4))}
+  # num.trees
+    #Maximise
+    AUC.t <- ggplot(data = Tuner_df,
+          aes(x = num.trees,
+              y = classif.auc)) +
+        geom_smooth(colour = 'red') +
+      theme_minimal()
+    #Minimise
+    BBRIER.t <- ggplot(data = Tuner_df,
+                 aes(x = num.trees,
+                     y = classif.bbrier)) +
+        geom_smooth(colour = 'green') +
+      scale_y_reverse() +
+      theme_minimal()
+    #Maximise
+    ACC.t <- ggplot(data = Tuner_df,
+              aes(x = num.trees,
+                  y = classif.acc)) +
+        geom_smooth(colour = 'red') +
+      theme_minimal()
+    #Minimise
+    LOGLOSS.t <- ggplot(data = Tuner_df,
+                  aes(x = num.trees,
+                      y = classif.logloss)) +
+        geom_smooth(colour = 'green') +
+      scale_y_reverse() +
+      theme_minimal()
+    IMAGE <- AUC.m + AUC.t +
+      BBRIER.m + BBRIER.t +
+      ACC.m+ ACC.t +
+      LOGLOSS.m + LOGLOSS.t +
+        plot_annotation(title = TITLE) +
+        plot_layout(axis_titles = 'collect') +
+      plot_layout(nrow = 4)
+      
+return(IMAGE)
 }
 
 ```
 
 ## Set threshold
 
-```{r ancillary function for threshold}
+```{r Caclulate optimum threshold}
 SELECT_THRESHOLD <- function(df) {
   df <- df %>%
     rowid_to_column(var = 'Threshold') %>%
@@ -374,8 +437,7 @@ Df <- Df |> select(-c(PN:F2M))
 
 # Set up task
 tsk_Outcome <- Set_task(Outcome, Df)
-#  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
-  
+
   split_Outcome <- Split_task(tsk_Outcome)
       plot_task(tsk_Outcome)
       tsk_Outcome
@@ -386,15 +448,22 @@ draw_importance(IMPORTANCE = IMPORTANCE,
                 Outcome_label = "PN",
                 cut_off = 0)
 
-test <- trainer(tsk_Outcome = tsk_Outcome,
-        split_Outcome = split_Outcome)
+prediction <- trainer(
+  tsk_Outcome = tsk_Outcome,
+  split_Outcome = split_Outcome)
+
+  print_predictions(prediction)
+  roc_outcome = autoplot(prediction)
+  SELECT_THRESHOLD(roc_outcome$data)
 
 tune_df <- tune_trainer(tsk_Outcome, 50)
 
-draw_tuners(tune_df)
+draw_tuners(tune_df, TITLE = "PN - Pneumonia")
 
 ```
 
+From inspection of the graphs, it looks as if the outcomes are relatively insensitive to tree depth (mtry) and the number of trees analysed (num.tree).
+It looks if between 5 and 10 is the best value for mtry, and 1200 to 1400 is best for num.trees.
 # UTI
 
 ```{r Outcome = UTI}
