@@ -105,7 +105,8 @@ H.N <- readRDS('data/transformed_data/H.N.Rds')
               "Age_consensus", "AgeC",
               "Elective_Emergency", "discode","source",
               "Ward_moves", "Bed_moves",
-              "hosp.anon", "HospNo", "ModelF"))
+              "hosp.anon", "HospNo", "ModelF")) %>%
+  select(-c("healthins.g")) # Mostly missing
 ```
 
 ## Proportions of each adverse outcome
@@ -119,6 +120,8 @@ Proportions <- CTC.H |>
   unique()
 ```
 
+These are the percentage of chart reviews in which an adverse event was identified.
+
 ```{r Table of percentage of adverse events in chart review}
 Proportions |>
   mutate(across(everything(), ~(round(. * 100,2)))) |>
@@ -126,7 +129,26 @@ Proportions |>
 
 ```
 
+The commonest adverse event was 'Failure to maintain'. The goal of this work is to predict these.
+
 # Functions for ranger analysis
+
+## select optimum threshold
+
+```{r Function to calculate optimum threshold}
+SELECT_THRESHOLD <- function(df) {
+  df <- df %>%
+    rowid_to_column(var = 'Threshold') %>%
+    mutate(Threshold = Threshold/n()) %>%
+    mutate(Specificity =  1 - x) %>%
+    mutate(Sensitivity = y) %>%
+    mutate(Diff = Sensitivity - Specificity) %>%
+      slice(which.min(abs(Diff))) %>%
+  select(Threshold)
+    
+return(df)
+}
+```
 
 ## select columns given the colunn name
 
@@ -156,29 +178,33 @@ Df <- Set_Outcome(F2M,CTC.H)
 
 ## Now define an outcome task
 
-```{r Define Outcome task}
+```{r function to set up task}
 
 # Set up task
 ##################################################
-# Define a classification task for Outome (PN:F2M).
+# Define a classification task for Outcome (PN:F2M).
 #
 
 Set_task <- function(Outcome = Outcome,
                      Data_for_classification = Df){
   
   tsk_Outcome <- as_task_classif(Data_for_classification,
-                          target = "Outcome",
-                          id = "Outcome",
-                          stratum = "Outcome",
-                          positive = "Yes") # Makes 'Yes' the rarer outcome, the positive response
+                    target = "Outcome",
+                    id = "Outcome",
+                    positive = "Yes", # Makes 'Yes' the rarer outcome, the positive response
+                  )
+  tsk_Outcome$col_roles$weights_learner = "Weights"
+#  tsk_Outcome$col_roles$weights_measure = "Weights"
+  tsk_Outcome$select(
+    setdiff(tsk_Outcome$feature_names, "Weights"))
 
-  tsk_Outcome
+return(tsk_Outcome)
 }
 ```
 
-## Split task into test aand training sets
+## Split task into test and training sets
 
-```{r Split task}
+```{r function to split task}
 
 Split_task <- function(tsk_Outcome) {
   split_Outcome = mlr3::partition(tsk_Outcome)
@@ -251,38 +277,41 @@ ggplot(IMPORTANCE.df, aes(x = score, y = featureF)) +
 Produces predictions from test set
 
 ```{r function for simple trainer}
-trainer <- function(tsk_Outcome, split_Outcome){
+trainer <- function(tsk_Outcome, split_Outcome,
+                    mtry = 12, num.trees = 2000){
+  MTRY = mtry
+  NUM.TREES = num.trees
+  
+  # Define a learning task
   lrn_Outcome = lrn('classif.ranger',
             predict_type = "prob",
-            mtry = 12,
-            num.trees = 2000,
-            importance = "permutation"
-            )
+            mtry = MTRY,
+            num.trees = NUM.TREES,
+            importance = "permutation")
+  
   measures = msrs(
     c('classif.auc','classif.bbrier',
       'classif.logloss','classif.acc'))
-  
+
+# Learn from the training data
   lrn_Outcome$train(tsk_Outcome,
                     split_Outcome$train)
-  
-  lrn_Outcome$train(tsk_Outcome,
-                    split_Outcome$train)
-  
+
+# Predict from the test data
   prediction = lrn_Outcome$predict(tsk_Outcome,
                               split_Outcome$test)
 }
 ```
 
-```{r print trainer output}
+```{r function to print selected trainer output}
 # function for simple trainer outputs
 ## define measures to include
 measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'))
 
-## print and plot
+## print
 print_predictions <- function(prediction) {
-  cat(prediction$score(measures),"\n")
-  cat(prediction$confusion,"\n")
-  autoplot(prediction, type = 'roc')
+  cat("AUC ","BBrier ","LogLoss ","Accuracy","\n")
+  cat(round(prediction$score(measures),3),"\n")
 }
 ```
 
@@ -404,23 +433,6 @@ return(IMAGE)
 
 ```
 
-## Set threshold
-
-```{r Caclulate optimum threshold}
-SELECT_THRESHOLD <- function(df) {
-  df <- df %>%
-    rowid_to_column(var = 'Threshold') %>%
-    mutate(Threshold = Threshold/n()) %>%
-    mutate(Specificity =  1 - x) %>%
-    mutate(Sensitivity = y) %>%
-    mutate(Diff = Sensitivity - Specificity) %>%
-      slice(which.min(abs(Diff))) %>%
-  select(Threshold)
-    
-return(df)
-}
-```
-
 # Outcomes
 
 ## Set Outcome to "PN"
@@ -451,19 +463,42 @@ draw_importance(IMPORTANCE = IMPORTANCE,
 prediction <- trainer(
   tsk_Outcome = tsk_Outcome,
   split_Outcome = split_Outcome)
-
+# Print and plot predictions
   print_predictions(prediction)
-  roc_outcome = autoplot(prediction)
-  SELECT_THRESHOLD(roc_outcome$data)
+  print(prediction$confusion)
+  roc_outcome = autoplot(prediction, type = 'roc') +
+    labs(title = 'PN - Pneumonia'); roc_outcome
+  
+  Threshold_optimised =as.numeric(
+    SELECT_THRESHOLD(roc_outcome$data))
+  prediction$set_threshold(Threshold_optimised)
 
 tune_df <- tune_trainer(tsk_Outcome, 50)
-
-draw_tuners(tune_df, TITLE = "PN - Pneumonia")
+  draw_tuners(tune_df, TITLE = "PN - Pneumonia")
 
 ```
 
 From inspection of the graphs, it looks as if the outcomes are relatively insensitive to tree depth (mtry) and the number of trees analysed (num.tree).
-It looks if between 5 and 10 is the best value for mtry, and 1200 to 1400 is best for num.trees.
+It looks if between 5 and 10 is the best value for mtry, so we pick 8; similarly the best range for num.trees is about 1,100 to 1,300, so we pick 1,200. The optimum cutoff for the threshold seems to be about about `r round(Threshold_optimised, 2)`, rather than the default of 0.5.
+
+```{r run final prediction set}
+IMPORTANCE <- importance(tsk_Outcome)
+  draw_importance(IMPORTANCE = IMPORTANCE,
+                Outcome_label = "PN",
+                cut_off = 0)
+tsk_Outcome
+tsk_Outcome_predicted <- 
+  trainer(tsk_Outcome, split_Outcome,
+                        mtry = 8, num.trees = 1200)
+
+
+prediction <- trainer(
+  tsk_Outcome = tsk_Outcome,
+  split_Outcome = split_Outcome)
+
+```
+
+
 # UTI
 
 ```{r Outcome = UTI}
