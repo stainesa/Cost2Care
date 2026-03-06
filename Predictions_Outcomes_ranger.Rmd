@@ -9,7 +9,6 @@ output: html_document
 rm(list = ls())
 ```
 
-
 # Intent
 
 Our aim is to develop models for prediction of the various adverse outcomes, pneumonia, UTI, delirium and pressure ulcer from HIPE data. There are two HIPE data sets, one for all the HIPE data (H.N) and one for HIPE data from the chart review site (H.S). The gold standard for complications these is the chart review data (CTC.H).
@@ -21,41 +20,26 @@ The most obvious limitation is that the chart review was done in one hospital, a
 Prepares predictions for each of our outcomes using a tree-based (ranger) classification approach, for the study site file, using the study (chart review) outcomes, and the HIPE predictors. These are then applied to the national data to see how they perform.
 
 ```{r setup, include=FALSE}
-
+#####################################################
+#Load libraries
 library(tidyverse)
-library(lubridate)
-library(tibble)
-library(readxl)
-library(comorbidity)
-library(tidymodels)
-library(lme4)
-#library(lmerTest)
 library(knitr)
 library(kableExtra)
-library(summarytools)
 library(patchwork)
 
 library(ranger)
 library(mlr3verse)
 library(mlr3viz)
 library(data.table)
+
 library(future)
 
-library(sjPlot)
-library(sjtable2df)
-
-library(broom)
-library(broom.mixed)
-
-library(stargazer)
-
-tidymodels_prefer(quiet = TRUE)
-
+#####################################################
+# Set up knitr
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = NA, message = NA, fig.pos = 'H',
       cache.extra = knitr::rand_seed)
 
-st_options(ctable.round.digits = 2)
-
+#####################################################
 #How many CPU's?
 N = 16
   options(Ncpus = N - 1)
@@ -66,10 +50,18 @@ N = 16
 
 options(dplyr.summarise.inform = FALSE, # shut up summarise
         ranger.num.threads = N) # Prepare for rf models
+
+#####################################################
+# Set logger for mlr3
 lgr::get_logger("mlr3")$set_threshold("error")
 lgr::get_logger("bbotk")$set_threshold("error")
 
+#####################################################
+# Set random seed
 set.seed(979)
+
+#####################################################
+# Tidy up
 rm(N)
 ```
 
@@ -77,14 +69,6 @@ rm(N)
 These are the chart review file merged with the matched HIPE file provided by HPO, and the national HIPE file. They have been extensively processed.
 
 ```{r Load data file}
-
-#####################################################
-# Load the Names
-# 
-NAMES <- read_excel(
-      'data/Clean Cost2Care Merged Chart Review and HIPE Data_WORKING.xlsx',
-      sheet = 'NAMES')
-
 #####################################################
 # Load the merged HIPE/Study data file
 # 
@@ -100,18 +84,22 @@ H.N <- readRDS('data/transformed_data/H.N.Rds')
 ## Tidy data
 
 ```{r Remove non-HIPE codes, except for outcomes, and duplicate codes}
+#####################################################
+#
     CTC.H <- CTC.H %>%
     select(-c("StudyID", "Gender_consensus",
               "Age_consensus", "AgeC",
               "Elective_Emergency", "discode","source",
               "Ward_moves", "Bed_moves",
               "hosp.anon", "HospNo", "ModelF")) %>%
-  select(-c("healthins.g")) # Mostly missing
+        select(-c("healthins.g")) # Mostly missing
 ```
 
 ## Proportions of each adverse outcome
 
 ```{r Proportions of each adverse outcome}
+#####################################################
+#
 Proportions <- CTC.H |>
   select(PN:F2M, Died) |>
   mutate(across(PN:Died,
@@ -122,33 +110,18 @@ Proportions <- CTC.H |>
 
 These are the percentage of chart reviews in which an adverse event was identified.
 
-```{r Table of percentage of adverse events in chart review}
+```{r Table of percentage of adverse events in chart review, results='asis'}
+#####################################################
+#
 Proportions |>
   mutate(across(everything(), ~(round(. * 100,2)))) |>
   kable(caption = 'Percentage of people from chart review  experiencing each adverse outcome')
 
 ```
 
-The commonest adverse event was 'Failure to maintain'. The goal of this work is to predict these.
+The commonest adverse event was 'Failure to maintain'. The goal of this work is to predict these adverse outcomes.
 
 # Functions for ranger analysis
-
-## select optimum threshold
-
-```{r Function to calculate optimum threshold}
-SELECT_THRESHOLD <- function(df) {
-  df <- df %>%
-    rowid_to_column(var = 'Threshold') %>%
-    mutate(Threshold = Threshold/n()) %>%
-    mutate(Specificity =  1 - x) %>%
-    mutate(Sensitivity = y) %>%
-    mutate(Diff = Sensitivity - Specificity) %>%
-      slice(which.min(abs(Diff))) %>%
-  select(Threshold)
-    
-return(df)
-}
-```
 
 ## select columns given the colunn name
 
@@ -174,9 +147,12 @@ Df <- Set_Outcome(DL,CTC.H)
     table(Df$DL,Df$Outcome)
 Df <- Set_Outcome(F2M,CTC.H)
     table(Df$F2M,Df$Outcome)
+    
+rm(Df)
 ```
 
-## Now define an outcome task
+## Task
+### define an outcome task
 
 ```{r function to set up task}
 
@@ -202,18 +178,7 @@ return(tsk_Outcome)
 }
 ```
 
-## Split task into test and training sets
-
-```{r function to split task}
-
-Split_task <- function(tsk_Outcome) {
-  split_Outcome = mlr3::partition(tsk_Outcome)
-
-    split_Outcome
-}
-```
-
-## Plot task
+### plot task
 
 ```{r function to plot task}
 
@@ -225,7 +190,8 @@ plot_task <- function(tsk_Outcome) {
 }
 ```
 
-## Calculate importance
+## Importance
+### calculate importance
 
 ```{r function to calculate importance}
 importance <- function(task) {
@@ -234,32 +200,41 @@ importance <- function(task) {
   lrn_Filter$param_set$values = list(importance = "permutation")
   
   flt_Imp = flt("importance", learner = lrn_Filter)
-  flt_Imp$calculate(task)
+  IMPORTANCE <- flt_Imp$calculate(task)
 }
 ```
 
-## Filter by importance
+### filter by importance
 
 ```{r function to filter by importance}
-filter_importance <- function(flt_Imp) {
+filter_importance <- function(tsk, importance, P = 1/20) {
+  t_Imp <- tibble(as.data.table(importance))
+  Q <- t_Imp %>%
+    filter(score > 0) %>%
+    summarise(Q = quantile(score,P)) %>% 
+    as.numeric()
   
-  
+  t_Imp <- t_Imp %>% filter(score > Q)
+    keep = t_Imp$feature
+      tsk$select(keep)
+
+return(tsk)
 }
 ```
 
-## Draw importance
+### draw importance
 
 ```{r function to draw importance}
 draw_importance <- function(IMPORTANCE,
                             Outcome_label = "Outcome",
-                            cut_off = 0){
+                            cut_off = "0"){
 TITLE <-  paste0("Plot of importance by feature for ",
                    Outcome_label)
 SUBTITLE <- paste0("Importance greater than ", cut_off)
 
 IMPORTANCE.df <-
     setDF(as.data.table(IMPORTANCE)) |>
-    filter(score > cut_off) |>
+    filter(score > 0) |>
     arrange(desc(score), feature) |>
     mutate(featureF = factor(feature)) |>
     mutate(featureF = fct_reorder(featureF, score))
@@ -272,9 +247,8 @@ ggplot(IMPORTANCE.df, aes(x = score, y = featureF)) +
   }
 ```
 
-## Simple trainer
-
-Produces predictions from test set
+## Training and prediction
+### simple trainer
 
 ```{r function for simple trainer}
 trainer <- function(tsk_Outcome, split_Outcome,
@@ -288,22 +262,30 @@ trainer <- function(tsk_Outcome, split_Outcome,
             mtry = MTRY,
             num.trees = NUM.TREES,
             importance = "permutation")
-  
-  measures = msrs(
-    c('classif.auc','classif.bbrier',
-      'classif.logloss','classif.acc'))
 
 # Learn from the training data
-  lrn_Outcome$train(tsk_Outcome,
-                    split_Outcome$train)
+#  tsk_Outcome$filter(split_Outcome$train) 
+  lrn_Outcome$train(tsk_Outcome,split_Outcome$train)
+
+return(lrn_Outcome)
+}
+```
+
+### make predictions
+
+```{r function to run predictions}
+predict_tsk <- function(tsk, data) {
 
 # Predict from the test data
   prediction = lrn_Outcome$predict(tsk_Outcome,
                               split_Outcome$test)
+return(prediction)
 }
 ```
 
-```{r function to print selected trainer output}
+### print predictions
+
+```{r function to print selected prediction output}
 # function for simple trainer outputs
 ## define measures to include
 measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'))
@@ -315,7 +297,8 @@ print_predictions <- function(prediction) {
 }
 ```
 
-## Tune trainer for mtry and num.trees
+## Tuning
+###Tune trainer for mtry and num.trees
 
 ```{r function to tune trainer}
 tune_trainer <- function(tsk_Outcome = tsk_Outcome,
@@ -328,7 +311,7 @@ tune_trainer <- function(tsk_Outcome = tsk_Outcome,
 
   search_space = ps(
     mtry = p_int(lower = 3, upper = 13),
-    num.trees = p_int(900, 1500)
+    num.trees = p_int(900, 2000)
   )
 
   lrn_Outcome = lrn('classif.ranger',
@@ -360,7 +343,7 @@ Tuner_df
 }
 ```
 
-## Draw tuner results
+### graph tuner results
 
 ```{r Draw tuners}
 draw_tuners = function(Tuner_df,
@@ -433,8 +416,34 @@ return(IMAGE)
 
 ```
 
-# Outcomes
+## Threshold for classification
 
+## select optimum threshold
+
+```{r Function to calculate optimum threshold}
+SELECT_THRESHOLD <- function(df) {
+  df <- df %>%
+    rowid_to_column(var = 'Threshold') %>%
+    mutate(Threshold = Threshold/n()) %>%
+    mutate(Specificity =  1 - x) %>%
+    mutate(Sensitivity = y) %>%
+    mutate(Diff = Sensitivity - Specificity) %>%
+      slice(which.min(abs(Diff))) %>%
+  select(Threshold)
+    
+return(df)
+}
+```
+
+# Define desired measures
+
+```{r Define measures}
+measures = msrs(
+    c('classif.auc','classif.bbrier',
+      'classif.logloss','classif.acc'))
+```
+
+# Outcomes
 ## Set Outcome to "PN"
 
 ```{r Outcome = PN}
@@ -449,53 +458,111 @@ Df <- Df |> select(-c(PN:F2M))
 
 # Set up task
 tsk_Outcome <- Set_task(Outcome, Df)
-
-  split_Outcome <- Split_task(tsk_Outcome)
-      plot_task(tsk_Outcome)
+  split_Outcome <- mlr3::partition(tsk_Outcome)
       tsk_Outcome
+          split_Outcome
 
-IMPORTANCE <- importance(tsk_Outcome)
+    plot_task(tsk_Outcome)
 
-draw_importance(IMPORTANCE = IMPORTANCE,
+    lrn_Outcome <- trainer(tsk_Outcome, split_Outcome)
+      lrn_Outcome$model
+
+    IMPORT <- importance(tsk_Outcome)
+      draw_importance(IMPORTANCE = IMPORT,
                 Outcome_label = "PN",
                 cut_off = 0)
 
-prediction <- trainer(
-  tsk_Outcome = tsk_Outcome,
-  split_Outcome = split_Outcome)
+    prediction_train <-
+      lrn_Outcome$predict(tsk_Outcome,
+                        split_Outcome$train)
+    prediction_test <-
+      lrn_Outcome$predict(tsk_Outcome,
+                        split_Outcome$test)
+
+      tsk_Outcome_f <- filter_importance(tsk_Outcome,
+                        IMPORT, P=1/10)
+      IMPORT_f <- importance(tsk_Outcome_f)
+        draw_importance(IMPORTANCE = IMPORT_f,
+                Outcome_label = "PN (filtered)",
+                cut_off = "10th centile")
+    lrn_Outcome_f <- trainer(tsk_Outcome_f, split_Outcome)
+      lrn_Outcome_f$model
+
+    prediction_train_f <-
+      lrn_Outcome_f$predict(tsk_Outcome_f,
+                        split_Outcome$train)
+    prediction_test_f <-
+      lrn_Outcome_f$predict(tsk_Outcome_f,
+                        split_Outcome$test)
+
 # Print and plot predictions
-  print_predictions(prediction)
-  print(prediction$confusion)
-  roc_outcome = autoplot(prediction, type = 'roc') +
+
+roc_outcome = autoplot(prediction_test, type = 'roc') +
     labs(title = 'PN - Pneumonia'); roc_outcome
+roc_outcome = autoplot(prediction_test_f, type = 'roc') +
+    labs(title = 'PN - Pneumonia f'); roc_outcome
   
   Threshold_optimised =as.numeric(
     SELECT_THRESHOLD(roc_outcome$data))
-  prediction$set_threshold(Threshold_optimised)
+  prediction_train$set_threshold(Threshold_optimised)
+  prediction_test$set_threshold(Threshold_optimised)
+
+  prediction_train$score(measures)
+  prediction_test$score(measures)
+
+  prediction_train_f$score(measures)
+  prediction_test_f$score(measures)
 
 tune_df <- tune_trainer(tsk_Outcome, 50)
   draw_tuners(tune_df, TITLE = "PN - Pneumonia")
+tune_df <- tune_trainer(tsk_Outcome_f, 50)
+  draw_tuners(tune_df, TITLE = "PN - Pneumonia f")
 
 ```
 
 From inspection of the graphs, it looks as if the outcomes are relatively insensitive to tree depth (mtry) and the number of trees analysed (num.tree).
-It looks if between 5 and 10 is the best value for mtry, so we pick 8; similarly the best range for num.trees is about 1,100 to 1,300, so we pick 1,200. The optimum cutoff for the threshold seems to be about about `r round(Threshold_optimised, 2)`, rather than the default of 0.5.
+It looks if between 5 and 10 is the best value for mtry, so we pick 8; similarly the best range for num.trees is about 1,100 to 1,300, so we pick 1,200. The optimum cutoff for the threshold seems to be about `r round(Threshold_optimised, 2)`, rather than the default of 0.5.
 
 ```{r run final prediction set}
-IMPORTANCE <- importance(tsk_Outcome)
-  draw_importance(IMPORTANCE = IMPORTANCE,
-                Outcome_label = "PN",
-                cut_off = 0)
-tsk_Outcome
-tsk_Outcome_predicted <- 
-  trainer(tsk_Outcome, split_Outcome,
-                        mtry = 8, num.trees = 1200)
+set.seed(989)
+cv10 = rsmp("cv", folds = 10) # 10 folds
+
+tsk_Outcome <- tsk_Outcome$filter(split_Outcome$train)
+tsk_Outcome_f <- tsk_Outcome_f$filter(split_Outcome$train)
+
+rr_Outcome <- resample(
+  task = tsk_Outcome,
+  learner = lrn_Outcome,
+  resampling = cv10,
+  store_models = TRUE,
+  store_backends = TRUE)
+
+  rr_Outcome$aggregate(measures)
+
+rr_Outcome_f <- resample(
+  task = tsk_Outcome_f,
+  learner = lrn_Outcome_f,
+  resampling = cv10,
+  store_models = TRUE,
+  store_backends = TRUE)
+
+  rr_Outcome_f$aggregate(measures)
+
+autoplot(rr_Outcome, type = 'roc') +
+  labs(title = "PN - Pneumonia", subtitle = 'Full data set') +
+autoplot(rr_Outcome_f, type = 'roc') +
+  labs(title = "PN - Pneumonia", subtitle = 'Filtered data set') +
+  plot_annotation(title = 'Resampled ROC curves for full and filtered data')
+
+####################################
+# Predictions
+#
+Lfull     <- rr_Outcome$learners[[1]]
+Lfiltered <- rr_Outcome$learners[[1]]
 
 
-prediction <- trainer(
-  tsk_Outcome = tsk_Outcome,
-  split_Outcome = split_Outcome)
-
+Lfull$predict_newdata(newdata = H.N,
+                      task = tsk_Outcome)
 ```
 
 
@@ -507,23 +574,6 @@ Df <- Set_Outcome(UTI,CTC.H)
 ```
 
 ```{r Set up and stratify task and split}
-
-# Remove all outcomes, except the desired one
-Df <- Df |> select(-c(PN:F2M))
-
-# Set up task
-tsk_Outcome <- Set_task(Outcome, Df)
-  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
-  
-  split_Outcome <- Split_task(tsk_Outcome)
-    #  plot_task(tsk_Outcome)
-    #  tsk_Outcome
-
-IMPORTANCE <- importance(tsk_Outcome)
-
-draw_importance(IMPORTANCE = IMPORTANCE,
-                Outcome_label = "UTI",
-                cut_off = 0)
 ```
 
 # PU
@@ -534,23 +584,6 @@ Df <- Set_Outcome(PU,CTC.H)
 ```
 
 ```{r Set up and stratify task and split}
-
-# Remove all outcomes, except the desired one
-Df <- Df |> select(-c(PN:F2M))
-
-# Set up task
-tsk_Outcome <- Set_task(Outcome, Df)
-  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
-  
-  split_Outcome <- Split_task(tsk_Outcome)
-    #  plot_task(tsk_Outcome)
-    #  tsk_Outcome
-
-IMPORTANCE <- importance(tsk_Outcome)
-
-draw_importance(IMPORTANCE = IMPORTANCE,
-                Outcome_label = "PU",
-                cut_off = 0)
 ```
 
 # DL
@@ -561,23 +594,6 @@ Df <- Set_Outcome(DL,CTC.H)
 ```
 
 ```{r Set up and stratify task and split}
-
-# Remove all outcomes, except the desired one
-Df <- Df |> select(-c(PN:F2M))
-
-# Set up task
-tsk_Outcome <- Set_task(Outcome, Df)
-  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
-  
-  split_Outcome <- Split_task(tsk_Outcome)
-    #  plot_task(tsk_Outcome)
-    #  tsk_Outcome
-
-IMPORTANCE <- importance(tsk_Outcome)
-
-draw_importance(IMPORTANCE = IMPORTANCE,
-                Outcome_label = "DL",
-                cut_off = 0)
 ```
 
 # F2M
@@ -589,20 +605,4 @@ Df <- Set_Outcome(F2M,CTC.H)
 
 ```{r Set up and stratify task and split}
 
-# Remove all outcomes, except the desired one
-Df <- Df |> select(-c(PN:F2M))
-
-# Set up task
-tsk_Outcome <- Set_task(Outcome, Df)
-  tsk_Outcome$col_roles$stratum = c("MedSurg", "HospCode")
-  
-  split_Outcome <- Split_task(tsk_Outcome)
-    #  plot_task(tsk_Outcome)
-    #  tsk_Outcome
-
-IMPORTANCE <- importance(tsk_Outcome)
-
-draw_importance(IMPORTANCE = IMPORTANCE,
-                Outcome_label = "F2M",
-                cut_off = 0)
 ```
