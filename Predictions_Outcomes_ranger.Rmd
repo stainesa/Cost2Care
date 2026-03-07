@@ -525,40 +525,65 @@ It looks if between 5 and 10 is the best value for mtry, so we pick 8; similarly
 
 ```{r run final prediction set}
 set.seed(989)
+
+#############################################################
+# Make split into a tibble
+#
+Test <- as_tibble(split_Outcome$test) %>%
+  rename(RowID = value) %>%
+  mutate(Type = 'test')
+Train <- as_tibble(split_Outcome$train) %>%
+  rename(RowID = value) %>%
+  mutate(Type = 'train')
+Split <- bind_rows(Test, Train)
+  Split <- Split %>% arrange(RowID)
+  rm(Test,Train)
+
 cv10 = rsmp("cv", folds = 10) # 10 folds
 
-tsk_Outcome <- tsk_Outcome$filter(split_Outcome$train)
-tsk_Outcome_f <- tsk_Outcome_f$filter(split_Outcome$train)
-
-rr_Outcome <- resample(
-  task = tsk_Outcome,
+rr_Outcome_1 <- resample(
+  task = tsk_Outcome$filter(split_Outcome$train),
   learner = lrn_Outcome,
   resampling = cv10,
   store_models = TRUE,
   store_backends = TRUE)
 
-  rr_Outcome$aggregate(measures)
 
-rr_Outcome_f <- resample(
-  task = tsk_Outcome_f,
+rr_Outcome_2 <- resample(
+  task = tsk_Outcome_f$filter(split_Outcome$train),
   learner = lrn_Outcome_f,
   resampling = cv10,
   store_models = TRUE,
   store_backends = TRUE)
 
-  rr_Outcome_f$aggregate(measures)
+  rr_Outcome_1$aggregate(measures)
+  rr_Outcome_2$aggregate(measures)
 
-autoplot(rr_Outcome, type = 'roc') +
+autoplot(rr_Outcome_1, type = 'roc') +
   labs(title = "PN - Pneumonia", subtitle = 'Full data set') +
-autoplot(rr_Outcome_f, type = 'roc') +
+autoplot(rr_Outcome_2, type = 'roc') +
   labs(title = "PN - Pneumonia", subtitle = 'Filtered data set') +
   plot_annotation(title = 'Resampled ROC curves for full and filtered data')
 
 ####################################
 # Predictions
 #
-Lfull     <- rr_Outcome$learners[[1]]
-Lfiltered <- rr_Outcome$learners[[1]]
+L1  <- rr_Outcome_1$learners[[1]]
+L2  <- rr_Outcome_2$learners[[1]]
+
+
+L1_test <- L1$predict_newdata(newdata = as_tibble(tsk_Outcome$filter(split_Outcome$test)$data()),
+                      task = tsk_Outcome)
+L1$predict_newdata(newdata = as_tibble(tsk_Outcome$filter(split_Outcome$test)$data()),
+                      task = tsk_Outcome)
+
+
+L1$predict_newdata(newdata = H.N,
+                      task = tsk_Outcome_tr %>% filter)
+
+
+L1$predict_newdata(newdata = H.N,
+                      task = tsk_Outcome_tr %>% filter)
 
 
 Lfull$predict_newdata(newdata = H.N,
