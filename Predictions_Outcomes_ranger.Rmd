@@ -566,7 +566,7 @@ rr_Outcome_2 <- resample(
   store_models = TRUE,
   store_backends = TRUE)
 
-tsk_Outcome$data()
+tsk_Outcome_f$data()
 rr_Outcome_2$prediction()
 
 
@@ -586,32 +586,42 @@ L1  <- rr_Outcome_1$learners[[1]]
 L2  <- rr_Outcome_2$learners[[1]]
 
 
+tsk_Hold_all <- tsk_Hold$clone()      
 L1_all <- L1$predict_newdata(newdata =
                   as_tibble(
-                    tsk_Hold$data()),
+                    tsk_Hold_all$data()),
                   task = tsk_Outcome)
 
+L1_all
+
+tsk_Hold_train <- tsk_Hold$clone()
 L1_train <- L1$predict_newdata(newdata =
                   as_tibble(
-              tsk_Outcome$filter(
+              tsk_Hold_train$filter(
                 split_Outcome$train)$data()),
                   task = tsk_Outcome)
+L1_train
 
+tsk_Hold_test <- tsk_Hold$clone()
 L1_test <- L1$predict_newdata(newdata =
                   as_tibble(
-                    tsk_Outcome$filter(
+                    tsk_Hold_test$filter(
                       split_Outcome$test)$data()),
                   task = tsk_Outcome)
+L1_test
 
 L1_all$score(measures)
 L1_train$score(measures)
 L1_test$score(measures)
 
 L1_all
+L1_train
+L1_test
+```
 
-
+```{r Predict for HIPE}
 L1$predict_newdata(newdata = H.N,
-                      task = tsk_Outcome_tr %>% filter)
+                      task = tsk_Outcome)
 
 
 L1$predict_newdata(newdata = H.N,
