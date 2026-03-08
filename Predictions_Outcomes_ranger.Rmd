@@ -539,6 +539,14 @@ Split <- bind_rows(Test, Train)
   Split <- Split %>% arrange(RowID)
   rm(Test,Train)
 
+#
+# Keep original version of tsk_Outcome
+#
+tsk_Hold <- tsk_Outcome$clone()
+
+#
+# Define resampling approach
+#  
 cv10 = rsmp("cv", folds = 10) # 10 folds
 
 rr_Outcome_1 <- resample(
@@ -548,6 +556,8 @@ rr_Outcome_1 <- resample(
   store_models = TRUE,
   store_backends = TRUE)
 
+tsk_Outcome$data()
+rr_Outcome_1$prediction()
 
 rr_Outcome_2 <- resample(
   task = tsk_Outcome_f$filter(split_Outcome$train),
@@ -555,6 +565,10 @@ rr_Outcome_2 <- resample(
   resampling = cv10,
   store_models = TRUE,
   store_backends = TRUE)
+
+tsk_Outcome$data()
+rr_Outcome_2$prediction()
+
 
   rr_Outcome_1$aggregate(measures)
   rr_Outcome_2$aggregate(measures)
@@ -572,10 +586,28 @@ L1  <- rr_Outcome_1$learners[[1]]
 L2  <- rr_Outcome_2$learners[[1]]
 
 
-L1_test <- L1$predict_newdata(newdata = as_tibble(tsk_Outcome$filter(split_Outcome$test)$data()),
-                      task = tsk_Outcome)
-L1$predict_newdata(newdata = as_tibble(tsk_Outcome$filter(split_Outcome$test)$data()),
-                      task = tsk_Outcome)
+L1_all <- L1$predict_newdata(newdata =
+                  as_tibble(
+                    tsk_Hold$data()),
+                  task = tsk_Outcome)
+
+L1_train <- L1$predict_newdata(newdata =
+                  as_tibble(
+              tsk_Outcome$filter(
+                split_Outcome$train)$data()),
+                  task = tsk_Outcome)
+
+L1_test <- L1$predict_newdata(newdata =
+                  as_tibble(
+                    tsk_Outcome$filter(
+                      split_Outcome$test)$data()),
+                  task = tsk_Outcome)
+
+L1_all$score(measures)
+L1_train$score(measures)
+L1_test$score(measures)
+
+L1_all
 
 
 L1$predict_newdata(newdata = H.N,
