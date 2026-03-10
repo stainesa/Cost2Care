@@ -604,29 +604,11 @@ It looks if between 5 and 10 is the best value for mtry, so we pick 8; similarly
 
 ```{r run final prediction set}
 set.seed(989)
-
-#############################################################
-# Make split into a tibble
-#
-Test <- as_tibble(split_Outcome$test) %>%
-  rename(RowID = value) %>%
-  mutate(Type = 'test')
-Train <- as_tibble(split_Outcome$train) %>%
-  rename(RowID = value) %>%
-  mutate(Type = 'train')
-Split <- bind_rows(Test, Train)
-  Split <- Split %>% arrange(RowID)
-  rm(Test,Train)
-
 #
 # Keep original version of tsk_Outcome
 #
 tsk_Hold <- tsk_Outcome$clone()
-
 #
-# Define resampling approach
-#  
-#cv10 = rsmp("cv", folds = 10) # 10 folds
 
 rr_Outcome_1 <- resample(
   task = tsk_Outcome$filter(split_Outcome$train),
@@ -647,7 +629,6 @@ rr_Outcome_2 <- resample(
 
 tsk_Outcome_f$data()
 rr_Outcome_2$prediction()
-
 
   rr_Outcome_1$aggregate(Measures)
   rr_Outcome_2$aggregate(Measures)
