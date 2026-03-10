@@ -81,7 +81,7 @@ H.N <- readRDS('data/transformed_data/H.N.Rds')
 
 ```
 
-## Tidy data
+## Tidy loaded data
 
 ```{r Remove non-HIPE codes, except for outcomes, and duplicate codes}
 #####################################################
@@ -121,7 +121,36 @@ Proportions |>
 
 The commonest adverse event was 'Failure to maintain'. The goal of this work is to predict these adverse outcomes.
 
-# Functions for ranger analysis
+# Configuration
+
+These functions set up the set of measures to be considered, and the resampling approach used (initially 10-fold cross-validation).
+
+## Define desired measures
+
+```{r Define measures}
+Set_measures <- function(){
+Measures = msrs(
+    c('classif.auc','classif.bbrier',
+      'classif.logloss','classif.acc'))
+return(Measures)
+}
+```
+
+## Define resampling approach
+
+```{r Define resampling approach}
+#
+# Define resampling approach
+#  
+Set_resampling <- function(){
+  cv10 = rsmp("cv", folds = 10) # 10 folds cross-validation
+return(cv10)
+}
+```
+
+# Assistive functions for analysis
+
+These are a set of functions used to make the modelling simpler
 
 ## select columns given the colunn name
 
@@ -147,20 +176,21 @@ Df <- Set_Outcome(DL,CTC.H)
     table(Df$DL,Df$Outcome)
 Df <- Set_Outcome(F2M,CTC.H)
     table(Df$F2M,Df$Outcome)
-    
+# All passed    
 rm(Df)
 ```
 
-## Task
-### define an outcome task
+# Task
+
+## Define an outcome task
+
+This defines the key task for analysis. It is a classification task, with Weights used, and the positive value set to 'Yes'.
 
 ```{r function to set up task}
-
 # Set up task
 ##################################################
 # Define a classification task for Outcome (PN:F2M).
 #
-
 Set_task <- function(Outcome = Outcome,
                      Data_for_classification = Df){
   
@@ -169,16 +199,18 @@ Set_task <- function(Outcome = Outcome,
                     id = "Outcome",
                     positive = "Yes", # Makes 'Yes' the rarer outcome, the positive response
                   )
+
   tsk_Outcome$col_roles$weights_learner = "Weights"
-#  tsk_Outcome$col_roles$weights_measure = "Weights"
   tsk_Outcome$select(
-    setdiff(tsk_Outcome$feature_names, "Weights"))
+    setdiff(tsk_Outcome$feature_names, "Weights")) # Remove Weights as a feature
 
 return(tsk_Outcome)
 }
 ```
 
 ### plot task
+
+This function allows you to draw the task as a histogram.
 
 ```{r function to plot task}
 
@@ -191,7 +223,12 @@ plot_task <- function(tsk_Outcome) {
 ```
 
 ## Importance
-### calculate importance
+
+We calculate the permutation importance for classification of each variable provided in a given task. This used later to filter the data.
+
+### Calculate importance
+
+This calculates and returns the importance of the variables in a task,
 
 ```{r function to calculate importance}
 importance <- function(task) {
@@ -206,9 +243,13 @@ importance <- function(task) {
 
 ### filter by importance
 
+This allows to filter the data in a task, given the precalculated importance. It is set up to filter by quantiles of importance. In the first case it is the 5th centile (p = 1/20) of the importance values greater than 0.
+
 ```{r function to filter by importance}
 filter_importance <- function(tsk, importance, P = 1/20) {
   t_Imp <- tibble(as.data.table(importance))
+
+# Produces a single number for a cutoff
   Q <- t_Imp %>%
     filter(score > 0) %>%
     summarise(Q = quantile(score,P)) %>% 
@@ -224,47 +265,51 @@ return(tsk)
 
 ### draw importance
 
+Produces and draws a nice graph of importance.
+
 ```{r function to draw importance}
-draw_importance <- function(IMPORTANCE,
+draw_importance <- function(Importance,
                             Outcome_label = "Outcome",
                             cut_off = "0"){
-TITLE <-  paste0("Plot of importance by feature for ",
+Title <-  paste0("Plot of importance by feature for ",
                    Outcome_label)
-SUBTITLE <- paste0("Importance greater than ", cut_off)
+Subtitle <- paste0("Importance greater than ", cut_off)
 
-IMPORTANCE.df <-
-    setDF(as.data.table(IMPORTANCE)) |>
+Importance.df <-
+    setDF(as.data.table(Importance)) |>
     filter(score > 0) |>
     arrange(desc(score), feature) |>
     mutate(featureF = factor(feature)) |>
     mutate(featureF = fct_reorder(featureF, score))
 
-ggplot(IMPORTANCE.df, aes(x = score, y = featureF)) +
+ggplot(Importance.df, aes(x = score, y = featureF)) +
   geom_point(colour = 'red') +
-  labs(title = TITLE, subtitle = SUBTITLE,
+  labs(title = Title, subtitle = Subtitle,
        x = "Permutation importance", y = "Feature") +
   theme_minimal()
   }
 ```
 
 ## Training and prediction
+
 ### simple trainer
+
+Works on the training data to create a trainer.
 
 ```{r function for simple trainer}
 trainer <- function(tsk_Outcome, split_Outcome,
                     mtry = 12, num.trees = 2000){
-  MTRY = mtry
-  NUM.TREES = num.trees
+  Mtry = mtry
+  Num.Trees = num.trees
   
   # Define a learning task
   lrn_Outcome = lrn('classif.ranger',
             predict_type = "prob",
-            mtry = MTRY,
-            num.trees = NUM.TREES,
+            mtry = Mtry,
+            num.trees = Num.Trees,
             importance = "permutation")
 
 # Learn from the training data
-#  tsk_Outcome$filter(split_Outcome$train) 
   lrn_Outcome$train(tsk_Outcome,split_Outcome$train)
 
 return(lrn_Outcome)
@@ -286,29 +331,28 @@ return(prediction)
 ### print predictions
 
 ```{r function to print selected prediction output}
-# function for simple trainer outputs
-## define measures to include
-measures = msrs(c('classif.auc','classif.bbrier','classif.logloss','classif.acc'))
-
-## print
+#
+## function for simple trainer measures printing
+# 
 print_predictions <- function(prediction) {
   cat("AUC ","BBrier ","LogLoss ","Accuracy","\n")
-  cat(round(prediction$score(measures),3),"\n")
+  cat(round(prediction$score(Measures),3),"\n")
 }
 ```
+
+### summarise prediction
+summarise_prediction <- function(prediction){
+
+}
 
 ## Tuning
 ###Tune trainer for mtry and num.trees
 
 ```{r function to tune trainer}
 tune_trainer <- function(tsk_Outcome = tsk_Outcome,
-                         n_Evaluations = 500){
-  
-# Same as before
-  measures_selected = msrs(c('classif.auc','classif.bbrier',
-                  'classif.logloss','classif.acc'))
-  cv10 = rsmp("cv", folds = 10) # 10 folds
-
+                         n_Evaluations = 500,
+                         measures = Measures,
+                         cv = cv10){
   search_space = ps(
     mtry = p_int(lower = 3, upper = 13),
     num.trees = p_int(900, 2000)
@@ -328,9 +372,9 @@ tune_trainer <- function(tsk_Outcome = tsk_Outcome,
     terminator = trm("evals",
                    n_evals = n_Evaluations), # For tuner "random_search"
     search_space = search_space,
-    measures = measures_selected
+    measures = Measures
   )
-
+cat("Tuner reached")
 tuner = tnr("random_search")
   future::plan(multisession, workers = 10)
 
@@ -347,7 +391,8 @@ Tuner_df
 
 ```{r Draw tuners}
 draw_tuners = function(Tuner_df,
-                       TITLE = 'TITLE'){
+                       TITLE = 'TITLE',
+                       Threshold = 0.5){
   # mtry
     #Maximise
     AUC.m <- ggplot(data = Tuner_df,
@@ -408,6 +453,7 @@ draw_tuners = function(Tuner_df,
       ACC.m+ ACC.t +
       LOGLOSS.m + LOGLOSS.t +
         plot_annotation(title = TITLE) +
+        plot_annotation(subtitle = cat("Threshold is ", Threshold)) +
         plot_layout(axis_titles = 'collect') +
       plot_layout(nrow = 4)
       
@@ -418,10 +464,10 @@ return(IMAGE)
 
 ## Threshold for classification
 
-## select optimum threshold
+### select optimum threshold
 
 ```{r Function to calculate optimum threshold}
-SELECT_THRESHOLD <- function(df) {
+Set_Threshold <- function(df) {
   df <- df %>%
     rowid_to_column(var = 'Threshold') %>%
     mutate(Threshold = Threshold/n()) %>%
@@ -435,12 +481,15 @@ return(df)
 }
 ```
 
-# Define desired measures
+# Set up configuration
 
-```{r Define measures}
-measures = msrs(
-    c('classif.auc','classif.bbrier',
-      'classif.logloss','classif.acc'))
+Set up the resampling strategy and the set of measures to be reported on.
+
+```{r Set up configuration}
+  cv10 <- Set_resampling()
+
+  Measures <- Set_measures()
+
 ```
 
 # Outcomes
@@ -449,6 +498,8 @@ measures = msrs(
 ```{r Outcome = PN}
 Df <- Set_Outcome(PN,CTC.H)
     table(Df$PN,Df$Outcome)
+    Short_label <- 'PN'
+    Full_label <- 'PN - pneumonia'
 ```
 
 ```{r Set up and stratify task and split}
@@ -468,8 +519,8 @@ tsk_Outcome <- Set_task(Outcome, Df)
       lrn_Outcome$model
 
     IMPORT <- importance(tsk_Outcome)
-      draw_importance(IMPORTANCE = IMPORT,
-                Outcome_label = "PN",
+      draw_importance(Importance = IMPORT,
+                Outcome_label = Short_label,
                 cut_off = 0)
 
     prediction_train <-
@@ -479,13 +530,18 @@ tsk_Outcome <- Set_task(Outcome, Df)
       lrn_Outcome$predict(tsk_Outcome,
                         split_Outcome$test)
 
+    prediction_train$score(Measures)
+    prediction_test$score(Measures)
+
       tsk_Outcome_f <- filter_importance(tsk_Outcome,
                         IMPORT, P=1/10)
       IMPORT_f <- importance(tsk_Outcome_f)
-        draw_importance(IMPORTANCE = IMPORT_f,
-                Outcome_label = "PN (filtered)",
+        draw_importance(Importance = IMPORT_f,
+                Outcome_label = Short_label,
                 cut_off = "10th centile")
-    lrn_Outcome_f <- trainer(tsk_Outcome_f, split_Outcome)
+        
+    lrn_Outcome_f <- trainer(
+      tsk_Outcome_f, split_Outcome)
       lrn_Outcome_f$model
 
     prediction_train_f <-
@@ -494,29 +550,52 @@ tsk_Outcome <- Set_task(Outcome, Df)
     prediction_test_f <-
       lrn_Outcome_f$predict(tsk_Outcome_f,
                         split_Outcome$test)
+    prediction_train_f$score(Measures)
+    prediction_test_f$score(Measures)
 
-# Print and plot predictions
+```    
 
-roc_outcome = autoplot(prediction_test, type = 'roc') +
-    labs(title = 'PN - Pneumonia'); roc_outcome
-roc_outcome = autoplot(prediction_test_f, type = 'roc') +
-    labs(title = 'PN - Pneumonia f'); roc_outcome
+```{r Print and plot predictions}
+
+roc_outcome_1 = autoplot(prediction_test, type = 'roc') +
+    labs(title = Full_label,
+         subtitle = 
+           paste0('Full - AUC is ',
+            round(prediction_test$score(
+              msr('classif.auc')),3))
+         ) ; roc_outcome_1
+roc_outcome_2 = autoplot(prediction_test_f, type = 'roc') +
+    labs(title = Full_label,
+         subtitle = paste0('Filtered - AUC is ',
+            round(prediction_test_f$score(
+              msr('classif.auc')),3))
+         ) ; roc_outcome_2
+```
+
+```{set Threshold}
+  Threshold_optimised_1 =as.numeric(
+    Set_Threshold(roc_outcome_1$data))
+  Threshold_optimised_2 =as.numeric(
+    Set_Threshold(roc_outcome_2$data))
   
-  Threshold_optimised =as.numeric(
-    SELECT_THRESHOLD(roc_outcome$data))
-  prediction_train$set_threshold(Threshold_optimised)
-  prediction_test$set_threshold(Threshold_optimised)
+  prediction_train$set_threshold(Threshold_optimised_1)
+  prediction_test$set_threshold(Threshold_optimised_1)
 
-  prediction_train$score(measures)
-  prediction_test$score(measures)
+    prediction_train$score(Measures)
+    prediction_test$score(Measures)
 
-  prediction_train_f$score(measures)
-  prediction_test_f$score(measures)
+  prediction_train_f$set_threshold(Threshold_optimised_2)
+  prediction_test_f$set_threshold(Threshold_optimised_2)
 
-tune_df <- tune_trainer(tsk_Outcome, 50)
-  draw_tuners(tune_df, TITLE = "PN - Pneumonia")
-tune_df <- tune_trainer(tsk_Outcome_f, 50)
-  draw_tuners(tune_df, TITLE = "PN - Pneumonia f")
+    prediction_train_f$score(Measures)
+    prediction_test_f$score(Measures)
+```
+
+```{r Tuning}
+tune_df_1 <- tune_trainer(tsk_Outcome, 50)
+  draw_tuners(tune_df_1, TITLE = Full_label)
+tune_df_2 <- tune_trainer(tsk_Outcome_f, 50)
+  draw_tuners(tune_df_2, TITLE = Full_label)
 
 ```
 
@@ -547,7 +626,7 @@ tsk_Hold <- tsk_Outcome$clone()
 #
 # Define resampling approach
 #  
-cv10 = rsmp("cv", folds = 10) # 10 folds
+#cv10 = rsmp("cv", folds = 10) # 10 folds
 
 rr_Outcome_1 <- resample(
   task = tsk_Outcome$filter(split_Outcome$train),
@@ -570,13 +649,19 @@ tsk_Outcome_f$data()
 rr_Outcome_2$prediction()
 
 
-  rr_Outcome_1$aggregate(measures)
-  rr_Outcome_2$aggregate(measures)
+  rr_Outcome_1$aggregate(Measures)
+  rr_Outcome_2$aggregate(Measures)
 
 autoplot(rr_Outcome_1, type = 'roc') +
-  labs(title = "PN - Pneumonia", subtitle = 'Full data set') +
+  labs(title = Full_label,
+       subtitle = paste0('Full - AUC is ',
+       round(rr_Outcome_1$aggregate(
+           msr('classif.auc')),3))) +
 autoplot(rr_Outcome_2, type = 'roc') +
-  labs(title = "PN - Pneumonia", subtitle = 'Filtered data set') +
+  labs(title = Full_label,
+              subtitle = paste0('Full - AUC is ',
+       round(rr_Outcome_2$aggregate(
+           msr('classif.auc')),3))) +
   plot_annotation(title = 'Resampled ROC curves for full and filtered data')
 
 ####################################
@@ -610,14 +695,16 @@ L1_test <- L1$predict_newdata(newdata =
                   task = tsk_Outcome)
 L1_test
 
-L1_all$score(measures)
-L1_train$score(measures)
-L1_test$score(measures)
+L1_all$score(Measures)
+L1_train$score(Measures)
+L1_test$score(Measures)
 
 L1_all
 L1_train
 L1_test
 ```
+
+
 
 ```{r Predict for HIPE}
 L1$predict_newdata(newdata = H.N,
